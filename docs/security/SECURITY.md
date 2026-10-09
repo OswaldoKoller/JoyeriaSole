@@ -1,0 +1,54 @@
+# Seguridad
+
+## Medidas implementadas
+
+| Área                    | Medida                                                                                                                                                           | Dónde                                   |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| Contraseñas             | Argon2id (19 MiB, t=2, p=1 — parámetros OWASP). Nunca se registran ni se devuelven.                                                                              | `apps/api/src/lib/password.ts`          |
+| Sesiones                | Token aleatorio de 256 bits; en BD solo su hash SHA-256; expiración (12 h por defecto) y revocación en logout; usuarios inactivos pierden acceso inmediatamente. | `plugins/auth.ts`, tabla `sessions`     |
+| Cookie                  | `httpOnly`, `SameSite=Strict`, `Secure` en producción, prefijo `__Host-`, firmada con `AUTH_SECRET`.                                                             | `plugins/auth.ts`                       |
+| Enumeración de usuarios | Mismo mensaje y tiempo de respuesta para correo inexistente y contraseña incorrecta (hash ficticio).                                                             | `auth.service.ts`                       |
+| Fuerza bruta            | Rate limit global 300 req/min por IP; login 10 intentos / 15 min.                                                                                                | `plugins/security.ts`, `auth.routes.ts` |
+| Autorización            | RBAC por **permiso** (no por rol) en cada endpoint con `requirePermission(...)`. Denegaciones logueadas.                                                         | `plugins/auth.ts`                       |
+| CSRF                    | Cookie SameSite=Strict + rechazo de métodos que modifican datos desde orígenes no permitidos.                                                                    | `plugins/security.ts`                   |
+| CORS                    | Lista blanca explícita (`CORS_ORIGIN`). En producción no se necesita (mismo origen).                                                                             | `plugins/security.ts`                   |
+| Cabeceras               | Helmet: CSP estricta, `frame-ancestors 'none'`, HSTS en producción, nosniff, etc.                                                                                | `plugins/security.ts`                   |
+| Validación              | Zod en todo input (body, query, params) y en las respuestas (no se filtran campos no declarados). Límite de cuerpo 1 MiB.                                        | rutas + `fastify-type-provider-zod`     |
+| Inyección SQL           | Prisma parametriza todas las consultas. `$queryRaw` solo con tagged templates; `$executeRawUnsafe` prohibido salvo en tests.                                     | ESLint/revisión                         |
+| XSS                     | React escapa por defecto; prohibido `dangerouslySetInnerHTML`. CSP sin `unsafe-inline` para scripts.                                                             | —                                       |
+| Errores                 | Nunca se exponen stack traces, SQL ni mensajes internos. `requestId` para correlacionar.                                                                         | `plugins/error-handler.ts`              |
+| Logs                    | Redacción automática de `cookie`, `authorization`, `password`, `token`.                                                                                          | `app.ts`                                |
+| Auditoría               | Logins (exitosos y fallidos), logouts; tablas append-only protegidas por trigger.                                                                                | `audit.service.ts`, migración           |
+| Secretos                | Solo por variables de entorno, validadas al arrancar (`AUTH_SECRET` ≥ 32 caracteres). `.env` en `.gitignore`.                                                    | `config/env.ts`                         |
+| Contenedor              | Imagen Alpine, usuario no-root, solo dependencias de producción.                                                                                                 | `Dockerfile`                            |
+| Proxy                   | `TRUST_PROXY` desactivado por defecto (evita falsificar IP con `X-Forwarded-For`).                                                                               | `config/env.ts`                         |
+| Integridad de datos     | CHECK constraints y triggers en BD como última línea de defensa.                                                                                                 | `docs/database/DATABASE.md`             |
+
+## Reglas para desarrolladores
+
+1. Todo endpoint nuevo: `requirePermission(...)` (o justificación explícita si es público) + esquema Zod.
+2. Toda operación que cambie stock, costos, precios, estados o usuarios: **auditoría en la misma transacción**.
+3. Nunca devolver `passwordHash`, `tokenHash` ni datos de sesión. Declarar siempre el esquema de respuesta.
+4. Nunca concatenar SQL. Nunca `eval`, `new Function`, ni `dangerouslySetInnerHTML`.
+5. Nunca registrar datos sensibles en logs.
+6. Nunca commitear `.env`, credenciales, dumps de BD ni backups.
+7. Dependencias nuevas: revisar mantenimiento y `npm audit` antes de agregarlas.
+
+## Riesgos conocidos y aceptados
+
+| Riesgo                                                                                                                                    | Evaluación                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm audit` reporta 4 vulnerabilidades _high_ en `mysql2` y `deepmerge-ts`, dependencias transitivas del **CLI de Prisma 7** (oct. 2026). | `mysql2` solo se usa con bases MySQL (no es nuestro caso). `deepmerge-ts` se usa para combinar la configuración local de Prisma (entrada de confianza). No explotables en este uso. La "solución" de npm es bajar a Prisma 6 (cambio incompatible). **Acción:** actualizar Prisma cuando publique la corrección. |
+| Sin 2FA.                                                                                                                                  | Decisión pendiente P-19.                                                                                                                                                                                                                                                                                         |
+
+## Pendiente para producción
+
+- [ ] Rotación de `AUTH_SECRET` documentada (invalida todas las sesiones).
+- [ ] Cambio obligatorio de contraseña del administrador inicial en el primer ingreso (Fase 1, módulo usuarios).
+- [ ] Limpieza periódica de sesiones vencidas (tarea programada).
+- [ ] Monitoreo de intentos de login fallidos (alerta).
+- [ ] Revisar política de contraseñas (P-19).
+
+## Reporte de vulnerabilidades
+
+Comunicar en privado al responsable técnico del proyecto. No abrir issues públicos con detalles explotables.

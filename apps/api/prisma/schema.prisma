@@ -1,0 +1,599 @@
+// =============================================================================
+// Joyería Sole — Esquema de base de datos (Fase 1: Inventario y Control)
+// Documentación: docs/database/DATABASE.md · Decisiones: docs/decisions/
+//
+// Convenciones:
+//   - Modelos en PascalCase → tablas en snake_case plural (@@map).
+//   - Campos en camelCase → columnas en snake_case (@map).
+//   - IDs UUID v7 (ordenables por tiempo) salvo tablas de alto volumen append-only (BigInt).
+//   - Dinero en Decimal (nunca Float). Moneda única: PENDIENTE (P-10), se asume bolivianos.
+//   - Cantidades de stock en Int (unidades). Ver PENDIENTE P-09.
+// =============================================================================
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// USUARIOS, ROLES Y PERMISOS (ADR-003, ADR-004)
+// -----------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  email        String    @unique @db.VarChar(254)
+  name         String    @db.VarChar(120)
+  passwordHash String    @map("password_hash")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  roles    UserRole[]
+  sessions Session[]
+
+  auditLogs               AuditLog[]
+  inventoryMovements      InventoryMovement[]
+  stockEntriesCreated     StockEntry[]         @relation("StockEntryCreatedBy")
+  stockEntriesConfirmed   StockEntry[]         @relation("StockEntryConfirmedBy")
+  inventoryCountsCreated  InventoryCount[]     @relation("InventoryCountCreatedBy")
+  inventoryCountsApproved InventoryCount[]     @relation("InventoryCountApprovedBy")
+  countedItems            InventoryCountItem[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  code        String  @unique @db.VarChar(50)
+  name        String  @db.VarChar(100)
+  description String?
+  /// Roles del sistema (seed): no se pueden eliminar desde la aplicación.
+  isSystem    Boolean @default(false) @map("is_system")
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  /// Formato `<recurso>:<acción>`. Catálogo en packages/shared/src/permissions.ts.
+  code        String  @unique @db.VarChar(80)
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String @map("user_id") @db.Uuid
+  roleId String @map("role_id") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+/// Sesiones de servidor. La cookie contiene un token aleatorio; aquí solo se guarda su hash SHA-256.
+model Session {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  tokenHash  String    @unique @map("token_hash") @db.Char(64)
+  userId     String    @map("user_id") @db.Uuid
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3)
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  ip         String?   @db.VarChar(64)
+  userAgent  String?   @map("user_agent") @db.VarChar(500)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// -----------------------------------------------------------------------------
+// CATÁLOGO: CATEGORÍAS Y ATRIBUTOS (ADR-005, ADR-006)
+// -----------------------------------------------------------------------------
+
+/// Árbol de categorías. Una subcategoría es una categoría con `parentId`.
+/// Profundidad máxima: PENDIENTE (P-04). La aplicación la validará; la BD no la limita.
+model Category {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  parentId    String?  @map("parent_id") @db.Uuid
+  name        String   @db.VarChar(120)
+  slug        String   @unique @db.VarChar(140)
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  parent     Category?           @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children   Category[]          @relation("CategoryTree")
+  products   Product[]
+  attributes CategoryAttribute[]
+
+  @@unique([parentId, name])
+  @@index([parentId])
+  @@map("categories")
+}
+
+enum AttributeDataType {
+  /// Valor elegido de una lista cerrada (AttributeOption). Único tipo válido como eje de variante.
+  OPTION
+  TEXT
+  NUMBER
+  BOOLEAN
+
+  @@map("attribute_data_type")
+}
+
+/// Definición de atributo: material, talla, color, longitud, piedra...
+model Attribute {
+  id        String            @id @default(uuid(7)) @db.Uuid
+  code      String            @unique @db.VarChar(60)
+  name      String            @db.VarChar(100)
+  dataType  AttributeDataType @map("data_type")
+  /// Unidad para atributos numéricos/medidas (cm, mm, g).
+  unit      String?           @db.VarChar(20)
+  isActive  Boolean           @default(true) @map("is_active")
+  sortOrder Int               @default(0) @map("sort_order")
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  options            AttributeOption[]
+  categories         CategoryAttribute[]
+  productValues      ProductAttributeValue[]
+  variantValues      VariantAttributeValue[]
+  productVariantAxes ProductVariantAxis[]
+
+  @@map("attributes")
+}
+
+/// Valores posibles de un atributo OPTION: "Plata 925", "Oro 18K", "16", "45 cm"...
+model AttributeOption {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  attributeId String   @map("attribute_id") @db.Uuid
+  value       String   @db.VarChar(100)
+  /// Código corto opcional, útil para componer SKU (p. ej. "P925"). Formato de SKU: PENDIENTE (P-05).
+  code        String?  @db.VarChar(20)
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  attribute     Attribute               @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  productValues ProductAttributeValue[]
+  variantValues VariantAttributeValue[]
+
+  @@unique([attributeId, value])
+  @@map("attribute_options")
+}
+
+/// Plantilla: qué atributos aplica una categoría (Anillo → talla, material, piedra, color).
+/// Es una sugerencia para la UI; el producto define sus propios ejes de variante.
+model CategoryAttribute {
+  categoryId           String  @map("category_id") @db.Uuid
+  attributeId          String  @map("attribute_id") @db.Uuid
+  isRequired           Boolean @default(false) @map("is_required")
+  /// Sugerir este atributo como eje de variante para productos de la categoría.
+  isVariantAxisDefault Boolean @default(false) @map("is_variant_axis_default")
+  sortOrder            Int     @default(0) @map("sort_order")
+
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Restrict)
+
+  @@id([categoryId, attributeId])
+  @@index([attributeId])
+  @@map("category_attributes")
+}
+
+// -----------------------------------------------------------------------------
+// PRODUCTOS Y VARIANTES (ADR-001)
+//   Producto  = ficha comercial (nombre, descripción, categoría, atributos comunes).
+//   Variante  = unidad controlable de inventario (SKU, barcode, stock, costo, precio).
+//   Todo producto tiene al menos una variante (los productos "simples" tienen una sola).
+// -----------------------------------------------------------------------------
+
+enum ProductStatus {
+  /// En preparación (p. ej. creado durante un ingreso, aún sin revisar).
+  DRAFT
+  ACTIVE
+  INACTIVE
+
+  @@map("product_status")
+}
+
+model Product {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  categoryId  String        @map("category_id") @db.Uuid
+  name        String        @db.VarChar(200)
+  description String?
+  /// Modelo / referencia comercial del producto.
+  model       String?       @db.VarChar(100)
+  status      ProductStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  category        Category                @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  variants        ProductVariant[]
+  attributeValues ProductAttributeValue[]
+  variantAxes     ProductVariantAxis[]
+
+  @@index([categoryId])
+  @@index([status])
+  @@index([name])
+  @@map("products")
+}
+
+/// Atributos que, para ESTE producto, generan variantes (p. ej. material + talla).
+model ProductVariantAxis {
+  productId   String @map("product_id") @db.Uuid
+  attributeId String @map("attribute_id") @db.Uuid
+  sortOrder   Int    @default(0) @map("sort_order")
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Restrict)
+
+  @@id([productId, attributeId])
+  @@index([attributeId])
+  @@map("product_variant_axes")
+}
+
+/// Atributos descriptivos comunes a todas las variantes (colección, género, tipo de cierre...).
+/// Exactamente uno de optionId / valueText / valueNumber / valueBoolean según Attribute.dataType.
+model ProductAttributeValue {
+  productId    String   @map("product_id") @db.Uuid
+  attributeId  String   @map("attribute_id") @db.Uuid
+  optionId     String?  @map("option_id") @db.Uuid
+  valueText    String?  @map("value_text") @db.VarChar(500)
+  valueNumber  Decimal? @map("value_number") @db.Decimal(12, 3)
+  valueBoolean Boolean? @map("value_boolean")
+
+  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attribute Attribute        @relation(fields: [attributeId], references: [id], onDelete: Restrict)
+  option    AttributeOption? @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@id([productId, attributeId])
+  @@index([attributeId, optionId])
+  @@map("product_attribute_values")
+}
+
+enum VariantStatus {
+  ACTIVE
+  INACTIVE
+
+  @@map("variant_status")
+}
+
+model ProductVariant {
+  id        String        @id @default(uuid(7)) @db.Uuid
+  productId String        @map("product_id") @db.Uuid
+  /// SKU interno. Único en todo el sistema. Formato: PENDIENTE (P-05).
+  sku       String        @unique @db.VarChar(64)
+  /// Código de barras / contenido de QR. Único. Identifica una variante concreta.
+  /// Opcional: no todas las piezas llegan etiquetadas (P-06).
+  barcode   String?       @unique @db.VarChar(64)
+  /// Etiqueta legible derivada de los ejes ("Plata 925 / Talla 16"). Se recalcula al editar ejes.
+  label     String?       @db.VarChar(200)
+  /// Costo unitario total vigente (compra + costos adicionales prorrateados). Ver ADR-008 / P-07.
+  costPrice Decimal       @default(0) @map("cost_price") @db.Decimal(12, 4)
+  salePrice Decimal       @default(0) @map("sale_price") @db.Decimal(12, 2)
+  minStock  Int           @default(0) @map("min_stock")
+  status    VariantStatus @default(ACTIVE)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  product          Product                 @relation(fields: [productId], references: [id], onDelete: Restrict)
+  attributeValues  VariantAttributeValue[]
+  inventory        InventoryBalance?
+  movements        InventoryMovement[]
+  supplierProducts SupplierProduct[]
+  stockEntryItems  StockEntryItem[]
+  countItems       InventoryCountItem[]
+
+  @@index([productId])
+  @@index([status])
+  @@map("product_variants")
+}
+
+/// Valores de los ejes de variante (solo atributos OPTION).
+/// La unicidad de la combinación de ejes dentro de un producto se valida en la capa de servicio.
+model VariantAttributeValue {
+  variantId   String @map("variant_id") @db.Uuid
+  attributeId String @map("attribute_id") @db.Uuid
+  optionId    String @map("option_id") @db.Uuid
+
+  variant   ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  attribute Attribute       @relation(fields: [attributeId], references: [id], onDelete: Restrict)
+  option    AttributeOption @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@id([variantId, attributeId])
+  @@index([attributeId, optionId])
+  @@map("variant_attribute_values")
+}
+
+// -----------------------------------------------------------------------------
+// PROVEEDORES
+// -----------------------------------------------------------------------------
+
+model Supplier {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  name        String   @db.VarChar(200)
+  /// NIT u otro identificador tributario.
+  taxId       String?  @unique @map("tax_id") @db.VarChar(30)
+  contactName String?  @map("contact_name") @db.VarChar(120)
+  phone       String?  @db.VarChar(40)
+  email       String?  @db.VarChar(254)
+  address     String?  @db.VarChar(300)
+  notes       String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  products     SupplierProduct[]
+  stockEntries StockEntry[]
+
+  @@index([name])
+  @@map("suppliers")
+}
+
+/// Relación proveedor ↔ variante: código del proveedor para identificar la pieza al recibirla.
+model SupplierProduct {
+  supplierId   String   @map("supplier_id") @db.Uuid
+  variantId    String   @map("variant_id") @db.Uuid
+  supplierCode String?  @map("supplier_code") @db.VarChar(80)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  supplier Supplier       @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  variant  ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@id([supplierId, variantId])
+  @@unique([supplierId, supplierCode])
+  @@index([variantId])
+  @@map("supplier_products")
+}
+
+// -----------------------------------------------------------------------------
+// INGRESO DE MERCADERÍA (ADR-008)
+//   DRAFT → (verificación, diferencias) → CONFIRMED  (solo aquí se generan movimientos de stock)
+//            └→ CANCELLED
+// -----------------------------------------------------------------------------
+
+enum StockEntryStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+
+  @@map("stock_entry_status")
+}
+
+model StockEntry {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  /// Número correlativo interno legible (ING-000123). Formato: PENDIENTE (P-11).
+  number         Int              @unique @default(autoincrement())
+  supplierId     String           @map("supplier_id") @db.Uuid
+  status         StockEntryStatus @default(DRAFT)
+  /// Tipo de documento de respaldo (factura, nota de remisión...). Catálogo: PENDIENTE (P-12).
+  documentType   String?          @map("document_type") @db.VarChar(40)
+  documentNumber String?          @map("document_number") @db.VarChar(60)
+  documentDate   DateTime?        @map("document_date") @db.Date
+  receivedAt     DateTime         @default(now()) @map("received_at") @db.Timestamptz(3)
+
+  /// Costos adicionales del ingreso completo. Método de prorrateo: PENDIENTE (P-07).
+  freightCost   Decimal @default(0) @map("freight_cost") @db.Decimal(12, 2)
+  packagingCost Decimal @default(0) @map("packaging_cost") @db.Decimal(12, 2)
+  otherCosts    Decimal @default(0) @map("other_costs") @db.Decimal(12, 2)
+
+  notes         String?
+  createdById   String    @map("created_by_id") @db.Uuid
+  confirmedById String?   @map("confirmed_by_id") @db.Uuid
+  confirmedAt   DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  cancelledAt   DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  supplier    Supplier         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdBy   User             @relation("StockEntryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  confirmedBy User?            @relation("StockEntryConfirmedBy", fields: [confirmedById], references: [id], onDelete: Restrict)
+  items       StockEntryItem[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([receivedAt])
+  @@map("stock_entries")
+}
+
+model StockEntryItem {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  stockEntryId  String   @map("stock_entry_id") @db.Uuid
+  variantId     String   @map("variant_id") @db.Uuid
+  /// Cantidad según el documento del proveedor (puede no existir).
+  expectedQty   Int?     @map("expected_qty")
+  /// Cantidad verificada físicamente. Es la que ingresa al stock al confirmar.
+  receivedQty   Int      @map("received_qty")
+  /// Costo unitario de compra.
+  unitCost      Decimal  @map("unit_cost") @db.Decimal(12, 4)
+  /// Costo adicional unitario prorrateado (se fija al confirmar).
+  unitExtraCost Decimal? @map("unit_extra_cost") @db.Decimal(12, 4)
+  notes         String?
+
+  stockEntry StockEntry     @relation(fields: [stockEntryId], references: [id], onDelete: Cascade)
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@unique([stockEntryId, variantId])
+  @@index([variantId])
+  @@map("stock_entry_items")
+}
+
+// -----------------------------------------------------------------------------
+// INVENTARIO (ADR-007)
+//   InventoryMovement = libro mayor inmutable (append-only). Fuente de verdad.
+//   InventoryBalance  = saldo actual por variante, actualizado en la MISMA transacción.
+// -----------------------------------------------------------------------------
+
+enum MovementType {
+  INITIAL_STOCK
+  STOCK_ENTRY
+  ADJUSTMENT
+  COUNT_ADJUSTMENT
+  LOSS
+  /// Reservados para la fase de ventas (no se usan en Fase 1).
+  SALE
+  CUSTOMER_RETURN
+  EXCHANGE
+
+  @@map("movement_type")
+}
+
+model InventoryBalance {
+  variantId String   @id @map("variant_id") @db.Uuid
+  quantity  Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@index([quantity])
+  @@map("inventory_balances")
+}
+
+model InventoryMovement {
+  id            BigInt       @id @default(autoincrement())
+  variantId     String       @map("variant_id") @db.Uuid
+  type          MovementType
+  /// Con signo: positivo = entrada, negativo = salida. Nunca 0.
+  quantity      Int
+  balanceBefore Int          @map("balance_before")
+  balanceAfter  Int          @map("balance_after")
+  /// Costo unitario al momento del movimiento (para valorización futura).
+  unitCost      Decimal?     @map("unit_cost") @db.Decimal(12, 4)
+  /// Documento que originó el movimiento (STOCK_ENTRY, INVENTORY_COUNT, ...).
+  referenceType String?      @map("reference_type") @db.VarChar(40)
+  referenceId   String?      @map("reference_id") @db.Uuid
+  reason        String?      @db.VarChar(200)
+  notes         String?
+  userId        String       @map("user_id") @db.Uuid
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  user    User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([variantId, createdAt])
+  @@index([referenceType, referenceId])
+  @@index([type, createdAt])
+  @@index([userId])
+  @@map("inventory_movements")
+}
+
+// -----------------------------------------------------------------------------
+// INVENTARIO FÍSICO (ADR-009)
+//   DRAFT → IN_PROGRESS (conteo) → IN_REVIEW (diferencias) → APPROVED (ajustes) | CANCELLED
+// -----------------------------------------------------------------------------
+
+enum InventoryCountStatus {
+  DRAFT
+  IN_PROGRESS
+  IN_REVIEW
+  APPROVED
+  CANCELLED
+
+  @@map("inventory_count_status")
+}
+
+model InventoryCount {
+  id           String               @id @default(uuid(7)) @db.Uuid
+  number       Int                  @unique @default(autoincrement())
+  status       InventoryCountStatus @default(DRAFT)
+  /// Alcance del conteo (total, por categoría...). Reglas: PENDIENTE (P-13).
+  scope        String?              @db.VarChar(200)
+  notes        String?
+  createdById  String               @map("created_by_id") @db.Uuid
+  approvedById String?              @map("approved_by_id") @db.Uuid
+  startedAt    DateTime?            @map("started_at") @db.Timestamptz(3)
+  approvedAt   DateTime?            @map("approved_at") @db.Timestamptz(3)
+  cancelledAt  DateTime?            @map("cancelled_at") @db.Timestamptz(3)
+  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  createdBy  User                 @relation("InventoryCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy User?                @relation("InventoryCountApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  items      InventoryCountItem[]
+
+  @@index([status])
+  @@map("inventory_counts")
+}
+
+model InventoryCountItem {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  inventoryCountId String    @map("inventory_count_id") @db.Uuid
+  variantId        String    @map("variant_id") @db.Uuid
+  /// Stock del sistema al iniciar el conteo (snapshot).
+  systemQty        Int       @map("system_qty")
+  countedQty       Int?      @map("counted_qty")
+  countedById      String?   @map("counted_by_id") @db.Uuid
+  countedAt        DateTime? @map("counted_at") @db.Timestamptz(3)
+  /// Motivo de la diferencia, obligatorio al aprobar si countedQty ≠ systemQty.
+  differenceReason String?   @map("difference_reason") @db.VarChar(200)
+  notes            String?
+
+  inventoryCount InventoryCount @relation(fields: [inventoryCountId], references: [id], onDelete: Cascade)
+  variant        ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  countedBy      User?          @relation(fields: [countedById], references: [id], onDelete: Restrict)
+
+  @@unique([inventoryCountId, variantId])
+  @@index([variantId])
+  @@map("inventory_count_items")
+}
+
+// -----------------------------------------------------------------------------
+// AUDITORÍA DE NEGOCIO (append-only) — distinta de los logs técnicos (ADR-010)
+// -----------------------------------------------------------------------------
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  /// Null para acciones del sistema o intentos de login fallidos de usuarios inexistentes.
+  userId     String?  @map("user_id") @db.Uuid
+  /// Verbo en formato `<entidad>.<acción>`: product.created, variant.price_changed, auth.login_failed...
+  action     String   @db.VarChar(80)
+  entityType String?  @map("entity_type") @db.VarChar(60)
+  entityId   String?  @map("entity_id") @db.VarChar(64)
+  before     Json?
+  after      Json?
+  metadata   Json?
+  ip         String?  @db.VarChar(64)
+  userAgent  String?  @map("user_agent") @db.VarChar(500)
+  requestId  String?  @map("request_id") @db.VarChar(64)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

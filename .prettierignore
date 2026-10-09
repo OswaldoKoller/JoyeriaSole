@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+package-lock.json
+apps/api/src/generated
+apps/api/prisma/migrations/**/*.sql
+apps/web/test-results
+apps/web/playwright-report
+.claude/settings.local.json

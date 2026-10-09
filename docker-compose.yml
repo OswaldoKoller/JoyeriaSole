@@ -1,0 +1,51 @@
+# Entorno de DESARROLLO local.
+# Solo levanta PostgreSQL: la API y el frontend corren en el host con `npm run dev`
+# (recarga en caliente y depuración más simples que dentro de contenedores).
+#
+# Para probar la imagen de producción localmente:
+#   docker compose --profile prod up --build
+name: joyeria-sole
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-joyeria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definir POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:-joyeria_dev}
+      TZ: UTC
+    ports:
+      - '${POSTGRES_PORT:-5434}:5432'
+    volumes:
+      - db-data:/var/lib/postgresql
+      - ./scripts/db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Imagen de producción (API + frontend compilado). No se usa en el día a día.
+  app:
+    profiles: ['prod']
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      DATABASE_URL: postgresql://${POSTGRES_USER:-joyeria}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-joyeria_dev}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET}
+      CORS_ORIGIN: http://localhost:8080
+      FRONTEND_URL: http://localhost:8080
+      # Solo para prueba local sin HTTPS. En producción real debe quedar en su valor por defecto (true).
+      COOKIE_SECURE: 'false'
+    ports:
+      - '8080:3000'
+
+volumes:
+  db-data:

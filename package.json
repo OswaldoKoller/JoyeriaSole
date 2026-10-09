@@ -1,0 +1,65 @@
+{
+  "name": "joyeria-sole",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sistema de Inventario y Control de Productos — Joyería Sole (Fase 1)",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.12.0",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "dev": "npm run db:up && concurrently -n api,web -c blue,magenta \"npm run dev -w @joyeria/api\" \"npm run dev -w @joyeria/web\"",
+    "dev:api": "npm run dev -w @joyeria/api",
+    "dev:web": "npm run dev -w @joyeria/web",
+    "build": "npm run build -w @joyeria/api && npm run build -w @joyeria/web",
+    "start": "npm run start -w @joyeria/api",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:unit": "npm run test:unit -w @joyeria/api && npm run test -w @joyeria/web",
+    "test:integration": "npm run test:integration -w @joyeria/api",
+    "test:e2e": "npm run test:e2e -w @joyeria/web",
+    "db:up": "docker compose up -d --wait db",
+    "db:down": "docker compose down",
+    "db:generate": "npm run db:generate -w @joyeria/api",
+    "db:migrate": "npm run db:migrate -w @joyeria/api",
+    "db:deploy": "npm run db:deploy -w @joyeria/api",
+    "db:seed": "npm run db:seed -w @joyeria/api",
+    "db:reset": "npm run db:reset -w @joyeria/api",
+    "db:studio": "npm run db:studio -w @joyeria/api",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build",
+    "prepare": "husky || exit 0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css,html}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^10.0.5",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.1"
+  }
+}

@@ -1,0 +1,2 @@
+# Verifica tipos antes de subir cambios al remoto.
+npm run typecheck

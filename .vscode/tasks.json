@@ -1,0 +1,38 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev: API + Web",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    { "label": "db: levantar PostgreSQL", "type": "npm", "script": "db:up", "problemMatcher": [] },
+    { "label": "db: migrar", "type": "npm", "script": "db:migrate", "problemMatcher": [] },
+    { "label": "db: seed", "type": "npm", "script": "db:seed", "problemMatcher": [] },
+    {
+      "label": "db: Prisma Studio",
+      "type": "npm",
+      "script": "db:studio",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    { "label": "lint", "type": "npm", "script": "lint", "problemMatcher": ["$eslint-stylish"] },
+    { "label": "typecheck", "type": "npm", "script": "typecheck", "problemMatcher": ["$tsc"] },
+    {
+      "label": "test",
+      "type": "npm",
+      "script": "test",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "verificar todo (check)",
+      "type": "npm",
+      "script": "check",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

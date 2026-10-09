@@ -1,0 +1,16 @@
+{
+  "name": "@joyeria/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Contratos compartidos entre API y frontend: permisos, códigos de error y esquemas de validación.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  }
+}

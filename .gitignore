@@ -1,0 +1,48 @@
+# Dependencias
+node_modules/
+
+# Builds
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Prisma (cliente generado: se regenera con `npm run db:generate`)
+apps/api/src/generated/
+
+# Variables de entorno (NUNCA subir secretos)
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Playwright
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+apps/web/playwright/.cache/
+
+# Archivos subidos en desarrollo (si se habilita almacenamiento local)
+uploads/
+
+# Backups locales
+backups/
+*.dump
+*.sql.gz
+
+# Editor / SO
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Claude Code: configuración local personal
+.claude/settings.local.json

@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+
+/* Tokens de diseño. Paleta e identidad visual definitivas: PENDIENTE (P-16). */
+@theme {
+  --color-brand-50: #fdf8ec;
+  --color-brand-100: #f9edc9;
+  --color-brand-500: #b8860b;
+  --color-brand-600: #9a7009;
+  --color-brand-700: #7a5807;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-stone-50 text-stone-900 antialiased;
+}

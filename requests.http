@@ -1,0 +1,22 @@
+### Peticiones manuales a la API (extensión REST Client de VS Code).
+### Requiere `npm run dev`. La cookie de sesión se reutiliza automáticamente entre peticiones.
+
+@base = http://localhost:3000/api/v1
+
+### Estado del servicio
+GET {{base}}/health
+
+### Iniciar sesión (usar las credenciales SEED_ADMIN_* de tu .env)
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@joyeriasole.local",
+  "password": "{{$dotenv SEED_ADMIN_PASSWORD}}"
+}
+
+### Usuario actual
+GET {{base}}/auth/me
+
+### Cerrar sesión
+POST {{base}}/auth/logout
