@@ -66,6 +66,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Instalar Chromium para E2E
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E con PostgreSQL efímero y servidores exclusivos
+        run: npm run qa:e2e
+
   docker:
     name: Imagen Docker de producción
     runs-on: ubuntu-latest

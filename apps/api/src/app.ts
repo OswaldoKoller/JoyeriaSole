@@ -12,6 +12,7 @@ import {
 import type { Env } from './config/env.ts';
 import { authRoutes } from './modules/auth/auth.routes.ts';
 import { healthRoutes } from './modules/health/health.routes.ts';
+import { suppliersRoutes } from './modules/suppliers/suppliers.routes.ts';
 import { authPlugin } from './plugins/auth.ts';
 import { errorHandlerPlugin } from './plugins/error-handler.ts';
 import { prismaPlugin } from './plugins/prisma.ts';
@@ -67,6 +68,7 @@ export async function buildApp(env: Env) {
     async (api) => {
       await api.register(healthRoutes);
       await api.register(authRoutes, { prefix: '/auth', sessionTtlHours: env.SESSION_TTL_HOURS });
+      await api.register(suppliersRoutes, { prefix: '/suppliers' });
     },
     { prefix: API_PREFIX },
   );

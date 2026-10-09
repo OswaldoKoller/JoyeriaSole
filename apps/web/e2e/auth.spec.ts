@@ -11,8 +11,6 @@ test.describe('autenticación', () => {
   });
 
   test('el administrador inicia y cierra sesión', async ({ page }) => {
-    test.skip(!email || !password, 'Definir SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD en .env');
-
     await page.goto('/login');
     await page.getByLabel('Correo electrónico').fill(email);
     await page.getByLabel('Contraseña').fill(password);

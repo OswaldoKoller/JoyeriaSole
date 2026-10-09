@@ -39,7 +39,7 @@ const { cookie } = await login(app, user.email, password);
 const res = await app.inject({ method: 'GET', url: '/api/v1/...', headers: { cookie } });
 ```
 
-- `TEST_DATABASE_URL` debe contener "test" (si no, la suite aborta).
+- `TEST_DATABASE_URL` exige PostgreSQL local, base exacta joyeria_test y schema public. Usar npm run qa para crear una instancia efímera; ver docs/testing/TESTING.md.
 - Los archivos de integración corren en serie; cada uno limpia la BD en `beforeEach`.
 - El seed **no** se ejecuta en tests: crear los datos necesarios en cada test.
 

@@ -48,7 +48,7 @@ Estado bloqueado requiere causa, responsable y condición de desbloqueo. Las par
 
 ## Mantenimiento
 
-Las skills sole-* enlazan referencias Claude y añaden correcciones concretas: P-09 y P-10 no están resueltos; test:unit incluye web; E2E usa desarrollo; bloqueo de fila no cubre saldo inexistente. Al cambiar una referencia, revisar su adaptador. Actualizar reglas solo por decisiones aprobadas o fallos demostrados; no acumular procedimientos especulativos.
+Las skills sole-* enlazan referencias Claude y añaden correcciones concretas: P-09 y P-10 no están resueltos; test:unit incluye web; bloqueo de fila no cubre saldo inexistente. El runner npm run qa aísla PostgreSQL y E2E (ver [pruebas](../testing/TESTING.md)). Al cambiar una referencia, revisar su adaptador. Actualizar reglas solo por decisiones aprobadas o fallos demostrados; no acumular procedimientos especulativos.
 
 Medir por tarea: aceptación satisfecha, defectos escapados, fallos intermitentes reproducidos y tiempo bloqueado por decisiones. Crear nueva automatización únicamente si elimina una repetición comprobada.
 

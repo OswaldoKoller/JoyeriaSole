@@ -7,6 +7,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y
 
 ### Agregado
 
+- Módulo de proveedores: lista con búsqueda, filtros y paginación; alta, edición y cambio de estado desde la web; API protegida por permisos con auditoría transaccional y pruebas E2E.
+
 - Preparación del entorno para la Fase 1 (2026-10-06):
   - Monorepo npm workspaces: `apps/api` (Fastify 5 + Prisma 7), `apps/web` (React 19 + Vite 8 +
     Tailwind 4), `packages/shared`.

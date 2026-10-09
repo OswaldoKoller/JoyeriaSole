@@ -3,8 +3,8 @@
 Sistema web para gestionar el catálogo (productos y variantes), los ingresos de mercadería, el
 inventario y su trazabilidad en una tienda de joyería y productos de moda.
 
-**Estado:** entorno preparado para la **Fase 1**. Las funcionalidades de negocio aún no están
-implementadas: esperan la aprobación de las decisiones de
+**Estado:** primer módulo de la **Fase 1** implementado: proveedores. Catálogo, inventario,
+ingresos y usuarios siguen pendientes; sus decisiones de negocio se registran en
 [`docs/business/PENDIENTES.md`](docs/business/PENDIENTES.md).
 
 ## Stack
@@ -27,6 +27,10 @@ Ingresar con `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` de tu `.env`.
 
 Guía completa: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+Preparación actual y entregas: [Fase 1](docs/engineering/PHASE-1-PREPARATION.md).
+Para validar sin usar datos de desarrollo: Docker iniciado, `npx playwright install chromium`
+y `npm run qa`. El comando crea y elimina su propia base de pruebas.
+
 ## Estructura
 
 ```
@@ -39,13 +43,14 @@ docs/            Arquitectura, BD, negocio, API, seguridad, despliegue, pruebas,
 
 ## Comandos principales
 
-|                    |                                                             |
-| ------------------ | ----------------------------------------------------------- |
-| `npm run dev`      | Desarrollo (API + web)                                      |
-| `npm run check`    | Lint + formato + tipos + tests + build (lo mismo que el CI) |
-| `npm test`         | Tests unitarios, de integración y de componentes            |
-| `npm run test:e2e` | Tests E2E (Playwright)                                      |
-| `npm run build`    | Compilación de producción                                   |
+|                  |                                                             |
+| ---------------- | ----------------------------------------------------------- |
+| `npm run dev`    | Desarrollo (API + web)                                      |
+| `npm run check`  | Lint + formato + tipos + tests + build; requiere BD de test |
+| `npm test`       | Tests unitarios, de integración y de componentes            |
+| `npm run qa`     | Check + E2E en PostgreSQL efímero                           |
+| `npm run qa:e2e` | Solo E2E, con base efímera y servidores propios             |
+| `npm run build`  | Compilación de producción                                   |
 
 ## Documentación
 

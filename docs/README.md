@@ -1,5 +1,7 @@
 # Documentación
 
+Trabajo actual: [preparación de Fase 1](engineering/PHASE-1-PREPARATION.md).
+
 Preparación y diagnóstico: [arnés de desarrollo](engineering/HARNESS.md),
 [plan de verificación](engineering/VERIFICATION-PLAN.md) y [plantilla de tarea](engineering/TASK-TEMPLATE.md).
 

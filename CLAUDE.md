@@ -8,7 +8,7 @@
 Sistema web de inventario para una tienda de joyería y productos de moda (Bolivia). Pyme, pocos
 usuarios, acceso desde Internet.
 
-**Fase actual:** entorno preparado. **Fase 1 (pendiente de aprobación):** catálogo (categorías,
+**Fase actual:** F1-01 Proveedores implementado tras aprobación del usuario el 2026-10-09; ver `docs/engineering/PHASE-1-PREPARATION.md`. **Alcance de Fase 1:** catálogo (categorías,
 atributos, productos, variantes, SKU, códigos de barras, proveedores, costos, precios, stock mínimo,
 estado), ingresos de mercadería, inventario (saldos, movimientos, ajustes, inventario físico),
 control (sin stock, bajo mínimo, historial) y usuarios/roles/permisos.

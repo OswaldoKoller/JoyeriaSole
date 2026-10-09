@@ -20,3 +20,15 @@ GET {{base}}/auth/me
 
 ### Cerrar sesión
 POST {{base}}/auth/logout
+
+### Proveedores (requiere iniciar sesión)
+GET {{base}}/suppliers?q=&status=all&page=1&pageSize=25
+
+### Crear proveedor
+POST {{base}}/suppliers
+Content-Type: application/json
+
+{
+  "name": "Proveedor de ejemplo",
+  "taxId": "NIT-EJEMPLO"
+}

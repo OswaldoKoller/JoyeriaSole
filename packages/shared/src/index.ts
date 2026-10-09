@@ -6,3 +6,4 @@ z.config(z.locales.es());
 export * from './api.ts';
 export * from './permissions.ts';
 export * from './schemas/auth.ts';
+export * from './schemas/suppliers.ts';

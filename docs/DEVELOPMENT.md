@@ -1,5 +1,11 @@
 # Guía de desarrollo
 
+Para verificar cambios de Fase 1, usar `npm run qa`: ejecuta check y E2E contra
+PostgreSQL efímero con credenciales sintéticas. Docker debe estar iniciado y Chromium
+instalado (`npx playwright install chromium`). Ver [estrategia de pruebas](testing/TESTING.md).
+`npm run test:e2e` es el comando interno y requiere entorno de pruebas explícito;
+para ejecutar solo navegador con preparación automática usar `npm run qa:e2e`.
+
 ## Requisitos
 
 - Node.js ≥ 22.12 (ver `.nvmrc`) y npm ≥ 10

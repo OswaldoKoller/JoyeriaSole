@@ -1,6 +1,6 @@
 # Joyería Sole — instrucciones para agentes
 
-Sistema de inventario de joyería en Bolivia. Leer [CLAUDE.md](CLAUDE.md) para convenciones e invariantes y [DOMINIO.md](docs/business/DOMINIO.md) para alcance. Esta configuración prepara el trabajo; no aprueba implementar la Fase 1.
+Sistema de inventario de joyería en Bolivia. Leer [CLAUDE.md](CLAUDE.md) para convenciones e invariantes y [DOMINIO.md](docs/business/DOMINIO.md) para alcance. Preparativos de Fase 1 autorizados el 2026-10-08 y módulo F1-01 Proveedores aprobado el 2026-10-09; ver [plan actual](docs/engineering/PHASE-1-PREPARATION.md). Las decisiones P-xx requieren su resolución explícita.
 
 ## Contexto y fuentes
 
@@ -25,7 +25,7 @@ Stock por variante; movimiento, saldo y auditoría atómicos. No modificar migra
 ## Ejecución y seguridad
 
 - Revisar scripts y destino antes de ejecutar integración: los helpers hacen TRUNCATE. Base desechable con host/nombre exactos verificados y diferente de desarrollo/producción; no basta buscar la palabra test.
-- E2E actual usa desarrollo: aislar sus datos y procesos antes de ejecutar flujos que muten información.
+- Usar npm run qa para controles y E2E con PostgreSQL efímero; E2E exige destino de test explícito y servidores propios. No reutilizar datos de desarrollo.
 - Nunca volcar .env, tokens, cookies o el adjunto en informes. Revocación de credenciales expuestas corresponde al titular.
 - No reset, borrado de datos, commit, push ni despliegue sin autorización aplicable. No repetir aprobaciones ya otorgadas.
 - No reducir controles o ignorar fallos para obtener verde. Tras un fallo, diagnosticar antes de reintentar.

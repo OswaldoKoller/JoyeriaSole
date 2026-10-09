@@ -7,7 +7,8 @@ export function HomePage() {
     <section className="space-y-2">
       <h1 className="text-xl font-semibold">Bienvenido/a, {user?.name}</h1>
       <p className="text-sm text-stone-600">
-        Entorno preparado. Los módulos de inventario se habilitarán en la Fase 1.
+        El módulo de proveedores está disponible desde el menú. Catálogo e inventario se habilitarán
+        en próximas entregas.
       </p>
       <p className="text-xs text-stone-400">Roles: {user?.roles.join(', ')}</p>
     </section>

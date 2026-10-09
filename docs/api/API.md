@@ -48,12 +48,16 @@ Error:
 
 ## Endpoints implementados
 
-| Método | Ruta           | Auth   | Descripción                                                                 |
-| ------ | -------------- | ------ | --------------------------------------------------------------------------- |
-| GET    | `/health`      | —      | Estado del servicio y de la BD (`200` ok / `503` degradado)                 |
-| POST   | `/auth/login`  | —      | `{ email, password }` → `204` + cookie. Límite: 10 intentos / 15 min por IP |
-| POST   | `/auth/logout` | sesión | Revoca la sesión → `204`                                                    |
-| GET    | `/auth/me`     | sesión | Usuario actual con roles y permisos                                         |
+| Método | Ruta             | Auth               | Descripción                                                                 |
+| ------ | ---------------- | ------------------ | --------------------------------------------------------------------------- |
+| GET    | `/health`        | —                  | Estado del servicio y de la BD (`200` ok / `503` degradado)                 |
+| POST   | `/auth/login`    | —                  | `{ email, password }` → `204` + cookie. Límite: 10 intentos / 15 min por IP |
+| POST   | `/auth/logout`   | sesión             | Revoca la sesión → `204`                                                    |
+| GET    | `/auth/me`       | sesión             | Usuario actual con roles y permisos                                         |
+| GET    | `/suppliers`     | `suppliers:read`   | Lista paginada; filtros `q` (nombre o NIT), `status=all                     | active | inactive`, `page`, `pageSize` |
+| GET    | `/suppliers/:id` | `suppliers:read`   | Detalle de un proveedor; 404 si no existe                                   |
+| POST   | `/suppliers`     | `suppliers:manage` | Crea un proveedor y registra auditoría; 201                                 |
+| PATCH  | `/suppliers/:id` | `suppliers:manage` | Edita campos o `isActive`; auditoría con antes/después                      |
 
 Ejemplos ejecutables: [`requests.http`](../../requests.http) (extensión REST Client).
 
@@ -63,7 +67,6 @@ Ejemplos ejecutables: [`requests.http`](../../requests.http) (extensión REST Cl
 | ----------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | Usuarios          | `/users`                                                                                                    | `users:read`, `users:manage`               |
 | Catálogo          | `/categories`, `/attributes`, `/products`, `/products/:id/variants`, `/variants/lookup?code=` (SKU/barcode) | `catalog:*`, `prices:manage`, `costs:read` |
-| Proveedores       | `/suppliers`                                                                                                | `suppliers:*`                              |
 | Ingresos          | `/stock-entries`, `/stock-entries/:id/items`, `/stock-entries/:id/confirm`, `/cancel`                       | `stock-entries:*`                          |
 | Inventario        | `/inventory` (saldos, filtros sin stock / bajo mínimo), `/inventory/movements`, `/inventory/adjustments`    | `inventory:*`                              |
 | Inventario físico | `/inventory-counts`, `/:id/start`, `/:id/items`, `/:id/review`, `/:id/approve`                              | `inventory-counts:*`                       |
