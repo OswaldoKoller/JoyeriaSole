@@ -8,6 +8,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y
 ### Agregado
 
 - Módulo de proveedores: lista con búsqueda, filtros y paginación; alta, edición y cambio de estado desde la web; API protegida por permisos con auditoría transaccional y pruebas E2E.
+- Menú de navegación para las páginas disponibles (Inicio y Proveedores), con estado activo y acceso según permisos; Inicio muestra un acceso directo a Proveedores.
+- Consulta y gestión de usuarios: búsqueda, filtros, edición de nombre/estado, revocación de sesiones y varios roles con auditoría.
+- Alta de usuarios y cambio de contraseña propia: mínimo 10 caracteres, sesiones fijas de 3 horas y nuevo login tras el cambio. API y pantallas implementadas; recorrido E2E final por verificar.
+- Primera porción de catálogo: categorías de hasta dos niveles y consulta/alta de valores de atributos de tipo lista. Pendiente de pruebas funcionales.
+- Ficha simple de producto con variante base, SKU correlativo, precio en bolivianos y código de barras del proveedor u opción de generar uno propio con vista previa Code 128 y descarga SVG.
+- Ejes de variante por atributos de lista y creación de combinaciones únicas, cada una con SKU correlativo.
+- Inventario inicial por variante, saldos, alertas sin stock/bajo mínimo e historial. Movimiento, saldo y auditoría se guardan atómicamente.
 
 - Preparación del entorno para la Fase 1 (2026-10-06):
   - Monorepo npm workspaces: `apps/api` (Fastify 5 + Prisma 7), `apps/web` (React 19 + Vite 8 +

@@ -14,6 +14,7 @@ El arnés conecta requisitos, contexto para agentes, herramientas, comprobacione
 | [Agentes Claude](../../.claude/agents/)         | Ocho perfiles existentes preservados                                                |
 | [Plantilla de tarea](TASK-TEMPLATE.md)          | Contrato de entrada y evidencia de cierre                                           |
 | [Plan](VERIFICATION-PLAN.md)                    | Secuencia de diagnóstico y backlog inicial                                          |
+| [Roadmap](ROADMAP.md)                           | Orden de entregas, puertas de calidad y aceptación del cliente                      |
 
 Skills adicionales instaladas en el entorno personal mediante el instalador oficial de openai/skills: security-best-practices y security-threat-model. Son auxiliares para revisiones solicitadas; las skills locales no dependen de ellas. No se instalaron conectores ni proveedores de hosting por no existir necesidad confirmada. Git/PR/CI ya cuentan con skills del cliente.
 

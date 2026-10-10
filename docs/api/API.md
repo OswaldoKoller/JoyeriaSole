@@ -48,29 +48,53 @@ Error:
 
 ## Endpoints implementados
 
-| Método | Ruta             | Auth               | Descripción                                                                 |
-| ------ | ---------------- | ------------------ | --------------------------------------------------------------------------- |
-| GET    | `/health`        | —                  | Estado del servicio y de la BD (`200` ok / `503` degradado)                 |
-| POST   | `/auth/login`    | —                  | `{ email, password }` → `204` + cookie. Límite: 10 intentos / 15 min por IP |
-| POST   | `/auth/logout`   | sesión             | Revoca la sesión → `204`                                                    |
-| GET    | `/auth/me`       | sesión             | Usuario actual con roles y permisos                                         |
-| GET    | `/suppliers`     | `suppliers:read`   | Lista paginada; filtros `q` (nombre o NIT), `status=all                     | active | inactive`, `page`, `pageSize` |
-| GET    | `/suppliers/:id` | `suppliers:read`   | Detalle de un proveedor; 404 si no existe                                   |
-| POST   | `/suppliers`     | `suppliers:manage` | Crea un proveedor y registra auditoría; 201                                 |
-| PATCH  | `/suppliers/:id` | `suppliers:manage` | Edita campos o `isActive`; auditoría con antes/después                      |
+| Método | Ruta                                      | Auth                            | Descripción                                                                 |
+| ------ | ----------------------------------------- | ------------------------------- | --------------------------------------------------------------------------- |
+| GET    | `/health`                                 | —                               | Estado del servicio y de la BD (`200` ok / `503` degradado)                 |
+| POST   | `/auth/login`                             | —                               | `{ email, password }` → `204` + cookie. Límite: 10 intentos / 15 min por IP |
+| POST   | `/auth/change-password`                   | sesión                          | Valida contraseña actual; revoca todas las sesiones y exige nuevo login     |
+| POST   | `/auth/logout`                            | sesión                          | Revoca la sesión → `204`                                                    |
+| GET    | `/auth/me`                                | sesión                          | Usuario actual con roles y permisos                                         |
+| GET    | `/suppliers`                              | `suppliers:read`                | Lista paginada; filtros por texto, estado y página                          |
+| GET    | `/suppliers/:id`                          | `suppliers:read`                | Detalle de un proveedor; 404 si no existe                                   |
+| POST   | `/suppliers`                              | `suppliers:manage`              | Crea un proveedor y registra auditoría; 201                                 |
+| PATCH  | `/suppliers/:id`                          | `suppliers:manage`              | Edita campos o `isActive`; auditoría con antes/después                      |
+| GET    | `/users`                                  | `users:read`                    | Lista paginada; filtros por nombre/correo y estado                          |
+| GET    | `/users/:id`                              | `users:read`                    | Consulta usuario y roles; no expone contraseña ni sesiones                  |
+| POST   | `/users`                                  | `users:manage` + `roles:manage` | Crea usuario con roles y contraseña inicial; audita sin exponer hash        |
+| GET    | `/users/roles`                            | `users:read` + `roles:manage`   | Roles disponibles para asignación múltiple                                  |
+| PATCH  | `/users/:id`                              | `users:manage`                  | Edita nombre/estado; revoca sesiones al desactivar; audita el cambio        |
+| PUT    | `/users/:id/roles`                        | `users:manage` + `roles:manage` | Reemplaza la asignación de roles; protege al último administrador           |
+| GET    | `/categories`                             | `catalog:read`                  | Lista categorías y subcategorías                                            |
+| GET    | `/categories/:id`                         | `catalog:read`                  | Consulta una categoría                                                      |
+| POST   | `/categories`                             | `catalog:manage`                | Crea categoría principal o subcategoría; máximo dos niveles                 |
+| PATCH  | `/categories/:id`                         | `catalog:manage`                | Edita nombre, descripción u orden                                           |
+| GET    | `/attributes`                             | `catalog:read`                  | Consulta definiciones y valores de atributos                                |
+| POST   | `/attributes/:id/options`                 | `catalog:manage`                | Agrega valor a atributo de tipo lista                                       |
+| GET    | `/products`                               | `catalog:read`                  | Lista y busca por nombre, SKU o código de barras                            |
+| GET    | `/products/:id`                           | `catalog:read`                  | Consulta producto y variantes                                               |
+| GET    | `/products/lookup?code=`                  | `catalog:read`                  | Busca exactamente un SKU o código de barras                                 |
+| POST   | `/products`                               | `catalog:manage`                | Crea ficha y variante base con SKU correlativo                              |
+| PATCH  | `/products/:id`                           | `catalog:manage`                | Edita nombre, modelo o descripción                                          |
+| PATCH  | `/products/variants/:id/barcode`          | `catalog:manage`                | Registra código recibido del proveedor si no existe otro                    |
+| POST   | `/products/variants/:id/barcode/generate` | `catalog:manage`                | Genera código propio tras guardar producto activo                           |
+| POST   | `/products/:id/axes`                      | `catalog:manage`                | Define los ejes y valores de la variante base                               |
+| POST   | `/products/:id/variants`                  | `catalog:manage`                | Agrega combinación única con SKU correlativo                                |
+| GET    | `/inventory`                              | `inventory:read`                | Saldos por variante, búsqueda y filtros sin stock / bajo mínimo             |
+| GET    | `/inventory/:variantId/movements`         | `inventory:read`                | Historial paginado de movimientos                                           |
+| POST   | `/inventory/:variantId/initial`           | `inventory:adjust`              | Entrada inicial única; actualiza saldo y audita en transacción              |
 
 Ejemplos ejecutables: [`requests.http`](../../requests.http) (extensión REST Client).
 
-## Endpoints previstos para la Fase 1 (pendientes de aprobación)
+## Endpoints previstos para la Fase 1 (pendientes de implementar)
 
-| Módulo            | Rutas tentativas                                                                                            | Permisos                                   |
-| ----------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| Usuarios          | `/users`                                                                                                    | `users:read`, `users:manage`               |
-| Catálogo          | `/categories`, `/attributes`, `/products`, `/products/:id/variants`, `/variants/lookup?code=` (SKU/barcode) | `catalog:*`, `prices:manage`, `costs:read` |
-| Ingresos          | `/stock-entries`, `/stock-entries/:id/items`, `/stock-entries/:id/confirm`, `/cancel`                       | `stock-entries:*`                          |
-| Inventario        | `/inventory` (saldos, filtros sin stock / bajo mínimo), `/inventory/movements`, `/inventory/adjustments`    | `inventory:*`                              |
-| Inventario físico | `/inventory-counts`, `/:id/start`, `/:id/items`, `/:id/review`, `/:id/approve`                              | `inventory-counts:*`                       |
-| Auditoría         | `/audit-logs`                                                                                               | `audit:read`                               |
+| Módulo            | Rutas tentativas                                                                      | Permisos                                   |
+| ----------------- | ------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Catálogo          | Atributos descriptivos por producto; edición de precios según P-25                    | `catalog:*`, `prices:manage`, `costs:read` |
+| Ingresos          | `/stock-entries`, `/stock-entries/:id/items`, `/stock-entries/:id/confirm`, `/cancel` | `stock-entries:*`                          |
+| Inventario        | Ajustes posteriores y salidas de stock; P-01 parcial                                  | `inventory:*`                              |
+| Inventario físico | `/inventory-counts`, `/:id/start`, `/:id/items`, `/:id/review`, `/:id/approve`        | `inventory-counts:*`                       |
+| Auditoría         | `/audit-logs`                                                                         | `audit:read`                               |
 
 ## Cómo agregar un endpoint
 

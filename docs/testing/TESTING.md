@@ -30,8 +30,9 @@ API_PROXY_TARGET configura el proxy de Vite en QA; desarrollo mantiene :3000.
 
 `npm test` ejecuta unitarias + integración + componentes. E2E se ejecuta aparte (más lento).
 
-La suite web usa threads con un worker: en Windows se observó un timeout de arranque
-con forks antes de ejecutar casos. Se conservan aserciones y plazos de las pruebas.
+La suite web usa un worker thread compartido entre archivos. En Windows se observó un timeout
+al arrancar un worker nuevo por archivo; los tests limpian el DOM y restauran mocks tras cada caso.
+Se conservan aserciones y plazos de las pruebas.
 
 ## Base de datos de pruebas
 

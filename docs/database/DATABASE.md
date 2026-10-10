@@ -60,6 +60,8 @@ categories ─┐ (parent_id → árbol: categoría / subcategoría)
 | `product_variants`         | **Unidad de inventario**: `sku` único, `barcode` único opcional, costo, precio, stock mínimo, estado. |
 | `variant_attribute_values` | Valor de cada eje para la variante (solo opciones).                                                   |
 
+La migración `20261010000000_product_variant_sku_sequence` agrega la secuencia PostgreSQL para el SKU correlativo `SKU-000001`. Las secuencias no reutilizan números de transacciones canceladas; por eso puede haber huecos sin duplicados. La variante base se crea en la misma transacción que el producto.
+
 ### Proveedores e ingresos
 
 | Tabla               | Propósito                                                                                                       |

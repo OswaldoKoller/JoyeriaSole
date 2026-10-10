@@ -1,6 +1,6 @@
 # Joyería Sole — instrucciones para agentes
 
-Sistema de inventario de joyería en Bolivia. Leer [CLAUDE.md](CLAUDE.md) para convenciones e invariantes y [DOMINIO.md](docs/business/DOMINIO.md) para alcance. Preparativos de Fase 1 autorizados el 2026-10-08 y módulo F1-01 Proveedores aprobado el 2026-10-09; ver [plan actual](docs/engineering/PHASE-1-PREPARATION.md). Las decisiones P-xx requieren su resolución explícita.
+Sistema de inventario de joyería en Bolivia. Leer [CLAUDE.md](CLAUDE.md) para convenciones e invariantes y [DOMINIO.md](docs/business/DOMINIO.md) para alcance. Preparativos de Fase 1 autorizados el 2026-10-08, módulo F1-01 Proveedores aprobado y continuación F1-02 indicada el 2026-10-09; ver [plan actual](docs/engineering/PHASE-1-PREPARATION.md). Las decisiones P-xx requieren su resolución explícita.
 
 ## Contexto y fuentes
 
@@ -9,8 +9,9 @@ Sistema de inventario de joyería en Bolivia. Leer [CLAUDE.md](CLAUDE.md) para c
 - Procedimientos específicos: [skills locales](.agents/skills/) que enlazan las referencias existentes de Claude. Cargar solo el área pertinente.
 - Operación de agentes y validación: [HARNESS.md](docs/engineering/HARNESS.md).
 - Plan de diagnóstico: [VERIFICATION-PLAN.md](docs/engineering/VERIFICATION-PLAN.md).
+- Flujo de entregas y criterios de cierre: [ROADMAP.md](docs/engineering/ROADMAP.md).
 
-Las instrucciones del usuario prevalecen. Si documentos discrepan, registrar la discrepancia; no convertir P-03, P-08, P-09 o P-10 en reglas por suposición. Los ajustes explícitos de las skills sole-* corrigen ejemplos provisionales de sus referencias.
+Las instrucciones del usuario prevalecen. Si documentos discrepan, registrar la discrepancia; aplicar las [resoluciones del cliente](docs/business/RESOLUCIONES-2026-10-09.md) sin confundir decisión aprobada con regla ya implementada. P-03 y P-07 siguen pendientes; P-10 aprobó solo bolivianos y P-19 aprobó 3 horas fijas, mínimo 10 caracteres y sin 2FA. Los ajustes explícitos de las skills sole-* corrigen ejemplos provisionales de sus referencias.
 
 ## Ciclo de trabajo
 

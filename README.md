@@ -3,8 +3,7 @@
 Sistema web para gestionar el catálogo (productos y variantes), los ingresos de mercadería, el
 inventario y su trazabilidad en una tienda de joyería y productos de moda.
 
-**Estado:** primer módulo de la **Fase 1** implementado: proveedores. Catálogo, inventario,
-ingresos y usuarios siguen pendientes; sus decisiones de negocio se registran en
+**Estado:** Proveedores implementado. F1-02 incluye alta y gestión de usuarios, varios roles y cambio de contraseña; su verificación E2E final sigue pendiente. F1-03 incluye categorías, atributos, productos y ejes de variantes. F1-04 inicia con saldos, alertas, historial y stock inicial; ingresos y ajustes posteriores siguen pendientes. Las decisiones de negocio se registran en
 [`docs/business/PENDIENTES.md`](docs/business/PENDIENTES.md).
 
 ## Stack
@@ -28,6 +27,7 @@ Ingresar con `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` de tu `.env`.
 Guía completa: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 Preparación actual y entregas: [Fase 1](docs/engineering/PHASE-1-PREPARATION.md).
+Orden y criterios de aceptación: [roadmap de Fase 1](docs/engineering/ROADMAP.md).
 Para validar sin usar datos de desarrollo: Docker iniciado, `npx playwright install chromium`
 y `npm run qa`. El comando crea y elimina su propia base de pruebas.
 

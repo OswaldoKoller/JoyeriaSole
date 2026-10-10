@@ -8,7 +8,7 @@
 Sistema web de inventario para una tienda de joyería y productos de moda (Bolivia). Pyme, pocos
 usuarios, acceso desde Internet.
 
-**Fase actual:** F1-01 Proveedores implementado tras aprobación del usuario el 2026-10-09; ver `docs/engineering/PHASE-1-PREPARATION.md`. **Alcance de Fase 1:** catálogo (categorías,
+**Fase actual:** F1-01 Proveedores implementado y F1-02 Usuarios en desarrollo tras indicación del cliente el 2026-10-09; ver `docs/engineering/PHASE-1-PREPARATION.md`. **Alcance de Fase 1:** catálogo (categorías,
 atributos, productos, variantes, SKU, códigos de barras, proveedores, costos, precios, stock mínimo,
 estado), ingresos de mercadería, inventario (saldos, movimientos, ajustes, inventario físico),
 control (sin stock, bajo mínimo, historial) y usuarios/roles/permisos.
@@ -70,12 +70,11 @@ Shell en Windows: Git Bash/PowerShell. `.env` está en la **raíz** del repo.
 
 ## Decisiones PENDIENTES — no convertir en reglas
 
-Ver `docs/business/PENDIENTES.md` (P-01 … P-27). Las más sensibles:
+Ver `docs/business/PENDIENTES.md` y `docs/business/RESOLUCIONES-2026-10-09.md`. Las más sensibles que siguen pendientes o parciales:
 
 - **P-03: "Costo total × 2 = precio de venta" — PENDIENTE DE CONFIRMACIÓN.** No implementar como regla.
-- P-05 formato de SKU · P-06 códigos de barras/QR · P-07 prorrateo y método de costeo ·
-  P-08 stock negativo · P-09 unidades (piezas vs. peso/longitud) · P-01/P-02 permisos de roles ·
-  P-13 alcance del inventario físico · P-10 moneda.
+- P-06 detalles de códigos/QR · P-07 prorrateo y método de costeo ·
+  P-01 ajustes manuales · P-13 alcance del inventario físico.
 
 Si una tarea depende de una decisión pendiente: **detenerse y preguntar**, proponer alternativas, no asumir.
 Si se descubre una decisión no listada: agregarla a PENDIENTES.md.

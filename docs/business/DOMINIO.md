@@ -11,8 +11,8 @@ Este documento describe **conceptos y flujos**. Las reglas no confirmadas se mar
 | **Variante**              | Unidad controlable de inventario. Tiene SKU, código de barras, stock, stock mínimo, costo, precio y estado. Todo producto tiene ≥ 1 variante. |
 | **Eje de variante**       | Atributo que diferencia variantes de un mismo producto (material, talla, longitud...).                                                        |
 | **Atributo descriptivo**  | Atributo común a todas las variantes del producto (colección, género, tipo de cierre...).                                                     |
-| **SKU**                   | Código interno único por variante. Formato PENDIENTE (P-05).                                                                                  |
-| **Código de barras / QR** | Código único que identifica una variante concreta. Opcional (P-06).                                                                           |
+| **SKU**                   | Código interno único por variante, generado con correlativo automático. Formato técnico actual: `SKU-000001`.                                 |
+| **Código de barras / QR** | Código único opcional por variante: conservar el del proveedor o generar uno propio tras guardar el producto. QR pendiente (P-06).            |
 | **Movimiento**            | Registro inmutable de un cambio de stock (+ entrada / − salida).                                                                              |
 | **Saldo (balance)**       | Stock actual de una variante = suma de sus movimientos.                                                                                       |
 | **Ingreso**               | Recepción de mercadería de un proveedor con su documento de respaldo.                                                                         |
@@ -58,7 +58,7 @@ Pérdida             −1   → 13      (* tipos reservados para la fase de vent
 - Los movimientos son **append-only** (la BD impide modificarlos o borrarlos). Un error se corrige
   con un movimiento compensatorio.
 - El saldo (`inventory_balances`) se actualiza **en la misma transacción** que el movimiento.
-- Stock negativo: PENDIENTE (P-08).
+- El stock no puede ser negativo (P-08 aprobado) y se controla por piezas enteras (P-09 aprobado).
 
 Tipos de movimiento: `INITIAL_STOCK`, `STOCK_ENTRY`, `ADJUSTMENT`, `COUNT_ADJUSTMENT`, `LOSS`; y
 reservados: `SALE`, `CUSTOMER_RETURN`, `EXCHANGE`.
@@ -82,6 +82,7 @@ Proveedor → Llegada → Documento de recepción → Verificación física → 
 
 - Costo total unitario = costo de compra + costos adicionales prorrateados (P-07).
 - Precio de venta: se guarda **explícitamente** por variante.
+- La moneda de la Fase 1 es solo bolivianos (P-10 aprobado).
 - Regla preliminar **Costo total × 2 = Precio de venta: PENDIENTE DE CONFIRMACIÓN (P-03)**. No está
   implementada; si se aprueba, se ofrecerá como valor sugerido que admite excepciones.
 - Todo cambio de costo/precio requiere `prices:manage` y queda en auditoría (anterior → nuevo).
@@ -97,7 +98,7 @@ Crear inventario (DRAFT) → Iniciar (IN_PROGRESS: snapshot del stock del sistem
 - No hay ajustes arbitrarios: cada ajuste registra **quién, cuándo, qué variante, cantidad anterior,
   cantidad nueva, diferencia, motivo y observación** (el movimiento guarda `balance_before`,
   `balance_after`, `quantity`, `reason`, `notes`, `user_id`, `created_at`).
-- Quién puede aprobar: PENDIENTE (P-01). Alcance y bloqueo durante el conteo: PENDIENTE (P-13).
+- El responsable de almacén puede aprobar sus propios conteos físicos; queda pendiente si puede autorizar ajustes manuales (P-01). Se bloquean movimientos durante el conteo; su alcance sigue pendiente (P-13).
 
 ## Control
 

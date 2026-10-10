@@ -4,7 +4,7 @@ Copiar para tareas sustanciales. Completar antes de implementar; no guardar camp
 
 - **ID y título:** identificador estable y comportamiento concreto.
 - **Objetivo y requisito:** beneficio para la tienda, enlace a dominio/ADR/P-xx aprobado.
-- **Estado:** propuesta / lista / en curso / bloqueada / en revisión / terminada.
+- **Estado:** propuesta / lista / en curso / bloqueada / en revisión / verificada técnicamente / aceptada por cliente (o cerrada interna si no tiene validación de cliente). Seguir las puertas del [roadmap](ROADMAP.md).
 - **Prioridad y riesgo:** urgencia, impacto y probabilidad razonados.
 - **Responsable y revisor:** roles; un único responsable de integración.
 - **Alcance:** comportamiento incluido y límites relevantes.

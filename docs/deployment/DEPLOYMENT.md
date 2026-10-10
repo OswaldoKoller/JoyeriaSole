@@ -43,7 +43,7 @@ servidores. La imagen Docker es portable: migrar a Railway o a un VPS no requier
 | `CORS_ORIGIN`, `FRONTEND_URL` | `https://inventario.<dominio>`                                                  |
 | `TRUST_PROXY`                 | `true` (Render/Railway ponen un proxy delante)                                  |
 | `LOG_LEVEL`                   | `info`                                                                          |
-| `SESSION_TTL_HOURS`           | `12` (o lo que se defina en P-19)                                               |
+| `SESSION_TTL_HOURS`           | `3` (política aprobada P-19)                                                    |
 | `API_PORT`                    | No definir: la API usa `PORT` si el hosting lo inyecta (Render/Railway), o 3000 |
 
 `COOKIE_SECURE` no se define (por defecto `true` en producción). `SEED_ADMIN_*` solo se definen

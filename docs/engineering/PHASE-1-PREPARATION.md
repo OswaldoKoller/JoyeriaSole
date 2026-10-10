@@ -27,7 +27,7 @@ Demostración prevista: iniciar sesión → listar proveedores → registrar uno
 
 ### F1-01 — proveedores de punta a punta
 
-- Estado: terminada tras aprobación del usuario el 2026-10-09; ver evidencia al final.
+- Estado: implementación y QA local completos tras aprobación del usuario el 2026-10-09; aceptación del cliente pendiente según el [roadmap](ROADMAP.md).
 - Responsable: backend y frontend; revisión de seguridad/pruebas antes del cierre.
 - Requisitos: entidad Supplier existente, permisos suppliers:read/suppliers:manage y auditoría; comprobar nombres y campos exactos antes del contrato.
 - Alcance: lista paginada, búsqueda, alta, edición, activación/desactivación; sin borrado físico ni compras automáticas.
@@ -38,23 +38,23 @@ Demostración prevista: iniciar sesión → listar proveedores → registrar uno
 
 ### F1-02 — usuarios y acceso
 
-- Estado: por detallar.
+- Estado: en curso; consulta, nombre/estado y varios roles verificados localmente. Alta y cambio de contraseña implementados con P-19 aprobada; revisión E2E final pendiente.
 - Alcance: administración básica, cambio de contraseña, desactivación e invalidación de sesiones según contrato aprobado; preservar roles preliminares del seed.
 - Aceptación: acceso solo por permiso; contraseñas nunca expuestas; usuario desactivado no opera; cambios auditados; protección frente a pérdida del último acceso administrativo a definir en el contrato.
-- Dependencias: F1-PREP; aclarar P-21 para asignación de uno/varios roles y P-19 para política definitiva. La autenticación actual sirve de base, no prueba administración completa.
+- Dependencias: F1-PREP; P-19/P-21 aprobadas. API e interfaz de usuarios listas; repetir E2E tras corregir la expectativa de navegación.
 
 ### F1-03 — catálogo utilizable
 
-- Estado: bloqueado parcialmente por decisiones.
+- Estado: en curso; categorías, atributos, productos y ejes de variantes implementados. Pruebas funcionales de catálogo pendientes; el cliente carga los valores P-15 que usará su tienda.
 - Alcance: categorías, atributos, productos y variantes, búsqueda por SKU/código, permisos de costos, precio explícito.
 - Aceptación: producto con al menos una variante; SKU/código únicos; datos sensibles omitidos según permiso; comportamiento de desactivación definido.
-- Dependencias: P-04/P-05/P-06/P-15/P-22 y moneda/unidades si la pantalla las utiliza. F1-01 no es requisito técnico del catálogo salvo contrato que lo relacione.
+- Dependencias: P-04/P-05/P-09/P-10/P-22 aprobadas. QR P-06 y valores concretos P-15 siguen pendientes para las porciones que los usan. F1-01 no es requisito técnico del catálogo salvo contrato que lo relacione.
 
 ### F1-04 — inventario e ingresos
 
-- Estado: bloqueado por reglas comerciales y catálogo.
+- Estado: en curso; saldos, alertas, historial y stock inicial implementados sin pruebas funcionales. Ingresos y ajustes posteriores siguen pendientes de P-07/P-24 y P-01 respectivamente.
 - Aceptación: saldo/movimiento/auditoría atómicos; borrador no cambia stock; confirmar una vez; rollback completo; concurrencia sin pérdida de cantidades, incluido primer saldo.
-- Dependencias: F1-03, P-07/P-08/P-09/P-11/P-12/P-20/P-24. No implementar precio costo × 2 como supuesto.
+- Dependencias: F1-03; P-08/P-09/P-11/P-12/P-20 aprobadas. Costeo P-07 y detalles P-24 siguen pendientes. No implementar precio costo × 2 como supuesto.
 
 ### F1-05 — conteo y control
 
@@ -94,3 +94,7 @@ Esta comprobación usa dependencias locales instaladas. La instalación limpia d
 Validado el 2026-10-09 con `npm run qa` sobre PostgreSQL efímero: lint, formato, tipos, build, 47 pruebas API, 3 pruebas de componentes y 3 E2E en Chromium pasaron. El E2E nuevo creó, editó y desactivó un proveedor sintético desde la interfaz. Las pruebas de integración cubren 401, 403, 400, 404, NIT duplicado (409), búsqueda, filtros, paginación y auditoría antes/después.
 
 La implementación usa la tabla y permisos existentes; no requirió migración. El build web advirtió sobre un chunk de 669.63 kB (201.73 kB gzip), pendiente de revisar cuando crezca la interfaz. Al terminar Playwright, el proceso de Vite produjo un mensaje de ciclo de vida de npm en Windows, pero los tres E2E pasaron y el comando salió con código 0. No se ejecutó CI remoto ni se hizo commit o push.
+
+## Evidencia del 2026-10-10 — pruebas de catálogo e inventario
+
+`npm run qa` con código 0 sobre PostgreSQL efímero: lint, formato, tipos, build, 81 pruebas API (11 archivos), 4 de componentes y 5 E2E en Chromium. Se agregaron `catalog.test.ts` (13 casos) e `inventory.test.ts` (8 casos); el E2E final de usuarios (F1-02) pasó. Observación: el filtro «bajo mínimo» incluye piezas agotadas con mínimo mayor que cero, coherente con [DOMINIO.md](../business/DOMINIO.md) (cantidad ≤ mínimo); la etiqueta de nivel muestra «Sin stock» para esas piezas. No se ejecutó CI remoto.

@@ -29,6 +29,8 @@ Referencias: `docs/business/DOMINIO.md`, `docs/business/PENDIENTES.md`, ADR-001,
 
 ## PENDIENTES — no implementar sin aprobación
 
+**Actualización 2026-10-09:** consultar `docs/business/PENDIENTES.md` y `docs/business/RESOLUCIONES-2026-10-09.md` antes de usar esta tabla histórica. P-05, P-08, P-09, P-20 y P-22 ya tienen respuesta aprobada; P-01, P-06, P-13 y P-24 tienen respuesta parcial. Una decisión aprobada no significa que el servicio ya la haga cumplir.
+
 | ID        | Tema                                               | Qué hacer mientras tanto                                              |
 | --------- | -------------------------------------------------- | --------------------------------------------------------------------- |
 | P-03      | Precio = costo total × 2                           | **No calcular.** El precio se ingresa explícitamente.                 |
