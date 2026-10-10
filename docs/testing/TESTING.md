@@ -64,3 +64,19 @@ Se conservan aserciones y plazos de las pruebas.
 npx playwright install chromium   # descarga el navegador (una vez por equipo)
 npm run qa:e2e                   # crea BD efímera y servidores exclusivos
 ```
+
+## Datos de demostración y E2E por roles
+
+`npm run db:seed:demo` (antes `npm run db:seed`) crea datos **ficticios** marcados «DEMO»: 3 usuarios (uno por rol, contraseña `DEMO_USER_PASSWORD`), 4 categorías y 20 productos con stock variado (5 sin stock, 5 bajo mínimo, 10 disponibles). El stock entra como movimientos `INITIAL_STOCK` auditados, nunca editando saldos. Se niega a correr con `NODE_ENV=production` o contra una base que no sea local. `npm run qa` lo ejecuta automáticamente.
+
+| Usuario DEMO                    | Rol                       | Qué prueba                                                 |
+| ------------------------------- | ------------------------- | ---------------------------------------------------------- |
+| demo-admin@example.invalid      | Administrador             | Todo el menú; carga de stock inicial                       |
+| demo-inventario@example.invalid | Responsable de inventario | Sin Usuarios; crea/edita productos; sin `inventory:adjust` |
+| demo-vendedor@example.invalid   | Vendedor                  | Solo consulta; sin Proveedores ni Usuarios                 |
+
+`apps/web/e2e/roles-and-products.spec.ts` cubre: menú por rol, credenciales incorrectas, redirección al login sin sesión, bloqueo de rutas por permiso en la web **y** en la API (403), y crear → editar → verificar un producto con carga de stock. El sistema no tiene rol «cliente»: el Vendedor es el usuario restringido.
+
+Ejecutar en local: `npm run qa` (todo, con PostgreSQL efímero) o `npm run qa:e2e` (solo E2E). Depurar un fallo: `npx playwright show-trace apps/web/test-results/<carpeta>/trace.zip`.
+
+**Límite de login en E2E.** El login permite 10 intentos por IP cada 15 minutos (`LOGIN_RATE_LIMIT_MAX`). El servidor de E2E lo sube a 1000 porque la suite inicia sesión más de 10 veces; el valor de producción no cambia.

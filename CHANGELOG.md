@@ -7,6 +7,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y
 
 ### Agregado
 
+- Datos de demostración ficticios (`npm run db:seed:demo`) y pruebas E2E por roles: login y menú según el rol, rutas protegidas (web y API), crear/editar/verificar productos y carga de stock. Límite de login configurable (`LOGIN_RATE_LIMIT_MAX`, 10 por defecto).
 - Módulo de proveedores: lista con búsqueda, filtros y paginación; alta, edición y cambio de estado desde la web; API protegida por permisos con auditoría transaccional y pruebas E2E.
 - Menú de navegación para las páginas disponibles (Inicio y Proveedores), con estado activo y acceso según permisos; Inicio muestra un acceso directo a Proveedores.
 - Consulta y gestión de usuarios: búsqueda, filtros, edición de nombre/estado, revocación de sesiones y varios roles con auditoría.

@@ -14,6 +14,8 @@ const webUrl = 'http://localhost:5174';
  */
 export default defineConfig({
   testDir: './e2e',
+  // Los recorridos con varios inicios de sesión (Argon2) superan los 30 s por defecto en equipos lentos.
+  timeout: 60_000,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -38,6 +40,8 @@ export default defineConfig({
         FRONTEND_URL: webUrl,
         COOKIE_SECURE: 'false',
         TRUST_PROXY: 'false',
+        // La suite inicia sesión muchas veces desde una sola IP; en producción el límite es 10.
+        LOGIN_RATE_LIMIT_MAX: '1000',
         WEB_DIST_DIR: '',
       },
       reuseExistingServer: false,

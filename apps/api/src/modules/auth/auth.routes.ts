@@ -12,17 +12,17 @@ const authUserSchema = z.object({
   permissions: z.array(z.string()),
 });
 
-export const authRoutes: FastifyPluginAsyncZod<{ sessionTtlHours: number }> = async (
-  app,
-  { sessionTtlHours },
-) => {
+export const authRoutes: FastifyPluginAsyncZod<{
+  sessionTtlHours: number;
+  loginRateLimitMax: number;
+}> = async (app, { sessionTtlHours, loginRateLimitMax }) => {
   const service = new AuthService(app.prisma, sessionTtlHours);
 
   app.post(
     '/login',
     {
       // Límite estricto contra fuerza bruta (además del límite global).
-      config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+      config: { rateLimit: { max: loginRateLimitMax, timeWindow: '15 minutes' } },
       schema: {
         body: loginSchema,
         response: { 204: z.null() },
@@ -59,7 +59,7 @@ export const authRoutes: FastifyPluginAsyncZod<{ sessionTtlHours: number }> = as
     '/change-password',
     {
       preHandler: app.authenticate,
-      config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+      config: { rateLimit: { max: loginRateLimitMax, timeWindow: '15 minutes' } },
       schema: { body: changePasswordSchema, response: { 204: z.null() } },
     },
     async (request, reply) => {

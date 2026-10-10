@@ -33,6 +33,11 @@ const envSchema = z
       .int()
       .refine((hours) => hours === 3, 'La sesión debe durar 3 horas')
       .default(3),
+    /**
+     * Intentos de login (y de cambio de contraseña) permitidos cada 15 minutos por IP.
+     * Solo se sube en el servidor de pruebas E2E, que inicia sesión muchas veces desde una IP.
+     */
+    LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10_000).default(10),
     /** Solo se desactiva para pruebas locales de la imagen de producción sin HTTPS. */
     COOKIE_SECURE: booleanString,
     /**

@@ -72,7 +72,11 @@ export async function buildApp(env: Env) {
   await app.register(
     async (api) => {
       await api.register(healthRoutes);
-      await api.register(authRoutes, { prefix: '/auth', sessionTtlHours: env.SESSION_TTL_HOURS });
+      await api.register(authRoutes, {
+        prefix: '/auth',
+        sessionTtlHours: env.SESSION_TTL_HOURS,
+        loginRateLimitMax: env.LOGIN_RATE_LIMIT_MAX,
+      });
       await api.register(suppliersRoutes, { prefix: '/suppliers' });
       await api.register(usersRoutes, { prefix: '/users' });
       await api.register(categoriesRoutes, { prefix: '/categories' });

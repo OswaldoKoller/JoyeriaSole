@@ -78,6 +78,7 @@ try {
     SEED_ADMIN_EMAIL: 'qa-admin@example.invalid',
     SEED_ADMIN_PASSWORD: randomBytes(24).toString('hex'),
     SEED_ADMIN_NAME: 'Administrador de pruebas',
+    DEMO_USER_PASSWORD: randomBytes(24).toString('hex'),
     COOKIE_SECURE: 'false',
     TRUST_PROXY: 'false',
     WEB_DIST_DIR: '',
@@ -86,6 +87,7 @@ try {
   if (mode === 'all') npm(['run', 'check'], env);
   npm(['run', 'db:deploy'], env);
   npm(['run', 'db:seed'], env);
+  npm(['run', 'db:seed:demo'], env);
   npm(['run', 'test:e2e'], env);
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Falló la verificación');

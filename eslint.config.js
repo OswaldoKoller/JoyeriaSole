@@ -57,7 +57,7 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
-    files: ['apps/api/prisma/seed.ts'],
+    files: ['apps/api/prisma/seed.ts', 'apps/api/prisma/seed-demo.ts'],
     rules: { 'no-console': 'off' },
   },
   // Pruebas: se permiten aserciones non-null para mayor legibilidad.
