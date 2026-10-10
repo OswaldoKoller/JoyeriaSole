@@ -1,6 +1,6 @@
-import type { LoginInput } from '@joyeria/shared';
+import type { ChangePasswordInput, LoginInput } from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
-import { UnauthenticatedError } from '../../lib/errors.ts';
+import { UnauthenticatedError, ValidationError } from '../../lib/errors.ts';
 import { hashPassword, verifyPassword } from '../../lib/password.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { generateSessionToken, hashToken } from '../../lib/tokens.ts';
@@ -70,6 +70,31 @@ export class AuthService {
         data: { revokedAt: new Date() },
       });
       await recordAudit(tx, { action: 'auth.logout', userId }, request);
+    });
+  }
+
+  async changePassword(userId: string, input: ChangePasswordInput, request: FastifyRequest) {
+    await this.prisma.$transaction(async (tx) => {
+      // Serializa cambios de contraseña y altas/bajas de acceso del mismo usuario.
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user || !user.isActive) throw new UnauthenticatedError();
+      if (!(await verifyPassword(user.passwordHash, input.currentPassword))) {
+        throw new ValidationError('Contraseña actual incorrecta');
+      }
+      await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash: await hashPassword(input.newPassword) },
+      });
+      await tx.session.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await recordAudit(
+        tx,
+        { action: 'user.password_changed', userId, entityType: 'User', entityId: userId },
+        request,
+      );
     });
   }
 }

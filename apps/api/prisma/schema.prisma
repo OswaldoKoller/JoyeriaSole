@@ -6,7 +6,7 @@
 //   - Modelos en PascalCase → tablas en snake_case plural (@@map).
 //   - Campos en camelCase → columnas en snake_case (@map).
 //   - IDs UUID v7 (ordenables por tiempo) salvo tablas de alto volumen append-only (BigInt).
-//   - Dinero en Decimal (nunca Float). Moneda única: PENDIENTE (P-10), se asume bolivianos.
+//   - Dinero en Decimal (nunca Float). Moneda única: bolivianos (P-10 aprobado).
 //   - Cantidades de stock en Int (unidades). Ver PENDIENTE P-09.
 // =============================================================================
 
@@ -293,10 +293,10 @@ enum VariantStatus {
 model ProductVariant {
   id        String        @id @default(uuid(7)) @db.Uuid
   productId String        @map("product_id") @db.Uuid
-  /// SKU interno. Único en todo el sistema. Formato: PENDIENTE (P-05).
+  /// SKU interno generado con product_variant_sku_seq: SKU-000001, único globalmente (P-05).
   sku       String        @unique @db.VarChar(64)
   /// Código de barras / contenido de QR. Único. Identifica una variante concreta.
-  /// Opcional: no todas las piezas llegan etiquetadas (P-06).
+  /// Opcional: código del proveedor o generado tras guardar la ficha (P-06 parcial: QR pendiente).
   barcode   String?       @unique @db.VarChar(64)
   /// Etiqueta legible derivada de los ejes ("Plata 925 / Talla 16"). Se recalcula al editar ejes.
   label     String?       @db.VarChar(200)

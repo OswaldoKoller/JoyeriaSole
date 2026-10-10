@@ -13,6 +13,11 @@ import type { Env } from './config/env.ts';
 import { authRoutes } from './modules/auth/auth.routes.ts';
 import { healthRoutes } from './modules/health/health.routes.ts';
 import { suppliersRoutes } from './modules/suppliers/suppliers.routes.ts';
+import { usersRoutes } from './modules/users/users.routes.ts';
+import { categoriesRoutes } from './modules/catalog/categories.routes.ts';
+import { attributesRoutes } from './modules/catalog/attributes.routes.ts';
+import { productsRoutes } from './modules/catalog/products.routes.ts';
+import { inventoryRoutes } from './modules/inventory/inventory.routes.ts';
 import { authPlugin } from './plugins/auth.ts';
 import { errorHandlerPlugin } from './plugins/error-handler.ts';
 import { prismaPlugin } from './plugins/prisma.ts';
@@ -69,6 +74,11 @@ export async function buildApp(env: Env) {
       await api.register(healthRoutes);
       await api.register(authRoutes, { prefix: '/auth', sessionTtlHours: env.SESSION_TTL_HOURS });
       await api.register(suppliersRoutes, { prefix: '/suppliers' });
+      await api.register(usersRoutes, { prefix: '/users' });
+      await api.register(categoriesRoutes, { prefix: '/categories' });
+      await api.register(attributesRoutes, { prefix: '/attributes' });
+      await api.register(productsRoutes, { prefix: '/products' });
+      await api.register(inventoryRoutes, { prefix: '/inventory' });
     },
     { prefix: API_PREFIX },
   );

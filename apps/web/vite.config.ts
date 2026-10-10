@@ -21,10 +21,11 @@ export default defineConfig({
     sourcemap: true,
   },
   test: {
-    // En Windows el arranque de forks agotó el plazo antes de cargar los tests.
-    // La suite de componentes usa un worker thread; no cambia aserciones ni timeouts.
+    // En Windows, arrancar un worker por archivo puede agotar el plazo de Vitest.
+    // Los tests limpian el DOM y restauran mocks tras cada caso; comparten un solo worker.
     pool: 'threads',
     maxWorkers: 1,
+    isolate: false,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],

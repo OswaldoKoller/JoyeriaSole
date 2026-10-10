@@ -1,4 +1,4 @@
-import { loginSchema } from '@joyeria/shared';
+import { changePasswordSchema, loginSchema } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { getAuth } from '../../plugins/auth.ts';
@@ -53,5 +53,19 @@ export const authRoutes: FastifyPluginAsyncZod<{ sessionTtlHours: number }> = as
       schema: { response: { 200: z.object({ data: authUserSchema }) } },
     },
     async (request) => ({ data: getAuth(request).user }),
+  );
+
+  app.post(
+    '/change-password',
+    {
+      preHandler: app.authenticate,
+      config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+      schema: { body: changePasswordSchema, response: { 204: z.null() } },
+    },
+    async (request, reply) => {
+      await service.changePassword(getAuth(request).user.id, request.body, request);
+      app.sessionCookie.clear(reply);
+      return reply.status(204).send(null);
+    },
   );
 };

@@ -73,9 +73,9 @@ export type RoleCode = (typeof ROLES)[keyof typeof ROLES];
 /**
  * Asignación PRELIMINAR de permisos por rol.
  *
- * ⚠ PENDIENTE DE DEFINICIÓN (ver docs/business/PENDIENTES.md, P-01 y P-02):
- *   - Si el responsable de inventario puede aprobar sus propios conteos/ajustes.
- *   - Si el vendedor puede ver costos.
+ * Respuestas del cliente (2026-10-09): vendedor sin costos (P-02), responsable de almacén
+ * puede aprobar sus propios conteos físicos (P-01 parcial). Falta decidir ajustes manuales;
+ * el seed aún no agrega inventory-counts:approve al responsable hasta implementar el conteo.
  * Solo se usa en el seed inicial; luego los roles se administran en base de datos.
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<

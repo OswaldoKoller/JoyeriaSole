@@ -15,12 +15,13 @@ import { config as loadEnv } from 'dotenv';
 import {
   ALL_PERMISSIONS,
   DEFAULT_ROLE_PERMISSIONS,
+  PASSWORD_MIN_LENGTH,
   PERMISSION_DESCRIPTIONS,
   ROLES,
   type RoleCode,
 } from '@joyeria/shared';
 import { AttributeDataType } from '../src/generated/prisma/client.ts';
-import { hashPassword, PASSWORD_MIN_LENGTH } from '../src/lib/password.ts';
+import { hashPassword } from '../src/lib/password.ts';
 import { createPrismaClient } from '../src/lib/prisma.ts';
 
 loadEnv({ path: path.resolve(import.meta.dirname, '../../../.env'), quiet: true });

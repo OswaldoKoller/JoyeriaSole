@@ -1,4 +1,4 @@
-import type { AuthUser, LoginInput, Permission } from '@joyeria/shared';
+import type { AuthUser, ChangePasswordInput, LoginInput, Permission } from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api-client.ts';
 
@@ -37,6 +37,17 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => api.post<undefined>('/auth/logout'),
     onSettled: () => {
+      queryClient.setQueryData(authKeys.me, null);
+      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'auth' });
+    },
+  });
+}
+
+export function useChangePassword() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ChangePasswordInput) => api.post<undefined>('/auth/change-password', input),
+    onSuccess: () => {
       queryClient.setQueryData(authKeys.me, null);
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'auth' });
     },

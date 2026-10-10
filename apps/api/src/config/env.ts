@@ -28,7 +28,11 @@ const envSchema = z
     FRONTEND_URL: z.url().default('http://localhost:5173'),
 
     AUTH_SECRET: z.string().min(32, 'AUTH_SECRET debe tener al menos 32 caracteres'),
-    SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(12),
+    SESSION_TTL_HOURS: z.coerce
+      .number()
+      .int()
+      .refine((hours) => hours === 3, 'La sesión debe durar 3 horas')
+      .default(3),
     /** Solo se desactiva para pruebas locales de la imagen de producción sin HTTPS. */
     COOKIE_SECURE: booleanString,
     /**
