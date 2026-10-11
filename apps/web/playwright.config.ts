@@ -17,6 +17,9 @@ export default defineConfig({
   // Los recorridos con varios inicios de sesión (Argon2) superan los 30 s por defecto en equipos lentos.
   timeout: 60_000,
   fullyParallel: false,
+  // Todos los archivos comparten una sola base de datos y un solo servidor: en serie, para que los
+  // totales del dashboard sean exactos y los inicios de sesión (Argon2) no compitan por CPU.
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',

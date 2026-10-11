@@ -80,3 +80,9 @@ npm run qa:e2e                   # crea BD efímera y servidores exclusivos
 Ejecutar en local: `npm run qa` (todo, con PostgreSQL efímero) o `npm run qa:e2e` (solo E2E). Depurar un fallo: `npx playwright show-trace apps/web/test-results/<carpeta>/trace.zip`.
 
 **Límite de login en E2E.** El login permite 10 intentos por IP cada 15 minutos (`LOGIN_RATE_LIMIT_MAX`). El servidor de E2E lo sube a 1000 porque la suite inicia sesión más de 10 veces; el valor de producción no cambia.
+
+**E2E en serie.** `playwright.config.ts` fija `workers: 1`: todos los archivos comparten una base de datos y un servidor, y los totales del dashboard (`dashboard.spec.ts`) dependen de los datos DEMO sin modificar, por lo que ese archivo debe ejecutarse antes que los que crean productos (orden alfabético).
+
+**Responsive.** `responsive.spec.ts` recorre 9 pantallas en 5 anchos (320, 390, 768, 1024, 1440 px) y falla si la página desborda horizontalmente **o** si algún botón, enlace o campo queda recortado por un contenedor con scroll horizontal (el defecto que el simple «sin scroll de página» no detecta).
+
+**Limpieza de la base de integración.** `apps/api/test/helpers/global-setup.ts` vacía la base de pruebas al terminar la suite. Sin esto, las filas del último archivo sobrevivían y alteraban los totales exactos del dashboard cuando `npm run qa` reutilizaba la misma base para los E2E.

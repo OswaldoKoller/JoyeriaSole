@@ -20,20 +20,30 @@ async function login(page: Page, email: string) {
   await page.getByLabel('Correo electrónico').fill(email);
   await page.getByLabel('Contraseña').fill(DEMO_PASSWORD);
   await page.getByRole('button', { name: 'Ingresar' }).click();
-  await expect(page.getByRole('heading', { name: /Bienvenido/ })).toBeVisible();
+  // Tras cerrar sesión, la app devuelve a la página anterior (no siempre al Inicio): basta el menú.
+  await expect(menu(page)).toBeVisible();
 }
 
 test.describe('login y menú según el rol', () => {
   test('el administrador ve todos los módulos', async ({ page }) => {
     await login(page, USERS.admin);
-    for (const name of ['Proveedores', 'Usuarios', 'Categorías', 'Productos', 'Inventario']) {
+    for (const name of [
+      'Proveedores',
+      'Usuarios',
+      'Categorías',
+      'Productos',
+      'Saldos y alertas',
+      'Movimientos',
+    ]) {
       await expect(menu(page).getByRole('link', { name })).toBeVisible();
     }
+    await expect(menu(page).getByText('Punto de venta')).toBeVisible();
+    await expect(menu(page).getByRole('link', { name: 'Punto de venta' })).toHaveCount(0);
   });
 
   test('el responsable de inventario no ve Usuarios', async ({ page }) => {
     await login(page, USERS.inventario);
-    for (const name of ['Proveedores', 'Productos', 'Inventario']) {
+    for (const name of ['Proveedores', 'Productos', 'Saldos y alertas']) {
       await expect(menu(page).getByRole('link', { name })).toBeVisible();
     }
     await expect(menu(page).getByRole('link', { name: 'Usuarios' })).toHaveCount(0);
@@ -42,7 +52,8 @@ test.describe('login y menú según el rol', () => {
   test('el vendedor solo consulta catálogo e inventario', async ({ page }) => {
     await login(page, USERS.vendedor);
     await expect(menu(page).getByRole('link', { name: 'Productos' })).toBeVisible();
-    await expect(menu(page).getByRole('link', { name: 'Inventario' })).toBeVisible();
+    await expect(menu(page).getByRole('link', { name: 'Saldos y alertas' })).toBeVisible();
+    await expect(menu(page).getByText('Compras', { exact: true })).toHaveCount(0);
     for (const name of ['Proveedores', 'Usuarios']) {
       await expect(menu(page).getByRole('link', { name })).toHaveCount(0);
     }
@@ -105,7 +116,7 @@ test.describe('rutas protegidas', () => {
 test.describe('productos e inventario desde la interfaz', () => {
   test('el catálogo DEMO trae 20 productos con stock variado', async ({ page }) => {
     await login(page, USERS.admin);
-    await menu(page).getByRole('link', { name: 'Inventario' }).click();
+    await menu(page).getByRole('link', { name: 'Saldos y alertas' }).click();
     await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
 
     const level = page.getByLabel('Estado de stock');
@@ -148,7 +159,7 @@ test.describe('productos e inventario desde la interfaz', () => {
     await expect(page.getByRole('article').filter({ hasText: 'E2E Anillo Editado' })).toBeVisible();
 
     // El responsable de inventario no tiene inventory:adjust (P-01 pendiente): no ve el botón.
-    await menu(page).getByRole('link', { name: 'Inventario' }).click();
+    await menu(page).getByRole('link', { name: 'Saldos y alertas' }).click();
     await page.getByLabel('Buscar por producto, SKU o código').fill('E2E Anillo Editado');
     await page.getByRole('button', { name: 'Buscar' }).click();
     await expect(page.getByRole('row', { name: /E2E Anillo Editado/ })).toContainText('Sin stock');
@@ -156,8 +167,10 @@ test.describe('productos e inventario desde la interfaz', () => {
 
     // El administrador sí carga el stock inicial
     await page.getByRole('button', { name: 'Salir' }).click();
+    // Esperar a que la sesión se cierre: si /login se abre con la sesión viva, redirige al inicio.
+    await expect(page).toHaveURL(/\/login$/);
     await login(page, USERS.admin);
-    await menu(page).getByRole('link', { name: 'Inventario' }).click();
+    await menu(page).getByRole('link', { name: 'Saldos y alertas' }).click();
     await page.getByLabel('Buscar por producto, SKU o código').fill('E2E Anillo Editado');
     await page.getByRole('button', { name: 'Buscar' }).click();
     const row = page.getByRole('row', { name: /E2E Anillo Editado/ });

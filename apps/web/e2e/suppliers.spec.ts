@@ -34,12 +34,14 @@ test('registra, encuentra, edita y desactiva un proveedor', async ({ page }) => 
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Proveedores' })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Abrir menú' }).click();
   await expect(menu.getByRole('link', { name: 'Inicio' })).toBeVisible();
   await expect(menu.getByRole('link', { name: 'Proveedores' })).toBeVisible();
   await menu.getByRole('link', { name: 'Inicio' }).click();
   await expect(page).toHaveURL('/');
   await expect(page.getByRole('heading', { name: /Bienvenido/ })).toBeVisible();
-  await page.getByRole('link', { name: 'Proveedores →' }).click();
+  await page.getByRole('button', { name: 'Abrir menú' }).click();
+  await menu.getByRole('link', { name: 'Proveedores' }).click();
   await expect(page).toHaveURL('/proveedores');
   await page.goto('/pagina-inexistente');
   await expect(page.getByText('Página no encontrada.')).toBeVisible();

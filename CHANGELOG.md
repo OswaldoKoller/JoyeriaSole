@@ -7,6 +7,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y
 
 ### Agregado
 
+- Interfaz renovada: panel lateral navegable (fijo en escritorio, cajón en móvil, módulos futuros como «Próximamente») y dashboard de inicio con métricas de stock, anillo de distribución y tabla de piezas en alerta con ordenamiento y estados de carga, error y vacío. Usa `lucide-react` para los íconos.
+- Diseño responsive: las tablas de datos (Inventario, Movimientos, Usuarios, Proveedores y el dashboard) se convierten en tarjetas cuando el **contenido** mide menos de 896 px (container queries; con el panel lateral fijo una pantalla de 1024 px deja solo ~700 px útiles); botones y campos con área táctil mínima de 40 px; el dashboard conserva el ordenamiento en móvil con un selector. Cubierto por `responsive.spec.ts` (5 anchos × 9 pantallas: sin desbordes ni controles recortados).
 - Inventario: historial global de movimientos (pantalla `/inventario/movimientos` y `GET /api/v1/inventory/movements`), filtro `initialOnly` para las variantes que aún admiten stock inicial y disponibilidad (cantidad y nivel) por variante en el catálogo, visible solo para quien también puede leer inventario.
 - Decisiones del cliente del 2026-10-11 registradas: precio base, prorrateo por valor y último costo (ADR-013), conteos con conciliación de movimientos (ADR-014). Aún no implementadas.
 - Datos de demostración ficticios (`npm run db:seed:demo`) y pruebas E2E por roles: login y menú según el rol, rutas protegidas (web y API), crear/editar/verificar productos y carga de stock. Límite de login configurable (`LOGIN_RATE_LIMIT_MAX`, 10 por defecto).
