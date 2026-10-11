@@ -7,6 +7,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y
 
 ### Agregado
 
+- Inventario: historial global de movimientos (pantalla `/inventario/movimientos` y `GET /api/v1/inventory/movements`), filtro `initialOnly` para las variantes que aún admiten stock inicial y disponibilidad (cantidad y nivel) por variante en el catálogo, visible solo para quien también puede leer inventario.
+- Decisiones del cliente del 2026-10-11 registradas: precio base, prorrateo por valor y último costo (ADR-013), conteos con conciliación de movimientos (ADR-014). Aún no implementadas.
 - Datos de demostración ficticios (`npm run db:seed:demo`) y pruebas E2E por roles: login y menú según el rol, rutas protegidas (web y API), crear/editar/verificar productos y carga de stock. Límite de login configurable (`LOGIN_RATE_LIMIT_MAX`, 10 por defecto).
 - Módulo de proveedores: lista con búsqueda, filtros y paginación; alta, edición y cambio de estado desde la web; API protegida por permisos con auditoría transaccional y pruebas E2E.
 - Menú de navegación para las páginas disponibles (Inicio y Proveedores), con estado activo y acceso según permisos; Inicio muestra un acceso directo a Proveedores.

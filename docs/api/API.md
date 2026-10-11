@@ -80,7 +80,8 @@ Error:
 | POST   | `/products/variants/:id/barcode/generate` | `catalog:manage`                | Genera código propio tras guardar producto activo                           |
 | POST   | `/products/:id/axes`                      | `catalog:manage`                | Define los ejes y valores de la variante base                               |
 | POST   | `/products/:id/variants`                  | `catalog:manage`                | Agrega combinación única con SKU correlativo                                |
-| GET    | `/inventory`                              | `inventory:read`                | Saldos por variante, búsqueda y filtros sin stock / bajo mínimo             |
+| GET    | `/inventory`                              | `inventory:read`                | Saldos por variante, búsqueda y filtros `level` e `initialOnly`             |
+| GET    | `/inventory/movements`                    | `inventory:read`                | Historial global paginado con producto, variante y SKU                      |
 | GET    | `/inventory/:variantId/movements`         | `inventory:read`                | Historial paginado de movimientos                                           |
 | POST   | `/inventory/:variantId/initial`           | `inventory:adjust`              | Entrada inicial única; actualiza saldo y audita en transacción              |
 

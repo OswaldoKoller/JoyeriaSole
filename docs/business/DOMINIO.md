@@ -1,22 +1,22 @@
 # Dominio de negocio — Fase 1: Inventario y Control de Productos
 
 Este documento describe **conceptos y flujos**. Las reglas no confirmadas se marcan
-**PENDIENTE (P-xx)** y están detalladas en [PENDIENTES.md](PENDIENTES.md).
+**PENDIENTE (P-xx)** y están detalladas en [PENDIENTES.md](PENDIENTES.md). Aplicar también las [resoluciones del 2026-10-11](RESOLUCIONES-2026-10-11.md).
 
 ## Glosario
 
-| Término                   | Significado                                                                                                                                   |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Producto**              | Ficha comercial: nombre, descripción, modelo, categoría, atributos comunes. No tiene stock propio.                                            |
-| **Variante**              | Unidad controlable de inventario. Tiene SKU, código de barras, stock, stock mínimo, costo, precio y estado. Todo producto tiene ≥ 1 variante. |
-| **Eje de variante**       | Atributo que diferencia variantes de un mismo producto (material, talla, longitud...).                                                        |
-| **Atributo descriptivo**  | Atributo común a todas las variantes del producto (colección, género, tipo de cierre...).                                                     |
-| **SKU**                   | Código interno único por variante, generado con correlativo automático. Formato técnico actual: `SKU-000001`.                                 |
-| **Código de barras / QR** | Código único opcional por variante: conservar el del proveedor o generar uno propio tras guardar el producto. QR pendiente (P-06).            |
-| **Movimiento**            | Registro inmutable de un cambio de stock (+ entrada / − salida).                                                                              |
-| **Saldo (balance)**       | Stock actual de una variante = suma de sus movimientos.                                                                                       |
-| **Ingreso**               | Recepción de mercadería de un proveedor con su documento de respaldo.                                                                         |
-| **Inventario físico**     | Conteo real comparado contra el sistema para detectar y corregir diferencias.                                                                 |
+| Término                  | Significado                                                                                                                                   |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Producto**             | Ficha comercial: nombre, descripción, modelo, categoría, atributos comunes. No tiene stock propio.                                            |
+| **Variante**             | Unidad controlable de inventario. Tiene SKU, código de barras, stock, stock mínimo, costo, precio y estado. Todo producto tiene ≥ 1 variante. |
+| **Eje de variante**      | Atributo que diferencia variantes de un mismo producto (material, talla, longitud...).                                                        |
+| **Atributo descriptivo** | Atributo común a todas las variantes del producto (colección, género, tipo de cierre...).                                                     |
+| **SKU**                  | Código interno único por variante, generado con correlativo automático. Formato técnico actual: `SKU-000001`.                                 |
+| **Etiqueta propia**      | Code 128 con el SKU de la variante. La continuidad del código del proveedor para búsqueda sigue por confirmar (P-06).                         |
+| **Movimiento**           | Registro inmutable de un cambio de stock (+ entrada / − salida).                                                                              |
+| **Saldo (balance)**      | Stock actual de una variante = suma de sus movimientos.                                                                                       |
+| **Ingreso**              | Recepción de mercadería de un proveedor con su documento de respaldo.                                                                         |
+| **Inventario físico**    | Conteo real comparado contra el sistema para detectar y corregir diferencias.                                                                 |
 
 ## Producto vs. Variante
 
@@ -33,6 +33,7 @@ PRODUCTO: Anillo Solitario Circona  (categoría: Anillos; colección: Clásica)
 - Un producto sin diferencias (p. ej. un llavero único) tiene **una sola variante** sin ejes.
 - Qué atributos son ejes lo decide **cada producto** (`product_variant_axes`). La categoría solo
   **sugiere** atributos (`category_attributes`).
+- El cliente puede crear valores de atributos y asignar características a cada producto (P-15). No se registra gramaje ni se controla stock por peso; se usan variantes y características definidas (P-27).
 
 Diferencias por tipo de producto, sin columnas vacías:
 
@@ -67,7 +68,7 @@ reservados: `SALE`, `CUSTOMER_RETURN`, `EXCHANGE`.
 
 ```
 Proveedor → Llegada → Documento de recepción → Verificación física → Identificación de productos
-   → (existentes | nuevos en DRAFT, P-24) → Cantidades (esperada vs. recibida) → Costos
+   → (existentes | nuevos activos creados por inventario, P-24) → Cantidades (esperada vs. recibida) → Costos
    → Revisión de diferencias → CONFIRMACIÓN → movimientos STOCK_ENTRY → stock actualizado
 ```
 
@@ -75,17 +76,18 @@ Proveedor → Llegada → Documento de recepción → Verificación física → 
 - **El stock aumenta únicamente al confirmar.** Crear o editar un ingreso en borrador no afecta stock.
 - Un ingreso confirmado no se edita; se corrige con ajustes.
 - Confirmar requiere el permiso `stock-entries:confirm` y queda auditado.
-- Costos: unitario de compra por ítem + transporte/embalaje/otros a nivel del ingreso.
-  Prorrateo y método de costeo: PENDIENTE (P-07).
+- El encargado de inventario puede agregar piezas no esperadas y crear productos activos durante la recepción. Para fichas sin información completa falta precisar los datos mínimos antes de confirmar (P-24).
+- Costos: unitario de compra por ítem + transporte/embolsado/otros a nivel del ingreso.
+  Prorrateo **por valor** de compra entre ítems y **último costo** para la variante (P-07 aprobado; implementación pendiente).
 
 ## Costos y precios
 
-- Costo total unitario = costo de compra + costos adicionales prorrateados (P-07).
+- Costo total unitario = costo de compra + transporte, embolsado y otros costos prorrateados por valor (P-07).
 - Precio de venta: se guarda **explícitamente** por variante.
 - La moneda de la Fase 1 es solo bolivianos (P-10 aprobado).
-- Regla preliminar **Costo total × 2 = Precio de venta: PENDIENTE DE CONFIRMACIÓN (P-03)**. No está
-  implementada; si se aprueba, se ofrecerá como valor sugerido que admite excepciones.
-- Todo cambio de costo/precio requiere `prices:manage` y queda en auditoría (anterior → nuevo).
+- Precio base **(costo de compra + transporte + embolsado + valores extras) × 2**. El cliente puede modificar el precio y definir un cálculo propio por categoría (P-03); falta especificar redondeo.
+- Los cambios de precio requieren aprobación (P-25). El aprobador y la entrada en vigencia siguen pendientes; la fórmula no se aplica automáticamente antes de definir ese flujo.
+- Todo cambio de costo/precio queda en auditoría (anterior → nuevo).
 
 ## Flujo de inventario físico
 
@@ -98,7 +100,7 @@ Crear inventario (DRAFT) → Iniciar (IN_PROGRESS: snapshot del stock del sistem
 - No hay ajustes arbitrarios: cada ajuste registra **quién, cuándo, qué variante, cantidad anterior,
   cantidad nueva, diferencia, motivo y observación** (el movimiento guarda `balance_before`,
   `balance_after`, `quantity`, `reason`, `notes`, `user_id`, `created_at`).
-- El responsable de almacén puede aprobar sus propios conteos físicos; queda pendiente si puede autorizar ajustes manuales (P-01). Se bloquean movimientos durante el conteo; su alcance sigue pendiente (P-13).
+- El responsable de almacén puede aprobar sus propios conteos físicos y ajustes manuales (P-01). Durante el conteo siguen permitidos los movimientos; la aprobación concilia los ocurridos desde el snapshot (P-13). El alcance del conteo sigue pendiente.
 
 ## Control
 
