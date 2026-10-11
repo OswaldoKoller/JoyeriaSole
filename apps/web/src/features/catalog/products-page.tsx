@@ -1,5 +1,6 @@
 import { PERMISSIONS, type Product } from '@joyeria/shared';
 import { useState, type SyntheticEvent } from 'react';
+import { Link } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
@@ -12,6 +13,7 @@ const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: '
 
 export function ProductsPage() {
   const canManage = useHasPermission(PERMISSIONS.CATALOG_MANAGE);
+  const canReadInventory = useHasPermission(PERMISSIONS.INVENTORY_READ);
   const [page, setPage] = useState(1);
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState('');
@@ -62,7 +64,7 @@ export function ProductsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Productos</h1>
           <p className="text-sm text-stone-600">
-            Fichas y códigos de piezas. El stock se incorporará en Inventario.
+            Fichas, códigos y disponibilidad por variante. Consulta los movimientos en Inventario.
           </p>
         </div>
         {canManage && (
@@ -204,6 +206,22 @@ export function ProductsPage() {
                         <strong>SKU:</strong> {variant.sku}
                         {variant.label && variant.label !== 'Única' ? ` · ${variant.label}` : ''}
                       </p>
+                      {canReadInventory && variant.stockQuantity !== undefined && (
+                        <p>
+                          <strong>Stock:</strong> {variant.stockQuantity} piezas
+                          {variant.stockLevel === 'OUT'
+                            ? ' · Sin stock'
+                            : variant.stockLevel === 'LOW'
+                              ? ' · Bajo mínimo'
+                              : ''}{' '}
+                          <Link
+                            to={`/inventario?sku=${encodeURIComponent(variant.sku)}`}
+                            className="inline-block py-1 text-brand-700 underline"
+                          >
+                            Ver en inventario
+                          </Link>
+                        </p>
+                      )}
                       <p>
                         <strong>Precio:</strong>{' '}
                         {Number(variant.salePrice) > 0

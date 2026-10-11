@@ -9,6 +9,7 @@ import { CategoriesPage } from '../features/catalog/categories-page.tsx';
 import { AttributesPage } from '../features/catalog/attributes-page.tsx';
 import { ProductsPage } from '../features/catalog/products-page.tsx';
 import { InventoryPage } from '../features/inventory/inventory-page.tsx';
+import { MovementsPage } from '../features/inventory/movements-page.tsx';
 import { HomePage } from '../pages/home-page.tsx';
 import { NotFoundPage } from '../pages/not-found-page.tsx';
 import { AppLayout } from './layout.tsx';
@@ -72,6 +73,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth permissions={[PERMISSIONS.INVENTORY_READ]}>
             <InventoryPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'inventario/movimientos',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.INVENTORY_READ]}>
+            <MovementsPage />
           </RequireAuth>
         ),
       },
