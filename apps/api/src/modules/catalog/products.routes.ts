@@ -10,6 +10,7 @@ import {
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { ProductsService } from './products.service.ts';
+import { getAuth } from '../../plugins/auth.ts';
 
 const idParams = z.object({ id: z.uuid() });
 const listQuery = z.object({
@@ -36,7 +37,11 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
         },
       },
     },
-    async (request) => service.list(request.query),
+    async (request) =>
+      service.list(
+        request.query,
+        getAuth(request).user.permissions.includes(PERMISSIONS.INVENTORY_READ),
+      ),
   );
   app.get(
     '/lookup',
@@ -47,7 +52,12 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: item },
       },
     },
-    async (request) => ({ data: await service.lookup(request.query.code) }),
+    async (request) => ({
+      data: await service.lookup(
+        request.query.code,
+        getAuth(request).user.permissions.includes(PERMISSIONS.INVENTORY_READ),
+      ),
+    }),
   );
   app.get(
     '/:id',
@@ -55,7 +65,12 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
       preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: { params: idParams, response: { 200: item } },
     },
-    async (request) => ({ data: await service.get(request.params.id) }),
+    async (request) => ({
+      data: await service.get(
+        request.params.id,
+        getAuth(request).user.permissions.includes(PERMISSIONS.INVENTORY_READ),
+      ),
+    }),
   );
   app.post(
     '/',

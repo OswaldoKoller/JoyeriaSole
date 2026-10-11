@@ -21,7 +21,7 @@ import { recordAudit } from '../audit/audit.service.ts';
 
 const withDetails = {
   category: true,
-  variants: true,
+  variants: { include: { inventory: true } },
   variantAxes: {
     include: { attribute: { include: { options: true } } },
     orderBy: { sortOrder: 'asc' },
@@ -29,7 +29,7 @@ const withDetails = {
 } satisfies Prisma.ProductInclude;
 type ProductWithDetails = Prisma.ProductGetPayload<{ include: typeof withDetails }>;
 
-function toResponse(product: ProductWithDetails) {
+function toResponse(product: ProductWithDetails, showStock = false) {
   return {
     id: product.id,
     categoryId: product.categoryId,
@@ -53,6 +53,17 @@ function toResponse(product: ProductWithDetails) {
       salePrice: variant.salePrice.toString(),
       minStock: variant.minStock,
       status: variant.status,
+      ...(showStock &&
+        (() => {
+          const quantity = variant.inventory?.quantity ?? 0;
+          const stockLevel: 'OUT' | 'LOW' | 'OK' =
+            quantity === 0
+              ? 'OUT'
+              : variant.minStock > 0 && quantity <= variant.minStock
+                ? 'LOW'
+                : 'OK';
+          return { stockQuantity: quantity, stockLevel };
+        })()),
     })),
   };
 }
@@ -98,7 +109,10 @@ export class ProductsService {
     return result;
   }
 
-  async list(input: { page: number; pageSize: number; q: string; status: string }) {
+  async list(
+    input: { page: number; pageSize: number; q: string; status: string },
+    showStock = false,
+  ) {
     const where: Prisma.ProductWhereInput = {
       ...(input.status !== 'all' && { status: input.status as 'DRAFT' | 'ACTIVE' | 'INACTIVE' }),
       ...(input.q && {
@@ -128,23 +142,23 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
     return {
-      data: products.map(toResponse),
+      data: products.map((product) => toResponse(product, showStock)),
       meta: { page: input.page, pageSize: input.pageSize, total },
     };
   }
 
-  async get(id: string) {
+  async get(id: string, showStock = false) {
     const product = await this.prisma.product.findUnique({ where: { id }, include: withDetails });
     if (!product) throw new NotFoundError('Producto no encontrado');
-    return toResponse(product);
+    return toResponse(product, showStock);
   }
 
-  async lookup(code: string) {
+  async lookup(code: string, showStock = false) {
     const variant =
       (await this.prisma.productVariant.findUnique({ where: { sku: code } })) ??
       (await this.prisma.productVariant.findUnique({ where: { barcode: code } }));
     if (!variant) throw new NotFoundError('No existe una variante con ese código');
-    return this.get(variant.productId);
+    return this.get(variant.productId, showStock);
   }
 
   async create(input: CreateProductInput, request: FastifyRequest) {

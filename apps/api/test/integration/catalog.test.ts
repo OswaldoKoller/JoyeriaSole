@@ -297,4 +297,42 @@ describe('catálogo', () => {
       expect(create.statusCode).toBe(403);
     });
   });
+
+  describe('disponibilidad por variante dentro del catálogo', () => {
+    it('muestra stock y nivel solo a quien también puede leer inventario', async () => {
+      const product = (await createProduct({ minStock: 5 })).json().data;
+      const variantId = product.variants[0].id as string;
+      await app.prisma.inventoryBalance.create({ data: { variantId, quantity: 3 } });
+
+      const withStock = await sessionWith([PERMISSIONS.CATALOG_READ, PERMISSIONS.INVENTORY_READ]);
+      const catalogOnly = await sessionWith([PERMISSIONS.CATALOG_READ]);
+
+      for (const url of [
+        '/api/v1/products',
+        `/api/v1/products/${product.id}`,
+        `/api/v1/products/lookup?code=${product.variants[0].sku}`,
+      ]) {
+        const full = await app.inject({ method: 'GET', url, headers: { cookie: withStock } });
+        expect(full.statusCode).toBe(200);
+        const body = full.json();
+        const variant = (Array.isArray(body.data) ? body.data[0] : body.data).variants[0];
+        expect(variant).toMatchObject({ stockQuantity: 3, stockLevel: 'LOW' });
+
+        const limited = await app.inject({ method: 'GET', url, headers: { cookie: catalogOnly } });
+        expect(limited.statusCode).toBe(200);
+        expect(limited.body).not.toMatch(/stockQuantity|stockLevel/);
+      }
+    });
+
+    it('una variante sin saldo registrado figura como sin stock', async () => {
+      const product = (await createProduct()).json().data;
+      const reader = await sessionWith([PERMISSIONS.CATALOG_READ, PERMISSIONS.INVENTORY_READ]);
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/products/${product.id}`,
+        headers: { cookie: reader },
+      });
+      expect(res.json().data.variants[0]).toMatchObject({ stockQuantity: 0, stockLevel: 'OUT' });
+    });
+  });
 });

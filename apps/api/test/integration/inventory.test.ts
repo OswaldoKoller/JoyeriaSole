@@ -183,4 +183,74 @@ describe('inventario: saldos, alertas y stock inicial', () => {
     expect(res.json().meta.total).toBe(1);
     expect(res.json().data[0]).toMatchObject({ type: 'INITIAL_STOCK', quantity: 6, userId });
   });
+
+  it('lista los movimientos de todas las variantes, del más reciente al más antiguo', async () => {
+    const first = await createVariant();
+    const second = await createVariant();
+    await initial(first.id, 4);
+    await initial(second.id, 9);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/inventory/movements',
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().meta.total).toBe(2);
+    const rows = res.json().data as { sku: string; productName: string; quantity: number }[];
+    expect(rows.map((row) => row.sku)).toEqual([second.sku, first.sku]);
+    expect(rows[0]).toMatchObject({
+      type: 'INITIAL_STOCK',
+      quantity: 9,
+      balanceBefore: 0,
+      balanceAfter: 9,
+      userId,
+    });
+    expect(rows[0]?.productName).toMatch(/^Producto /);
+  });
+
+  it('pagina los movimientos globales', async () => {
+    for (let index = 0; index < 3; index += 1) await initial((await createVariant()).id, 1 + index);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/inventory/movements?page=2&pageSize=2',
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().meta).toEqual({ page: 2, pageSize: 2, total: 3 });
+    expect(res.json().data).toHaveLength(1);
+  });
+
+  it('protege los movimientos globales: 401 sin sesión y 403 sin inventory:read', async () => {
+    expect(
+      (await app.inject({ method: 'GET', url: '/api/v1/inventory/movements' })).statusCode,
+    ).toBe(401);
+    const other = await createTestUser(app.prisma, { permissions: [PERMISSIONS.CATALOG_READ] });
+    const session = await login(app, other.user.email, other.password);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/inventory/movements',
+      headers: { cookie: session.cookie },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('initialOnly muestra solo las variantes que aún admiten stock inicial', async () => {
+    const withStock = await createVariant();
+    const pending = await createVariant();
+    await initial(withStock.id, 5);
+
+    const ids = async (query: string) => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/inventory${query}`,
+        headers: { cookie },
+      });
+      expect(res.statusCode).toBe(200);
+      return (res.json().data as { variantId: string }[]).map((item) => item.variantId).sort();
+    };
+    expect(await ids('?initialOnly=true')).toEqual([pending.id]);
+    expect(await ids('?initialOnly=false')).toEqual([withStock.id, pending.id].sort());
+    expect(await ids('')).toEqual([withStock.id, pending.id].sort());
+  });
 });

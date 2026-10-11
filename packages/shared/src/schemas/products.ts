@@ -9,6 +9,8 @@ export const productVariantSchema = z.object({
   label: z.string().nullable(),
   salePrice: z.string(),
   minStock: z.number(),
+  stockQuantity: z.number().optional(),
+  stockLevel: z.enum(['OUT', 'LOW', 'OK']).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']),
 });
 

@@ -8,7 +8,13 @@ import { recordAudit } from '../audit/audit.service.ts';
 export class InventoryService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async list(input: { page: number; pageSize: number; q: string; level: string }) {
+  async list(input: {
+    page: number;
+    pageSize: number;
+    q: string;
+    level: string;
+    initialOnly: boolean;
+  }) {
     const variants = await this.prisma.productVariant.findMany({
       where: {
         status: 'ACTIVE',
@@ -51,7 +57,8 @@ export class InventoryService {
           (input.level === 'LOW'
             ? item.minStock > 0 && item.quantity <= item.minStock
             : item.level === input.level),
-      );
+      )
+      .filter((item) => !input.initialOnly || item.canInitialize);
     return {
       data: items.slice((input.page - 1) * input.pageSize, input.page * input.pageSize),
       meta: { page: input.page, pageSize: input.pageSize, total: items.length },
@@ -73,6 +80,35 @@ export class InventoryService {
     return {
       data: rows.map((row) => ({
         id: row.id.toString(),
+        type: row.type,
+        quantity: row.quantity,
+        balanceBefore: row.balanceBefore,
+        balanceAfter: row.balanceAfter,
+        reason: row.reason,
+        notes: row.notes,
+        userId: row.userId,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      meta: { page: input.page, pageSize: input.pageSize, total },
+    };
+  }
+
+  async allMovements(input: { page: number; pageSize: number }) {
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.inventoryMovement.findMany({
+        include: { variant: { include: { product: true } } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (input.page - 1) * input.pageSize,
+        take: input.pageSize,
+      }),
+      this.prisma.inventoryMovement.count(),
+    ]);
+    return {
+      data: rows.map((row) => ({
+        id: row.id.toString(),
+        sku: row.variant.sku,
+        productName: row.variant.product.name,
+        variantLabel: row.variant.label,
         type: row.type,
         quantity: row.quantity,
         balanceBefore: row.balanceBefore,

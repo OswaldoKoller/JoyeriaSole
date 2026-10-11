@@ -24,6 +24,12 @@ export const inventoryMovementSchema = z.object({
   createdAt: z.string(),
 });
 
+export const globalInventoryMovementSchema = inventoryMovementSchema.extend({
+  sku: z.string(),
+  productName: z.string(),
+  variantLabel: z.string().nullable(),
+});
+
 export const initialStockSchema = z.object({
   quantity: z.number().int().positive(),
   reason: z.string().trim().min(1).max(200),
@@ -31,4 +37,5 @@ export const initialStockSchema = z.object({
 });
 
 export type InventoryItem = z.infer<typeof inventoryItemSchema>;
+export type GlobalInventoryMovement = z.infer<typeof globalInventoryMovementSchema>;
 export type InitialStockInput = z.infer<typeof initialStockSchema>;
