@@ -10,9 +10,9 @@ import { AttributesPage } from '../features/catalog/attributes-page.tsx';
 import { ProductsPage } from '../features/catalog/products-page.tsx';
 import { InventoryPage } from '../features/inventory/inventory-page.tsx';
 import { MovementsPage } from '../features/inventory/movements-page.tsx';
-import { HomePage } from '../pages/home-page.tsx';
+import { DashboardPage } from '../features/dashboard/dashboard-page.tsx';
 import { NotFoundPage } from '../pages/not-found-page.tsx';
-import { AppLayout } from './layout.tsx';
+import { AppShell } from './app-shell.tsx';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -20,13 +20,13 @@ export const router = createBrowserRouter([
     path: '/',
     element: (
       <RequireAuth>
-        <AppLayout />
+        <AppShell />
       </RequireAuth>
     ),
     // Las rutas de los módulos de Fase 1 se agregan aquí, cada una con sus permisos:
     //   { path: 'productos', element: <RequireAuth permissions={['catalog:read']}>...</RequireAuth> }
     children: [
-      { index: true, element: <HomePage /> },
+      { index: true, element: <DashboardPage /> },
       { path: 'mi-cuenta', element: <AccountPage /> },
       {
         path: 'proveedores',
