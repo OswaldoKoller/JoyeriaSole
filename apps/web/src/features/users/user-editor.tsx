@@ -120,7 +120,7 @@ export function UserEditor({
                 <label
                   key={role.id}
                   htmlFor={`${roleIdPrefix}-${role.id}`}
-                  className="inline-flex items-center gap-2 text-sm"
+                  className="inline-flex min-h-10 items-center gap-2 pr-3 text-sm"
                 >
                   <input
                     id={`${roleIdPrefix}-${role.id}`}

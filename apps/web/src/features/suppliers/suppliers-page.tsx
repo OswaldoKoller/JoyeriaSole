@@ -140,7 +140,7 @@ export function SuppliersPage() {
         )}
         {list.isSuccess && items.length > 0 && (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="table-cards w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
                   <th className="py-2 pr-4">Nombre</th>
@@ -154,9 +154,15 @@ export function SuppliersPage() {
                 {items.map((supplier) => (
                   <tr key={supplier.id} className="border-b border-stone-100">
                     <td className="py-3 pr-4 font-medium">{supplier.name}</td>
-                    <td className="py-3 pr-4">{supplier.taxId ?? '—'}</td>
-                    <td className="py-3 pr-4">{supplier.contactName ?? supplier.phone ?? '—'}</td>
-                    <td className="py-3 pr-4">{supplier.isActive ? 'Activo' : 'Inactivo'}</td>
+                    <td data-label="NIT" className="py-3 pr-4">
+                      {supplier.taxId ?? '—'}
+                    </td>
+                    <td data-label="Contacto" className="py-3 pr-4">
+                      {supplier.contactName ?? supplier.phone ?? '—'}
+                    </td>
+                    <td data-label="Estado" className="py-3 pr-4">
+                      {supplier.isActive ? 'Activo' : 'Inactivo'}
+                    </td>
                     {canManage && (
                       <td className="flex gap-2 py-2">
                         <Button

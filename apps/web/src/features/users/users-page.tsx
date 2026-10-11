@@ -134,13 +134,13 @@ export function UsersPage() {
         )}
         {list.isSuccess && users.length > 0 && (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="table-cards w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
                   <th className="py-2 pr-4">Nombre</th>
                   <th className="py-2 pr-4">Correo</th>
                   <th className="py-2 pr-4">Roles</th>
-                  <th className="py-2">Estado</th>
+                  <th className="py-2 pr-4">Estado</th>
                   {canManage && <th className="py-2">Acciones</th>}
                 </tr>
               </thead>
@@ -148,11 +148,15 @@ export function UsersPage() {
                 {users.map((user) => (
                   <tr key={user.id} className="border-b border-stone-100">
                     <td className="py-3 pr-4 font-medium">{user.name}</td>
-                    <td className="py-3 pr-4">{user.email}</td>
-                    <td className="py-3 pr-4">
+                    <td data-label="Correo" className="py-3 pr-4">
+                      {user.email}
+                    </td>
+                    <td data-label="Roles" className="py-3 pr-4">
                       {user.roles.map((role) => role.name).join(', ') || 'Sin rol'}
                     </td>
-                    <td className="py-3">{user.isActive ? 'Activo' : 'Inactivo'}</td>
+                    <td data-label="Estado" className="py-3 pr-4">
+                      {user.isActive ? 'Activo' : 'Inactivo'}
+                    </td>
                     {canManage && (
                       <td className="flex gap-2 py-2">
                         <Button
