@@ -20,7 +20,8 @@ async function login(page: Page, email: string) {
   await page.getByLabel('Correo electrónico').fill(email);
   await page.getByLabel('Contraseña').fill(DEMO_PASSWORD);
   await page.getByRole('button', { name: 'Ingresar' }).click();
-  await expect(page.getByRole('heading', { name: /Bienvenido/ })).toBeVisible();
+  // Tras cerrar sesión, la app devuelve a la página anterior (no siempre al Inicio): basta el menú.
+  await expect(menu(page)).toBeVisible();
 }
 
 test.describe('login y menú según el rol', () => {
@@ -156,6 +157,8 @@ test.describe('productos e inventario desde la interfaz', () => {
 
     // El administrador sí carga el stock inicial
     await page.getByRole('button', { name: 'Salir' }).click();
+    // Esperar a que la sesión se cierre: si /login se abre con la sesión viva, redirige al inicio.
+    await expect(page).toHaveURL(/\/login$/);
     await login(page, USERS.admin);
     await menu(page).getByRole('link', { name: 'Inventario' }).click();
     await page.getByLabel('Buscar por producto, SKU o código').fill('E2E Anillo Editado');
