@@ -104,6 +104,7 @@ const GROUPS: Group[] = [
       },
       {
         label: 'Ingresos de mercadería',
+        to: '/ingresos',
         icon: FilePlus2,
         permission: PERMISSIONS.STOCK_ENTRIES_READ,
       },

@@ -10,6 +10,9 @@ import { AttributesPage } from '../features/catalog/attributes-page.tsx';
 import { ProductsPage } from '../features/catalog/products-page.tsx';
 import { InventoryPage } from '../features/inventory/inventory-page.tsx';
 import { MovementsPage } from '../features/inventory/movements-page.tsx';
+import { StockEntriesPage } from '../features/stock-entries/stock-entries-page.tsx';
+import { StockEntryNewPage } from '../features/stock-entries/stock-entry-new-page.tsx';
+import { StockEntryPage } from '../features/stock-entries/stock-entry-page.tsx';
 import { DashboardPage } from '../features/dashboard/dashboard-page.tsx';
 import { NotFoundPage } from '../pages/not-found-page.tsx';
 import { AppShell } from './app-shell.tsx';
@@ -81,6 +84,30 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth permissions={[PERMISSIONS.INVENTORY_READ]}>
             <MovementsPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'ingresos',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.STOCK_ENTRIES_READ]}>
+            <StockEntriesPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'ingresos/nuevo',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.STOCK_ENTRIES_MANAGE]}>
+            <StockEntryNewPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'ingresos/:id',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.STOCK_ENTRIES_READ]}>
+            <StockEntryPage />
           </RequireAuth>
         ),
       },
