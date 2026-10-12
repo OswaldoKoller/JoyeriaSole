@@ -10,17 +10,17 @@ Respuestas comunicadas por el cliente el 2026-10-09 y el 2026-10-11: [primera re
 
 ## Estado actualizado de las decisiones de 2026-10-11
 
-| ID   | Estado      | Regla actual o precisión pendiente                                                                                                                              |
-| ---- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P-01 | 🟢 APROBADA | Responsable de inventario aprueba todos sus conteos y ajustes. Falta implementar permisos y flujos.                                                             |
-| P-06 | 🟡 PARCIAL  | Etiqueta propia Code 128 con SKU aprobada. Falta confirmar si se conserva también el código del proveedor.                                                      |
-| P-15 | 🟢 APROBADA | El cliente administra valores y atributos de cada producto. Falta implementar definiciones nuevas y valores descriptivos.                                       |
-| P-27 | 🟢 APROBADA | Sin gramaje; usar variantes y características definidas.                                                                                                        |
-| P-03 | 🟡 PARCIAL  | `(costo_compra + transporte + embolsado + valores_extras) × 2` como base; precio editable y cálculo configurable por categoría. Falta redondeo y vincular P-25. |
-| P-07 | 🟢 APROBADA | Prorrateo por valor y último costo. Falta implementar.                                                                                                          |
-| P-25 | 🟡 PARCIAL  | Se exige aprobación de cambios de precio; falta definir aprobador y vigencia.                                                                                   |
-| P-13 | 🟡 PARCIAL  | No bloquear movimientos y conciliarlos durante conteo; falta alcance del conteo.                                                                                |
-| P-24 | 🟡 PARCIAL  | Encargado crea productos activos y recibe piezas nuevas/no esperadas; faltan datos mínimos para confirmar ingreso.                                              |
+| ID   | Estado      | Regla actual o precisión pendiente                                                                                                                                                                        |
+| ---- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P-01 | 🟢 APROBADA | Responsable de inventario aprueba todos sus conteos y ajustes. Falta implementar permisos y flujos.                                                                                                       |
+| P-06 | 🟡 PARCIAL  | Etiqueta propia Code 128 con SKU aprobada. Falta confirmar si se conserva también el código del proveedor.                                                                                                |
+| P-15 | 🟢 APROBADA | El cliente administra valores y atributos de cada producto. Falta implementar definiciones nuevas y valores descriptivos.                                                                                 |
+| P-27 | 🟢 APROBADA | Sin gramaje; usar variantes y características definidas.                                                                                                                                                  |
+| P-03 | 🟡 PARCIAL  | `(costo_compra + transporte + embolsado + valores_extras) × 2` como base; precio editable y cálculo configurable por categoría. Falta redondeo y vincular P-25.                                           |
+| P-07 | 🟢 APROBADA | Prorrateo por valor y último costo; centavos por mayor resto y bloqueo con valor de compra cero ([ADR-015](../decisions/ADR-015-reparto-centavos-y-valor-cero.md)). En implementación (roadmap, orden 2). |
+| P-25 | 🟡 PARCIAL  | Se exige aprobación de cambios de precio; falta definir aprobador y vigencia.                                                                                                                             |
+| P-13 | 🟡 PARCIAL  | No bloquear movimientos y conciliarlos durante conteo; falta alcance del conteo.                                                                                                                          |
+| P-24 | 🟡 PARCIAL  | Encargado crea productos activos y recibe piezas nuevas/no esperadas; faltan datos mínimos para confirmar ingreso.                                                                                        |
 
 Las filas siguientes conservan el planteamiento original de cada pregunta y su preparación histórica. Para estos nueve IDs prevalece la tabla actualizada y la [resolución de 2026-10-11](RESOLUCIONES-2026-10-11.md).
 
