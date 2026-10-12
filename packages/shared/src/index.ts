@@ -4,6 +4,7 @@ import { z } from 'zod';
 z.config(z.locales.es());
 
 export * from './api.ts';
+export * from './costing.ts';
 export * from './permissions.ts';
 export * from './schemas/auth.ts';
 export * from './schemas/suppliers.ts';
@@ -12,3 +13,4 @@ export * from './schemas/categories.ts';
 export * from './schemas/attributes.ts';
 export * from './schemas/products.ts';
 export * from './schemas/inventory.ts';
+export * from './schemas/stock-entries.ts';
