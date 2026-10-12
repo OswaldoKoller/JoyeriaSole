@@ -10,6 +10,8 @@ const PASSWORD = process.env.DEMO_USER_PASSWORD ?? '';
 test.skip(!PASSWORD, 'Definir DEMO_USER_PASSWORD (npm run qa lo genera)');
 
 const WIDTHS = [320, 390, 768, 1024, 1440];
+const WIDE_FONT_CSS =
+  'html, body, input, button, select, textarea { font-family: Verdana, "DejaVu Sans", sans-serif !important; }';
 const ROUTES = [
   ['Inicio', '/'],
   ['Productos', '/productos'],
@@ -93,16 +95,24 @@ for (const width of WIDTHS) {
 
     const problems: string[] = [];
     await page.setViewportSize({ width, height: 900 });
-    for (const [name, path] of routes) {
-      await page.goto(path);
-      await expect(page.getByRole('heading').first()).toBeVisible();
-      await page.waitForLoadState('networkidle');
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      );
-      if (overflow > 0) problems.push(`${name}: la página desborda ${overflow}px`);
-      for (const control of await clippedControls(page)) {
-        problems.push(`${name}: control recortado → ${control}`);
+    // En teléfono se mide dos veces: con la tipografía del sistema y con una ancha. Linux usa
+    // tipografías más anchas que Windows y a 320 px la diferencia basta para sacar un campo de su
+    // tarjeta; el CI lo detectó y en local no se veía.
+    const fonts = width <= 390 ? ([false, true] as const) : ([false] as const);
+    for (const wideFont of fonts) {
+      for (const [name, path] of routes) {
+        await page.goto(path);
+        await expect(page.getByRole('heading').first()).toBeVisible();
+        if (wideFont) await page.addStyleTag({ content: WIDE_FONT_CSS });
+        await page.waitForLoadState('networkidle');
+        const where = `${name}${wideFont ? ' (tipografía ancha)' : ''}`;
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        if (overflow > 0) problems.push(`${where}: la página desborda ${overflow}px`);
+        for (const control of await clippedControls(page)) {
+          problems.push(`${where}: control recortado → ${control}`);
+        }
       }
     }
     expect(problems, problems.join('\n')).toEqual([]);
