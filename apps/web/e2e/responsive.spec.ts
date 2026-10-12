@@ -20,6 +20,8 @@ const ROUTES = [
   ['Proveedores', '/proveedores'],
   ['Usuarios', '/usuarios'],
   ['Mi cuenta', '/mi-cuenta'],
+  ['Ingresos', '/ingresos'],
+  ['Nuevo ingreso', '/ingresos/nuevo'],
 ] as const;
 
 /** Controles visibles de la página que quedan fuera de la pantalla o recortados por un ancestro. */
@@ -47,13 +49,16 @@ async function clippedControls(page: Page) {
   });
 }
 
-test('ninguna pantalla desborda ni recorta controles en 5 anchos', async ({ page }) => {
-  test.setTimeout(240_000);
+/** Ingreso en borrador con ítems y costos: se crea una sola vez y se reutiliza en los 5 anchos. */
+let entryRoute: string | undefined;
+
+async function prepareData(page: Page) {
   await page.goto('/login');
   await page.getByLabel('Correo electrónico').fill('demo-admin@example.invalid');
   await page.getByLabel('Contraseña').fill(PASSWORD);
   await page.getByRole('button', { name: 'Ingresar' }).click();
   await expect(page.getByRole('heading', { name: /Bienvenido/ })).toBeVisible();
+  if (entryRoute) return;
 
   // Un proveedor para que su tabla tenga filas que medir.
   const created = await page.request.post('/api/v1/suppliers', {
@@ -61,24 +66,48 @@ test('ninguna pantalla desborda ni recorta controles en 5 anchos', async ({ page
   });
   expect([201, 409]).toContain(created.status());
 
-  const problems: string[] = [];
-  for (const width of WIDTHS) {
+  const suppliers = await page.request.get('/api/v1/suppliers?q=RESP-001');
+  const supplierId = ((await suppliers.json()) as { data: { id: string }[] }).data[0]?.id;
+  const products = await page.request.get('/api/v1/products?q=Riviera');
+  const variantId = ((await products.json()) as { data: { variants: { id: string }[] }[] }).data[0]
+    ?.variants[0]?.id;
+  expect(supplierId && variantId).toBeTruthy();
+  const entry = await page.request.post('/api/v1/stock-entries', {
+    data: { supplierId, freightCost: '3', documentNumber: 'RESP-DOC-001' },
+  });
+  expect(entry.status()).toBe(201);
+  const entryId = ((await entry.json()) as { data: { id: string } }).data.id;
+  const withItems = await page.request.put(`/api/v1/stock-entries/${entryId}/items`, {
+    data: { items: [{ variantId, expectedQty: 12, receivedQty: 10, unitCost: '10' }] },
+  });
+  expect(withItems.status()).toBe(200);
+  entryRoute = `/ingresos/${entryId}`;
+}
+
+// Un caso por ancho: cada uno tiene su propio tiempo y, si falla, se ve en cuál.
+for (const width of WIDTHS) {
+  test(`ninguna pantalla desborda ni recorta controles a ${width}px`, async ({ page }) => {
+    test.setTimeout(180_000);
+    await prepareData(page);
+    const routes = [...ROUTES, ['Detalle de ingreso', entryRoute ?? '/ingresos'] as const];
+
+    const problems: string[] = [];
     await page.setViewportSize({ width, height: 900 });
-    for (const [name, path] of ROUTES) {
+    for (const [name, path] of routes) {
       await page.goto(path);
       await expect(page.getByRole('heading').first()).toBeVisible();
       await page.waitForLoadState('networkidle');
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       );
-      if (overflow > 0) problems.push(`${name} @${width}px: la página desborda ${overflow}px`);
+      if (overflow > 0) problems.push(`${name}: la página desborda ${overflow}px`);
       for (const control of await clippedControls(page)) {
-        problems.push(`${name} @${width}px: control recortado → ${control}`);
+        problems.push(`${name}: control recortado → ${control}`);
       }
     }
-  }
-  expect(problems, problems.join('\n')).toEqual([]);
-});
+    expect(problems, problems.join('\n')).toEqual([]);
+  });
+}
 
 test('en móvil las filas de las tablas son tarjetas con sus acciones visibles', async ({
   page,

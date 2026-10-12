@@ -16,6 +16,9 @@ export default defineConfig({
   testDir: './e2e',
   // Los recorridos con varios inicios de sesión (Argon2) superan los 30 s por defecto en equipos lentos.
   timeout: 60_000,
+  // 5 s por aserción es poco con el hash Argon2 de los inicios de sesión y varias verificaciones
+  // simultáneas en un equipo cargado: producía falsos fallos intermitentes. No relaja ninguna aserción.
+  expect: { timeout: 10_000 },
   fullyParallel: false,
   // Todos los archivos comparten una sola base de datos y un solo servidor: en serie, para que los
   // totales del dashboard sean exactos y los inicios de sesión (Argon2) no compitan por CPU.
