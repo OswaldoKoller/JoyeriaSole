@@ -36,6 +36,9 @@ const STATE_DIR = path.join(ROOT, '.local-deploy');
 const PID_FILE = path.join(STATE_DIR, 'api.pid');
 const LOG_FILE = path.join(STATE_DIR, 'api.log');
 const DOCKER_APP_PORT = Number(process.env.APP_PORT ?? 8080);
+// Proyecto Compose propio: el despliegue local no toca los contenedores ni el volumen de
+// `npm run db:up` (proyecto «joyeria-sole»), que pueden estar en uso con datos de desarrollo.
+process.env.COMPOSE_PROJECT_NAME ??= 'joyeria-local';
 
 const [command = 'help', ...rest] = process.argv.slice(2);
 const flags = new Map(

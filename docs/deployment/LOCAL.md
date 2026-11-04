@@ -51,7 +51,9 @@ Repetir `local:up` es seguro: reutiliza la base y reconstruye solo lo que cambi�
 
 - `APP_PORT` (por defecto 8080): puerto de la aplicación en modo `docker`.
 - `API_PORT` en `.env` (por defecto 3000): puerto en modo `node`.
-- `COMPOSE_PROJECT_NAME`: aislar un despliegue local de otro (contenedores y volumen propios).
+- `COMPOSE_PROJECT_NAME` (por defecto `joyeria-local`): el despliegue local usa contenedores y
+  volumen propios, distintos de los de `npm run db:up` (`joyeria-sole`), así que no toca la base de
+  desarrollo. Cambiarlo para tener varios despliegues locales a la vez.
 
 ## Problemas frecuentes
 
