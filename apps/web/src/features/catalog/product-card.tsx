@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
+import { PhotoGallery } from './photos/photo-gallery.tsx';
+import { ProductThumb } from './photos/product-thumb.tsx';
 import { ProductBadges } from './product-badges.tsx';
 import { useDeleteProduct, useUpdateProduct } from './use-products.ts';
 import { ConfigureAxesForm, CreateVariantForm } from './variant-forms.tsx';
@@ -39,6 +41,7 @@ export function ProductCard({
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   const [mode, setMode] = useState<'axes' | 'variant' | 'delete' | null>(null);
+  const [showPhotos, setShowPhotos] = useState(false);
   const skus = product.variants.map((variant) => variant.sku).join(',');
 
   async function toggle() {
@@ -68,15 +71,18 @@ export function ProductCard({
   return (
     <article className="rounded-lg border border-stone-200 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 className="flex flex-wrap items-center gap-2 font-semibold">
-            <span>{product.name}</span>
-            <ProductBadges product={product} />
-          </h2>
-          <p className="text-sm text-stone-600">
-            {product.categoryName}
-            {product.model ? ` · ${product.model}` : ''}
-          </p>
+        <div className="flex items-start gap-3">
+          <ProductThumb product={product} />
+          <div>
+            <h2 className="flex flex-wrap items-center gap-2 font-semibold">
+              <span>{product.name}</span>
+              <ProductBadges product={product} />
+            </h2>
+            <p className="text-sm text-stone-600">
+              {product.categoryName}
+              {product.model ? ` · ${product.model}` : ''}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -168,6 +174,25 @@ export function ProductCard({
             </div>
           ))}
         </dl>
+      )}
+      {(canManage || product.photos.length > 0) && (
+        <div className="mt-3">
+          <Button
+            variant="secondary"
+            aria-expanded={showPhotos}
+            aria-controls={`photos-${product.id}`}
+            onClick={() => {
+              setShowPhotos((value) => !value);
+            }}
+          >
+            Fotos de {product.name} ({product.photos.length})
+          </Button>
+          {showPhotos && (
+            <div id={`photos-${product.id}`}>
+              <PhotoGallery product={product} canManage={canManage} />
+            </div>
+          )}
+        </div>
       )}
       {canManage && (
         <div className="mt-3 flex flex-wrap gap-2">
