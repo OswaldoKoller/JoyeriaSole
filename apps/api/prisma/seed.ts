@@ -7,6 +7,7 @@
  *   - Roles preliminares y su asignación de permisos (PENDIENTE P-01/P-02)
  *   - Usuario administrador inicial (desde variables SEED_ADMIN_*)
  *   - Definiciones de atributos mencionadas en el requerimiento, SIN valores (P-15)
+ *   - Catálogo de motivos de ajuste de inventario (P-20)
  *
  * NO carga productos, categorías, proveedores ni stock: esos datos los define el cliente.
  */
@@ -14,6 +15,7 @@ import path from 'node:path';
 import { config as loadEnv } from 'dotenv';
 import {
   ALL_PERMISSIONS,
+  DEFAULT_ADJUSTMENT_REASONS,
   DEFAULT_ROLE_PERMISSIONS,
   PASSWORD_MIN_LENGTH,
   PERMISSION_DESCRIPTIONS,
@@ -132,10 +134,23 @@ async function seedAttributes() {
   console.log(`✔ ${ATTRIBUTES.length} definiciones de atributos (sin valores)`);
 }
 
+/** Motivos de ajuste (P-20). Idempotente: solo agrega los que faltan, sin pisar cambios hechos luego. */
+async function seedAdjustmentReasons() {
+  for (const [index, reason] of DEFAULT_ADJUSTMENT_REASONS.entries()) {
+    await prisma.adjustmentReason.upsert({
+      where: { code: reason.code },
+      update: {},
+      create: { ...reason, sortOrder: index },
+    });
+  }
+  console.log(`✔ ${DEFAULT_ADJUSTMENT_REASONS.length} motivos de ajuste`);
+}
+
 try {
   await seedPermissionsAndRoles();
   await seedAdmin();
   await seedAttributes();
+  await seedAdjustmentReasons();
 } finally {
   await prisma.$disconnect();
 }
