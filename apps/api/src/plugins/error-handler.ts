@@ -62,6 +62,21 @@ export const errorHandlerPlugin = fp(
         }
       }
 
+      // Subidas de archivos (@fastify/multipart): archivo o cuerpo demasiado grande, demasiadas partes.
+      if (
+        error.statusCode === 413 ||
+        error.code === 'FST_REQ_FILE_TOO_LARGE' ||
+        error.code === 'FST_FILES_LIMIT' ||
+        error.code === 'FST_PARTS_LIMIT' ||
+        error.code === 'FST_FIELDS_LIMIT'
+      ) {
+        return send(413, {
+          code: ERROR_CODES.PAYLOAD_TOO_LARGE,
+          message:
+            'El archivo supera el tamaño máximo permitido o la solicitud es demasiado grande.',
+        });
+      }
+
       if (error.statusCode === 429) {
         return send(429, {
           code: ERROR_CODES.RATE_LIMITED,

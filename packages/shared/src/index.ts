@@ -12,5 +12,6 @@ export * from './schemas/users.ts';
 export * from './schemas/categories.ts';
 export * from './schemas/attributes.ts';
 export * from './schemas/products.ts';
+export * from './schemas/photos.ts';
 export * from './schemas/inventory.ts';
 export * from './schemas/stock-entries.ts';

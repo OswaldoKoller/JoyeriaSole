@@ -60,6 +60,13 @@ export class BusinessRuleError extends AppError {
   }
 }
 
+/** El cuerpo o el archivo subido supera el tamaño permitido (413). */
+export class PayloadTooLargeError extends AppError {
+  constructor(message: string, details?: unknown) {
+    super(413, ERROR_CODES.PAYLOAD_TOO_LARGE, message, details);
+  }
+}
+
 /** Sesión válida, pero con clave temporal: solo puede cambiarla o cerrar sesión (F2). */
 export class PasswordChangeRequiredError extends AppError {
   constructor(message = 'Debe cambiar su contraseña temporal antes de continuar') {

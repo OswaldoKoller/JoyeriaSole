@@ -16,6 +16,8 @@ export const ERROR_CODES = {
   PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',
   /** 422 — no se desactiva un producto o variante con stock disponible (P-22). */
   STOCK_BLOCKS_DEACTIVATION: 'STOCK_BLOCKS_DEACTIVATION',
+  /** 413 — el archivo subido supera el tamaño permitido (p. ej. fotos de producto, 5 MB). */
+  PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
   RATE_LIMITED: 'RATE_LIMITED', // 429
   INTERNAL_ERROR: 'INTERNAL_ERROR', // 500 — nunca expone detalles internos
 } as const;

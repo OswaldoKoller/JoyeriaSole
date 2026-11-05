@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { productPhotoSchema } from './photos.ts';
 
 const moneySchema = z.string().regex(/^(0|[1-9]\d{0,9})(\.\d{1,2})?$/, 'Precio inválido');
 
@@ -49,6 +50,8 @@ export const productSchema = z.object({
     }),
   ),
   variants: z.array(productVariantSchema),
+  /** Fotos del producto (solo metadatos), en orden de galería. La portada tiene `isCover`. */
+  photos: z.array(productPhotoSchema),
 });
 
 /** Avisos no bloqueantes de una operación (p. ej. código del proveedor repetido, Q-10). */
