@@ -119,6 +119,16 @@ const FIELD_LABELS: Record<string, string> = {
   description: 'Descripción',
   categoryId: 'Categoría (ID)',
   supplierId: 'Proveedor (ID)',
+  type: 'Tipo',
+  country: 'País',
+  taxId: 'NIT o identificador',
+  contactName: 'Persona de contacto',
+  phone: 'Teléfono',
+  whatsapp: 'WhatsApp',
+  address: 'Dirección',
+  defaultCurrency: 'Moneda habitual de compra',
+  paymentTerms: 'Condiciones de pago',
+  updatedAt: 'Actualizado',
 };
 
 /** Etiqueta en español de una acción; si no está en el diccionario, el código crudo. */

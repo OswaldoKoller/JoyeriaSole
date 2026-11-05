@@ -1,5 +1,5 @@
 import { BUSINESS_TIME_ZONE, type AuditEntry } from '@joyeria/shared';
-import { useState, type SyntheticEvent } from 'react';
+import { useId, useState, type SyntheticEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
@@ -37,7 +37,7 @@ function Select({
   allLabel: string;
   options: { value: string; label: string }[];
 }) {
-  const id = `audit-${label.replaceAll(' ', '-').toLowerCase()}`;
+  const id = useId();
   // Si la URL trae un valor que aún no existe en la lista, se conserva como opción.
   const all =
     value && !options.some((option) => option.value === value)

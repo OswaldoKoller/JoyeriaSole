@@ -215,7 +215,7 @@ Consultas previstas para la Fase 1 (sin implementar aún):
 - Variantes **sin stock** (`quantity = 0`).
 - Variantes **bajo stock mínimo** (`quantity <= min_stock`).
 - **Historial** de movimientos por variante, tipo, usuario y rango de fechas.
-- Auditoría de acciones por usuario y entidad.
+- Auditoría de acciones por usuario y entidad: **implementada** como pantalla `/auditoria` **solo para el Administrador** (Q-15.3). Filtra por usuario, acción (exacta o por prefijo), tipo e ID de entidad y rango de fechas (hora de La Paz), y cada registro muestra quién, cuándo, IP, ID de petición y el antes/después campo por campo. Es de solo lectura y se guarda indefinidamente (P-23). Las claves sensibles (contraseñas, tokens, cookies) nunca se muestran.
 
 ## Fuera de alcance de la Fase 1
 
