@@ -46,6 +46,7 @@ model User {
   inventoryCountsCreated  InventoryCount[]     @relation("InventoryCountCreatedBy")
   inventoryCountsApproved InventoryCount[]     @relation("InventoryCountApprovedBy")
   countedItems            InventoryCountItem[]
+  productPhotosCreated    ProductPhoto[]       @relation("ProductPhotoCreatedBy")
 
   @@map("users")
 }
@@ -260,11 +261,53 @@ model Product {
   variants        ProductVariant[]
   attributeValues ProductAttributeValue[]
   variantAxes     ProductVariantAxis[]
+  photos          ProductPhoto[]
 
   @@index([categoryId])
   @@index([status])
   @@index([name])
   @@map("products")
+}
+
+/// Fotos del producto (no de la variante), hasta 5 (Q-09). Solo METADATOS: los bytes viven en
+/// `ProductPhotoBlob` detrás de la interfaz `PhotoStorage` (ADR-020), de modo que los listados
+/// nunca arrastran la imagen y el almacenamiento puede migrar a un bucket sin tocar esta tabla.
+/// La imagen se re-codifica siempre al subirla (WebP, lado mayor ≤ 1200 px, sin metadatos).
+model ProductPhoto {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  /// Lista blanca (CHECK): image/webp | image/jpeg | image/png.
+  contentType String   @map("content_type") @db.VarChar(50)
+  width       Int
+  height      Int
+  sizeBytes   Int      @map("size_bytes")
+  /// SHA-256 hexadecimal de los bytes almacenados: sirve de ETag sin leer la imagen.
+  sha256      String   @db.Char(64)
+  /// Orden de la galería (0 = primera).
+  position    Int
+  /// Como máximo una portada por producto (índice único parcial).
+  isCover     Boolean  @default(false) @map("is_cover")
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  product   Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdBy User              @relation("ProductPhotoCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  blob      ProductPhotoBlob?
+
+  @@index([productId, position])
+  @@index([createdById])
+  @@map("product_photos")
+}
+
+/// Bytes de la foto (implementación PostgreSQL de `PhotoStorage`). Se lee solo en el endpoint
+/// que sirve la imagen; nunca desde listados.
+model ProductPhotoBlob {
+  photoId String @id @map("photo_id") @db.Uuid
+  bytes   Bytes
+
+  photo ProductPhoto @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@map("product_photo_blobs")
 }
 
 /// Atributos que, para ESTE producto, generan variantes (p. ej. material + talla).
