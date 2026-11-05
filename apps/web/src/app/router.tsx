@@ -21,6 +21,7 @@ import { StockEntryNewPage } from '../features/stock-entries/stock-entry-new-pag
 import { StockEntryPage } from '../features/stock-entries/stock-entry-page.tsx';
 import { CostTypesPage } from '../features/stock-entries/cost-types-page.tsx';
 import { PricingPage } from '../features/pricing/pricing-page.tsx';
+import { AuditPage } from '../features/audit/audit-page.tsx';
 import { DashboardPage } from '../features/dashboard/dashboard-page.tsx';
 import { NotFoundPage } from '../pages/not-found-page.tsx';
 import { AppShell } from './app-shell.tsx';
@@ -172,6 +173,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth permissions={[PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.STOCK_ENTRIES_READ]}>
             <CostTypesPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'auditoria',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.AUDIT_READ]}>
+            <AuditPage />
           </RequireAuth>
         ),
       },

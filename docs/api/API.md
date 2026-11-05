@@ -147,7 +147,6 @@ Ejemplos ejecutables: [`requests.http`](../../requests.http) (extensión REST Cl
 
 | Módulo                      | Rutas tentativas                                    | Permisos      |
 | --------------------------- | --------------------------------------------------- | ------------- |
-| Auditoría                   | `/audit-logs` (pantalla solo para el Administrador) | `audit:read`  |
 | Reportes y exportaciones    | Por definir según las respuestas G1–G6 del cliente  | Por definir   |
 | Carga inicial de datos      | Importador con vista previa (S11, respuestas H1–H3) | Por definir   |
 | Salidas por ventas (Fase 2) | Fuera del alcance de la Fase 1                      | `inventory:*` |
@@ -371,6 +370,60 @@ o el hook `useUploadProductPhoto()` hacen exactamente esto y son independientes 
 
 Errores: `400 VALIDATION_ERROR` (no es JPG/PNG/WebP real, archivo dañado, falta el campo `file`, orden inválido),
 `413 PAYLOAD_TOO_LARGE`, `422 BUSINESS_RULE_VIOLATION` (ya tiene 5 fotos), `404`, `403`, `401`.
+
+### Auditoría (solo Administrador, Q-15.3)
+
+Consulta de `audit_logs`. **Solo lectura** (no existe ningún `POST/PUT/PATCH/DELETE`: la auditoría es append-only) y
+todos los endpoints exigen `audit:read`, que solo tiene el Administrador (401 sin sesión, 403 para el
+Responsable de inventario y el Vendedor, 403 `PASSWORD_CHANGE_REQUIRED` con clave temporal).
+
+| Método y ruta        | Descripción                                                                                               |
+| -------------------- | --------------------------------------------------------------------------------------------------------- |
+| `GET /audit`         | Lista paginada, del más reciente al más antiguo (`createdAt desc, id desc`).                              |
+| `GET /audit/actions` | Acciones, tipos de entidad y usuarios que existen en la auditoría (para poblar los filtros).              |
+| `GET /audit/:id`     | Un registro completo, con `userAgent`. `:id` es numérico (como texto): 400 si no lo es, 404 si no existe. |
+
+Filtros de `GET /audit` (todos opcionales; 400 `VALIDATION_ERROR` si son inválidos):
+
+| Parámetro          | Significado                                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `userId`           | UUID de quien hizo la acción.                                                                                                  |
+| `action`           | Coincidencia exacta (`price.approved`) o por **prefijo** si termina en `.` o `*` (`price.` → todas las de precios).            |
+| `entityType`       | Tipo de entidad exacto (`Product`, `ProductVariant`, `Supplier`…).                                                             |
+| `entityId`         | ID de la entidad exacto.                                                                                                       |
+| `from`, `to`       | Intervalo **cerrado** de fecha-hora ISO con zona (`2026-11-05T00:00:00-04:00`); `from` ≤ `to`.                                 |
+| `q`                | Texto libre (sin distinguir mayúsculas) en acción, tipo, ID de entidad y nombre o correo del usuario; `%` y `_` son literales. |
+| `page`, `pageSize` | Paginación (`pageSize` 1–100, por defecto 25).                                                                                 |
+
+```json
+{
+  "data": [
+    {
+      "id": "1042",
+      "createdAt": "2026-11-05T14:30:00.000Z",
+      "action": "variant.price_changed",
+      "entityType": "ProductVariant",
+      "entityId": "0192…",
+      "user": { "id": "0192…", "name": "Administrador", "email": "admin@…" },
+      "ip": "10.0.0.1",
+      "requestId": "5f2c…",
+      "before": { "salePrice": "10.00" },
+      "after": { "salePrice": "12.00" },
+      "metadata": { "origin": "REQUEST" }
+    }
+  ],
+  "meta": { "page": 1, "pageSize": 25, "total": 1 }
+}
+```
+
+- `user` es `null` en acciones del sistema o intentos de login de un usuario inexistente. `before`, `after` y `metadata` son
+  `null` si el registro no los guardó.
+- **Redacción**: al responder, toda clave de `before`/`after`/`metadata` (a cualquier profundidad) que coincida con
+  `/password|passwordHash|tokenHash|token|secret|cookie|authorization/i` se devuelve como `"[oculto]"`
+  (los valores `null` y booleanos se conservan). Es una defensa en profundidad: ningún módulo debe guardar secretos.
+- `GET /audit/actions` → `{ "data": { "actions": ["auth.login", …], "entityTypes": ["Product", …], "users": [{ "id", "name", "email" }] } }`
+  (hasta 300 valores por lista, ordenados).
+- Web: pantalla `/auditoria` (los filtros también van por URL: `/auditoria?entityType=Product&entityId=…&from=2026-11-01`).
 
 ## Cómo agregar un endpoint
 

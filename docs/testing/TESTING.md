@@ -60,6 +60,24 @@ Se conservan aserciones y plazos de las pruebas.
   previa de etiquetas (estilo `@page` y SVG), el Administrador elimina una ficha sin movimientos y el Vendedor
   solo consulta. La vista de impresión se verifica con `page.emulateMedia({ media: 'print' })`.
 
+## Auditoría (solo Administrador)
+
+- Unitarias `audit-redaction.test.ts` (API): qué claves son sensibles, redacción recursiva en objetos y arreglos, `null`/booleanos
+  conservados, entrada sin modificar y límite de profundidad. `audit-logic.test.ts` (web): diccionario de etiquetas con
+  fallback al código crudo, diferencias antes/después (creación, eliminación, anidados, arreglos, `null` vs ausente) y
+  filtros de la URL (día completo en hora de La Paz).
+- Integración `audit.test.ts`: 401 y 403 (Responsable y Vendedor) en los tres endpoints, 400 por filtros inválidos
+  (UUID, fechas, `from > to`, paginación, id no numérico), sin rutas de escritura, orden `createdAt desc, id desc` con
+  desempate, paginación, filtros combinados (acción exacta/prefijo, usuario, entidad, intervalo cerrado), búsqueda
+  `q` con `%` y `_` literales, detalle 200/404 con `userAgent`, **redacción efectiva** de claves sensibles guardadas en
+  `before/after/metadata` y `actions` ordenado.
+- Componentes `audit-page.test.tsx`: tabla en modo tarjetas, fecha de La Paz, filtros iniciales desde la URL,
+  aplicar/limpiar, rango invertido bloqueado, estados vacío/error, detalle con diferencias resaltadas, JSON completo
+  escapado en `<pre>` y cierre con Esc; `app-shell.test.tsx`: «Auditoría» solo con `audit:read`.
+- E2E `s10-audit.spec.ts`: el Administrador crea y edita un proveedor, lo encuentra en la auditoría y ve el antes/después
+  (el proveedor queda inactivo); sin desbordes a 320/768/1440 px; el Responsable y el Vendedor no ven el menú, la
+  pantalla ni la API (403). `responsive.spec.ts` incluye `/auditoria`.
+
 ## Fotos de producto (S3)
 
 - Unitarias `image-processing.test.ts`: firma de bytes (JPEG/PNG/WebP; SVG, HTML, GIF, EXE y RIFF/WAVE

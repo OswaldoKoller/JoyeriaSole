@@ -23,3 +23,4 @@ export * from './schemas/stock-entry-cost-types.ts';
 export * from './schemas/pricing.ts';
 export * from './schemas/exchanges.ts';
 export * from './schemas/approvals.ts';
+export * from './schemas/audit.ts';

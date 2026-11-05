@@ -27,6 +27,7 @@ const ROUTES = [
   ['Ajustes', '/inventario/ajustes'],
   ['Nuevo ajuste', '/inventario/ajustes/nuevo'],
   ['Tipos de costo', '/configuracion/tipos-de-costo'],
+  ['Auditoría', '/auditoria'],
 ] as const;
 
 /** Controles visibles de la página que quedan fuera de la pantalla o recortados por un ancestro. */

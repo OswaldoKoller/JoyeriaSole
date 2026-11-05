@@ -63,6 +63,23 @@ describe('panel lateral', () => {
     );
   });
 
+  it('Auditoría aparece solo con audit:read', async () => {
+    mockUser(['catalog:read', 'inventory:read', 'inventory:adjust', 'prices:propose']);
+    const { unmount } = renderWithProviders(<AppShell />);
+    const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
+    await within(nav).findByRole('link', { name: 'Productos' });
+    expect(within(nav).queryByRole('link', { name: 'Auditoría' })).not.toBeInTheDocument();
+    unmount();
+
+    vi.restoreAllMocks();
+    mockUser(['catalog:read', 'audit:read']);
+    renderWithProviders(<AppShell />);
+    expect(await screen.findByRole('link', { name: 'Auditoría' })).toHaveAttribute(
+      'href',
+      '/auditoria',
+    );
+  });
+
   it('abre y cierra el cajón móvil con teclado', async () => {
     mockUser([]);
     renderWithProviders(<AppShell />);
