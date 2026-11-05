@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * Ingreso de mercadería (roadmap, orden 2): borrador → ítems → reparto de costos → confirmación.
+ * Ingreso de mercadería: borrador → costos adicionales → ítems → reparto → confirmación.
  * Usa los datos DEMO. Corre después de dashboard/responsive (orden alfabético), que dependen de
  * los totales originales del seed, y antes de suppliers/users, que no dependen del stock.
  */
@@ -48,41 +48,60 @@ test('crea un borrador, reparte los costos, confirma y el stock sube', async ({ 
   const riviera = await stockOf(page, 'Riviera');
   const tenis = await stockOf(page, 'Tenis');
 
-  // 1) Borrador con proveedor, documento y costos adicionales
+  // 1) Borrador con proveedor y documento (el proveedor compra en Bs por defecto)
   await page.goto('/ingresos');
   await page.getByRole('link', { name: 'Nuevo ingreso' }).click();
   await page.getByLabel('Proveedor', { exact: true }).selectOption({ label: SUPPLIER });
+  await expect(page.getByLabel('Moneda', { exact: true })).toHaveValue('BOB');
   await page.getByLabel('Tipo de documento').fill('Factura');
   await page.getByLabel('Número de documento').fill('F-E2E-1');
-  await page.getByLabel('Transporte').fill('10');
-  await page.getByLabel('Embolsado').fill('0.5');
-  await page.getByLabel('Valores extras').fill('0.5');
   await page.getByRole('button', { name: 'Crear borrador' }).click();
   await expect(page).toHaveURL(/\/ingresos\/[0-9a-f-]{36}$/);
   await expect(page.getByRole('heading', { name: /Ingreso ING-\d{6}/ })).toContainText('Borrador');
 
-  // 2) Ítems: 10 × Bs 10 y 5 × Bs 20 (valores iguales: cada línea absorbe 5,50)
+  // 2) Lista abierta de costos adicionales: transporte, embolsado y otro (11,00 Bs en total)
+  const costs = [
+    ['Transporte', '10'],
+    ['Embolsado', '0.5'],
+    ['Otro', '0.5'],
+  ] as const;
+  for (const [index, [type, amount]] of costs.entries()) {
+    await page.getByRole('button', { name: 'Agregar costo' }).click();
+    const group = page.getByRole('group', { name: `Costo adicional ${index + 1}` });
+    await group.getByLabel('Tipo de costo').selectOption({ label: type });
+    await group.getByLabel('Monto (Bs)').fill(amount);
+  }
+  await expect(page.getByText('Guarde los costos adicionales antes de confirmar.')).toBeVisible();
+  await page.getByRole('button', { name: 'Guardar costos' }).click();
+  await expect(page.getByRole('group', { name: 'Costo adicional 3' })).toBeVisible();
+  await expect(page.getByText('Guarde los costos adicionales antes de confirmar.')).toHaveCount(0);
+
+  // 3) Ítems: 10 × Bs 10 y 5 × Bs 20 (valores iguales: cada línea absorbe 5,50)
+  const items = page.getByRole('region', { name: 'Ítems recibidos' });
+  const panel = page.getByRole('region', { name: 'Panel de costos' });
   await addVariant(page, 'Riviera');
-  const rivieraRow = page.getByRole('row', { name: /Riviera/ });
+  const rivieraRow = items.getByRole('row', { name: /Riviera/ });
   await rivieraRow.getByLabel(/Cantidad recibida/).fill('10');
-  await rivieraRow.getByLabel(/Costo unitario/).fill('10');
+  await rivieraRow.getByLabel(/Precio de compra de/).fill('10');
   await addVariant(page, 'Tenis');
-  const tenisRow = page.getByRole('row', { name: /Tenis/ });
+  const tenisRow = items.getByRole('row', { name: /Tenis/ });
   await tenisRow.getByLabel(/Cantidad recibida/).fill('5');
   await tenisRow.getByLabel(/Cantidad esperada/).fill('6');
-  await tenisRow.getByLabel(/Costo unitario/).fill('20');
-
-  // Vista previa inmediata con el mismo algoritmo que la API.
-  const totals = page.getByRole('term').filter({ hasText: 'Total del ingreso' });
-  await expect(totals).toBeVisible();
-  await expect(page.getByLabel('Totales del ingreso')).toContainText(/211[,.]00/);
-  await expect(rivieraRow).toContainText(/10[,.]55/);
-  await expect(tenisRow).toContainText(/21[,.]10/);
+  await tenisRow.getByLabel(/Precio de compra de/).fill('20');
   await expect(tenisRow).toContainText('-1'); // diferencia: recibidas 5 de 6 esperadas
 
-  // 3) No se puede confirmar con cambios sin guardar
+  // Vista previa inmediata con el mismo algoritmo que la API.
+  await expect(panel.getByLabel('Totales del ingreso')).toContainText(/211[,.]00/);
+  await expect(panel.getByRole('row', { name: /Riviera/ })).toContainText(/10[,.]55/);
+  await expect(panel.getByRole('row', { name: /Tenis/ })).toContainText(/21[,.]10/);
+
+  // 4) La diferencia exige una justificación y no se confirma con cambios sin guardar
   await expect(page.getByRole('button', { name: 'Confirmar ingreso' })).toBeDisabled();
   await expect(page.getByText('Guarde los ítems antes de confirmar.')).toBeVisible();
+  await expect(
+    page.getByText(/Justifique la diferencia de SKU-\d+ para poder confirmar/),
+  ).toBeVisible();
+  await tenisRow.getByLabel(/Justificación de la diferencia/).fill('Faltó una pieza en la caja');
   await page.getByRole('button', { name: 'Guardar ítems' }).click();
   await expect(page.getByRole('button', { name: 'Confirmar ingreso' })).toBeEnabled();
 
@@ -90,7 +109,7 @@ test('crea un borrador, reparte los costos, confirma y el stock sube', async ({ 
   expect(await stockOf(page, 'Riviera')).toBe(riviera);
   await page.goBack();
 
-  // 4) Confirmación
+  // 5) Confirmación
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'Confirmar ingreso' }).click();
   await expect(page.getByRole('heading', { name: /Ingreso ING-\d{6}/ })).toContainText(
@@ -101,13 +120,13 @@ test('crea un borrador, reparte los costos, confirma y el stock sube', async ({ 
   await expect(page.getByRole('button', { name: 'Guardar ítems' })).toHaveCount(0);
   await expect(page.getByLabel('Totales del ingreso')).toContainText(/211[,.]00/);
 
-  // 5) El stock subió exactamente lo recibido y el movimiento quedó en el historial
+  // 6) El stock subió exactamente lo recibido y el movimiento quedó en el historial
   expect(await stockOf(page, 'Riviera')).toBe(riviera + 10);
   expect(await stockOf(page, 'Tenis')).toBe(tenis + 5);
   await page.goto('/inventario/movimientos');
   await expect(page.getByText(/Ingreso ING-\d{6}/).first()).toBeVisible();
 
-  // 6) Aparece en la lista como confirmado
+  // 7) Aparece en la lista como confirmado
   await page.goto('/ingresos');
   await page.getByLabel('Buscar por número o documento').fill('F-E2E-1');
   await page.getByRole('button', { name: 'Buscar' }).click();
@@ -119,20 +138,26 @@ test('con costos adicionales y valor de compra cero no se puede confirmar', asyn
   await ensureSupplier(page);
   await page.goto('/ingresos/nuevo');
   await page.getByLabel('Proveedor', { exact: true }).selectOption({ label: SUPPLIER });
-  await page.getByLabel('Transporte').fill('5');
   await page.getByRole('button', { name: 'Crear borrador' }).click();
   await expect(page).toHaveURL(/\/ingresos\/[0-9a-f-]{36}$/);
 
+  await page.getByRole('button', { name: 'Agregar costo' }).click();
+  const cost = page.getByRole('group', { name: 'Costo adicional 1' });
+  await cost.getByLabel('Tipo de costo').selectOption({ label: 'Transporte' });
+  await cost.getByLabel('Monto (Bs)').fill('5');
+  await page.getByRole('button', { name: 'Guardar costos' }).click();
+  await expect(page.getByText('Guarde los costos adicionales antes de confirmar.')).toHaveCount(0);
+
   await addVariant(page, 'Riviera');
-  // El costo queda en 0 (valor por defecto): no hay base para repartir el transporte.
+  // El precio queda en 0 (valor por defecto): no hay base para repartir el transporte.
   await page.getByRole('button', { name: 'Guardar ítems' }).click();
   // Guardado completo = sin cambios pendientes: el botón vuelve a quedar deshabilitado.
   await expect(page.getByRole('button', { name: 'Guardar ítems' })).toBeDisabled();
-  await expect(page.getByText(/valor de compra es cero/)).toBeVisible();
+  await expect(page.getByText(/valor de compra es cero/).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Confirmar ingreso' })).toBeDisabled();
 
-  // Con un costo mayor que cero ya se puede.
-  await page.getByLabel(/Costo unitario/).fill('3');
+  // Con un precio mayor que cero ya se puede.
+  await page.getByLabel(/Precio de compra de/).fill('3');
   await page.getByRole('button', { name: 'Guardar ítems' }).click();
   await expect(page.getByRole('button', { name: 'Confirmar ingreso' })).toBeEnabled();
 
@@ -153,4 +178,13 @@ test('el vendedor no accede a los ingresos, ni por la web ni por la API', async 
   await expect(page.getByText('No tiene permiso para ver esta sección.')).toBeVisible();
   expect((await page.request.get('/api/v1/stock-entries')).status()).toBe(403);
   expect((await page.request.post('/api/v1/stock-entries', { data: {} })).status()).toBe(403);
+  // Tampoco ve costos en el catálogo ni en el historial de costos.
+  const products = await page.request.get('/api/v1/products?q=Riviera');
+  expect(products.status()).toBe(200);
+  expect(await products.text()).not.toMatch(/costPrice|unitCost/);
+  const variantId = ((await products.json()) as { data: { variants: { id: string }[] }[] }).data[0]
+    ?.variants[0]?.id;
+  expect(
+    (await page.request.get(`/api/v1/products/variants/${variantId}/cost-history`)).status(),
+  ).toBe(403);
 });

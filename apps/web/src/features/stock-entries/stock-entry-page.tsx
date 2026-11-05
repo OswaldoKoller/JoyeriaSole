@@ -1,30 +1,32 @@
-import {
-  PERMISSIONS,
-  formatMoney,
-  parseMoney,
-  type CreateStockEntryInput,
-  type StockEntryDetail,
-} from '@joyeria/shared';
+import { PERMISSIONS, type CreateStockEntryInput, type StockEntryDetail } from '@joyeria/shared';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Skeleton } from '../../components/ui/skeleton.tsx';
 import { ApiError } from '../../lib/api-client.ts';
 import { useHasPermission } from '../auth/use-auth.ts';
+import { CostPanel } from './cost-panel.tsx';
 import {
   fromServer,
   ingressLabel,
-  previewLines,
+  missingReasons,
+  previewEntry,
+  storedPreview,
+  sumCosts,
   toInput,
-  type Line,
   type Preview,
 } from './lines.ts';
+import { QuickCreatePiece, type QuickCreateState } from './quick-create-piece.tsx';
 import { StatusBadge } from './status-badge.tsx';
+import { costsFromServer, costsToInput, type CostLine } from './cost-lines.ts';
+import { StockEntryCosts } from './stock-entry-costs.tsx';
 import { StockEntryHeaderForm } from './stock-entry-header-form.tsx';
 import { StockEntryItems } from './stock-entry-items.tsx';
 import {
   useCancelStockEntry,
   useConfirmStockEntry,
+  useCostTypes,
+  useReplaceStockEntryCosts,
   useReplaceStockEntryItems,
   useStockEntry,
   useUpdateStockEntry,
@@ -44,54 +46,59 @@ function messageOf(error: unknown) {
   return 'No se pudo completar la operación. Intente de nuevo.';
 }
 
-/** Totales y costos por pieza de un ingreso ya cerrado, tal como quedaron guardados. */
-function storedPreview(entry: StockEntryDetail): Preview {
-  const perVariant = new Map<string, { unitExtra: string; unitTotal: string }>();
-  for (const item of entry.items) {
-    if (item.unitExtraCost !== null && item.unitTotalCost !== null) {
-      perVariant.set(item.variantId, {
-        unitExtra: item.unitExtraCost,
-        unitTotal: item.unitTotalCost,
-      });
-    }
-  }
-  return {
-    purchaseTotal: entry.purchaseTotal,
-    extrasTotal: entry.extrasTotal,
-    grandTotal: formatMoney(parseMoney(entry.purchaseTotal) + parseMoney(entry.extrasTotal)),
-    perVariant,
-    zeroValue: false,
-  };
+const plain = (lines: readonly CostLine[]) =>
+  JSON.stringify(lines.map(({ costTypeId, amount, note }) => ({ costTypeId, amount, note })));
+
+interface EditorProps {
+  entry: StockEntryDetail;
+  quick: QuickCreateState;
+  onQuickChange: (state: QuickCreateState) => void;
 }
 
-function Editor({ entry }: { entry: StockEntryDetail }) {
+function Editor({ entry, quick, onQuickChange }: EditorProps) {
   const navigate = useNavigate();
   const canManage = useHasPermission(PERMISSIONS.STOCK_ENTRIES_MANAGE);
   const canConfirm = useHasPermission(PERMISSIONS.STOCK_ENTRIES_CONFIRM);
-  const editable = entry.status === 'DRAFT' && canManage;
+  const canCosts = useHasPermission(PERMISSIONS.COSTS_READ);
+  const canCatalog = useHasPermission(PERMISSIONS.CATALOG_MANAGE);
+  const isDraft = entry.status === 'DRAFT';
+  // Precios y costos solo los edita quien también puede verlos (costs:read).
+  const editable = isDraft && canManage && canCosts;
 
   const update = useUpdateStockEntry(entry.id);
   const replace = useReplaceStockEntryItems(entry.id);
+  const replaceCosts = useReplaceStockEntryCosts(entry.id);
   const confirm = useConfirmStockEntry(entry.id);
   const cancel = useCancelStockEntry(entry.id);
+  const costTypes = useCostTypes();
 
-  const [lines, setLines] = useState<Line[]>(() => fromServer(entry.items));
+  const [lines, setLines] = useState(() => fromServer(entry.items));
   const [lineErrors, setLineErrors] = useState<Record<string, string>>({});
+  const [costLines, setCostLines] = useState(() => costsFromServer(entry.costs));
+  const [costErrors, setCostErrors] = useState<Record<string, string>>({});
   const [headerDirty, setHeaderDirty] = useState(false);
   const [headerError, setHeaderError] = useState('');
   const [actionError, setActionError] = useState('');
 
   const linesDirty = JSON.stringify(lines) !== JSON.stringify(fromServer(entry.items));
+  const costsDirty = plain(costLines) !== plain(costsFromServer(entry.costs));
   const parsed = toInput(lines);
-  const savedExtras =
-    parseMoney(entry.freightCost) + parseMoney(entry.packagingCost) + parseMoney(entry.otherCosts);
-  // Mientras se edita, la vista previa usa el mismo algoritmo que la confirmación (ADR-015).
-  const preview: Preview | null =
-    entry.status === 'DRAFT'
+
+  // Mientras se edita, la vista previa usa el mismo algoritmo que la confirmación (ADR-015/016).
+  let preview: Preview | null = null;
+  if (canCosts) {
+    preview = isDraft
       ? parsed.ok
-        ? previewLines(parsed.items, savedExtras)
+        ? previewEntry({
+            currency: entry.currency,
+            exchangeRate: entry.exchangeRate,
+            lines,
+            items: parsed.items,
+            extrasCents: sumCosts(costLines.map((line) => line.amount)),
+          })
         : null
       : storedPreview(entry);
+  }
 
   async function saveHeader(input: CreateStockEntryInput) {
     setHeaderError('');
@@ -111,6 +118,21 @@ function Editor({ entry }: { entry: StockEntryDetail }) {
     setLineErrors({});
     try {
       await replace.mutateAsync({ items: parsed.items });
+    } catch (error) {
+      setActionError(messageOf(error));
+    }
+  }
+
+  async function saveCosts() {
+    setActionError('');
+    const result = costsToInput(costLines);
+    if (!result.ok) {
+      setCostErrors(result.errors);
+      return;
+    }
+    setCostErrors({});
+    try {
+      await replaceCosts.mutateAsync({ costs: result.costs });
     } catch (error) {
       setActionError(messageOf(error));
     }
@@ -147,15 +169,27 @@ function Editor({ entry }: { entry: StockEntryDetail }) {
 
   const reasons: string[] = [];
   if (linesDirty) reasons.push('Guarde los ítems antes de confirmar.');
+  if (costsDirty) reasons.push('Guarde los costos adicionales antes de confirmar.');
   if (headerDirty) reasons.push('Guarde la cabecera antes de confirmar.');
-  if (!linesDirty) reasons.push(...entry.blockers);
-  if (linesDirty && preview?.zeroValue) {
-    reasons.push(
-      'Hay costos adicionales pero el valor de compra es cero: indique el costo de al menos un ítem.',
-    );
+  if (!linesDirty && !costsDirty) reasons.push(...entry.blockers);
+  if (linesDirty) {
+    for (const line of missingReasons(lines)) {
+      reasons.push(`Justifique la diferencia de ${line.sku} para poder confirmar.`);
+    }
+    if (preview?.zeroValue) {
+      reasons.push(
+        'Hay costos adicionales pero el valor de compra es cero: indique el costo de al menos un ítem.',
+      );
+    }
   }
   const canPressConfirm =
-    entry.status === 'DRAFT' && canConfirm && !confirm.isPending && reasons.length === 0;
+    isDraft && canConfirm && canCosts && !confirm.isPending && reasons.length === 0;
+  const quickBlocked =
+    linesDirty || costsDirty
+      ? 'Guarde los ítems y los costos antes de dar de alta una pieza nueva.'
+      : headerDirty
+        ? 'Guarde la cabecera antes de dar de alta una pieza nueva.'
+        : null;
 
   return (
     <div className="space-y-6">
@@ -179,11 +213,45 @@ function Editor({ entry }: { entry: StockEntryDetail }) {
         </div>
       </div>
 
+      {entry.relatedEntries.length > 0 && (
+        <section
+          aria-label="Otros ingresos con el mismo comprobante"
+          className="rounded-lg bg-sky-50 p-3 text-sm text-sky-900"
+        >
+          <p>
+            Hay otros ingresos de {entry.supplierName} con el comprobante{' '}
+            <strong>{entry.documentNumber}</strong> (entregas parciales):
+          </p>
+          <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+            {entry.relatedEntries.map((other) => (
+              <li key={other.id}>
+                <Link
+                  to={`/ingresos/${other.id}`}
+                  className="inline-flex min-h-8 items-center underline"
+                >
+                  {ingressLabel(other.number)}
+                </Link>{' '}
+                <span className="text-xs">
+                  (
+                  {other.status === 'CONFIRMED'
+                    ? 'confirmado'
+                    : other.status === 'DRAFT'
+                      ? 'borrador'
+                      : 'cancelado'}
+                  )
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {entry.status === 'CONFIRMED' && (
         <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
           Confirmado por {entry.confirmedByName ?? '—'}
           {entry.confirmedAt ? ` el ${dateTime.format(new Date(entry.confirmedAt))}` : ''}. El stock
           y el último costo de cada variante ya fueron actualizados; el precio de venta no cambia.
+          Las correcciones se hacen con un ajuste de inventario.
         </p>
       )}
       {entry.status === 'CANCELLED' && (
@@ -194,7 +262,7 @@ function Editor({ entry }: { entry: StockEntryDetail }) {
 
       <StockEntryHeaderForm
         entry={entry}
-        editable={editable}
+        editable={isDraft && canManage}
         submitLabel="Guardar cabecera"
         pending={update.isPending}
         serverError={headerError}
@@ -202,11 +270,27 @@ function Editor({ entry }: { entry: StockEntryDetail }) {
         onDirtyChange={setHeaderDirty}
       />
 
+      {canCosts && (
+        <StockEntryCosts
+          lines={costLines}
+          types={costTypes.data ?? []}
+          editable={editable}
+          saving={replaceCosts.isPending}
+          dirty={costsDirty}
+          errors={costErrors}
+          onChange={(next) => {
+            setCostLines(next);
+            setCostErrors({});
+          }}
+          onSave={() => void saveCosts()}
+        />
+      )}
+
       <StockEntryItems
         lines={lines}
+        currency={entry.currency}
         editable={editable}
         saving={replace.isPending}
-        preview={preview}
         errors={lineErrors}
         onChange={(next) => {
           setLines(next);
@@ -214,13 +298,35 @@ function Editor({ entry }: { entry: StockEntryDetail }) {
         }}
       />
 
+      {editable && canCatalog && (
+        <QuickCreatePiece
+          entryId={entry.id}
+          state={quick}
+          onStateChange={onQuickChange}
+          currency={entry.currency}
+          blockedReason={quickBlocked}
+          onCreated={() => {
+            setActionError('');
+          }}
+        />
+      )}
+
+      {canCosts && (
+        <CostPanel
+          preview={preview}
+          currency={entry.currency}
+          exchangeRate={entry.exchangeRate}
+          confirmed={entry.status === 'CONFIRMED'}
+        />
+      )}
+
       {actionError && (
         <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
           {actionError}
         </p>
       )}
 
-      {entry.status === 'DRAFT' && (
+      {isDraft && (
         <section
           aria-label="Acciones del ingreso"
           className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-xs"
@@ -242,12 +348,12 @@ function Editor({ entry }: { entry: StockEntryDetail }) {
                 {replace.isPending ? 'Guardando…' : 'Guardar ítems'}
               </Button>
             )}
-            {canConfirm && (
+            {canConfirm && canCosts && (
               <Button disabled={!canPressConfirm} onClick={() => void confirmEntry()}>
                 {confirm.isPending ? 'Confirmando…' : 'Confirmar ingreso'}
               </Button>
             )}
-            {editable && (
+            {canManage && (
               <Button
                 variant="danger"
                 disabled={cancel.isPending}
@@ -266,6 +372,8 @@ function Editor({ entry }: { entry: StockEntryDetail }) {
 export function StockEntryPage() {
   const { id = '' } = useParams();
   const query = useStockEntry(id);
+  // El editor se reinicia al guardar; el estado del alta rápida vive aquí para no perderlo.
+  const [quick, setQuick] = useState<QuickCreateState>({ open: false, notice: null });
 
   if (query.isPending) {
     return (
@@ -291,14 +399,14 @@ export function StockEntryPage() {
   const version = JSON.stringify([
     query.data.status,
     query.data.items,
-    query.data.freightCost,
-    query.data.packagingCost,
-    query.data.otherCosts,
+    query.data.costs,
+    query.data.currency,
+    query.data.exchangeRate,
     query.data.supplierId,
     query.data.documentType,
     query.data.documentNumber,
     query.data.documentDate,
     query.data.notes,
   ]);
-  return <Editor key={version} entry={query.data} />;
+  return <Editor key={version} entry={query.data} quick={quick} onQuickChange={setQuick} />;
 }

@@ -4,16 +4,23 @@ import { Link } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
+import { CostHistory } from '../stock-entries/cost-history.tsx';
 import { BarcodePreview } from './barcode-preview.tsx';
 import { ProductForm } from './product-form.tsx';
 import { ConfigureAxesForm, CreateVariantForm } from './variant-forms.tsx';
-import { useAssignBarcode, useGenerateBarcode, useProducts } from './use-products.ts';
+import {
+  useAssignBarcode,
+  useGenerateBarcode,
+  useProducts,
+  useUpdateProduct,
+} from './use-products.ts';
 
 const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
 
 export function ProductsPage() {
   const canManage = useHasPermission(PERMISSIONS.CATALOG_MANAGE);
   const canReadInventory = useHasPermission(PERMISSIONS.INVENTORY_READ);
+  const canReadCosts = useHasPermission(PERMISSIONS.COSTS_READ);
   const [page, setPage] = useState(1);
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState('');
@@ -27,6 +34,7 @@ export function ProductsPage() {
   const list = useProducts(page, search);
   const assign = useAssignBarcode();
   const generate = useGenerateBarcode();
+  const updateProduct = useUpdateProduct();
   const products = list.data?.data ?? [];
   const total = list.data?.meta.total ?? 0;
 
@@ -55,6 +63,15 @@ export function ProductsPage() {
       await generate.mutateAsync(variantId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No se pudo generar el código');
+    }
+  }
+
+  async function markComplete(productId: string) {
+    setError('');
+    try {
+      await updateProduct.mutateAsync({ id: productId, input: { profileIncomplete: false } });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No se pudo actualizar la ficha');
     }
   }
 
@@ -138,6 +155,23 @@ export function ProductsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <h2 className="font-semibold">{product.name}</h2>
+                    {product.profileIncomplete && (
+                      <p className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          Ficha incompleta
+                        </span>
+                        {canManage && (
+                          <button
+                            type="button"
+                            className="min-h-8 text-xs text-brand-700 underline"
+                            disabled={updateProduct.isPending}
+                            onClick={() => void markComplete(product.id)}
+                          >
+                            Marcar ficha de {product.name} como completa
+                          </button>
+                        )}
+                      </p>
+                    )}
                     <p className="text-sm text-stone-600">
                       {product.categoryName}
                       {product.model ? ` · ${product.model}` : ''}
@@ -254,6 +288,7 @@ export function ProductsPage() {
                           </Button>
                         </div>
                       )}
+                      {canReadCosts && <CostHistory variantId={variant.id} sku={variant.sku} />}
                       {barcodeFor === variant.id && (
                         <form
                           onSubmit={(event) => void assignCode(event)}

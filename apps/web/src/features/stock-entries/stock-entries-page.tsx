@@ -13,6 +13,7 @@ const date = new Intl.DateTimeFormat('es-BO', { timeZone: 'America/La_Paz', date
 
 export function StockEntriesPage() {
   const canManage = useHasPermission(PERMISSIONS.STOCK_ENTRIES_MANAGE);
+  const canCosts = useHasPermission(PERMISSIONS.COSTS_READ);
   const [page, setPage] = useState(1);
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState('');
@@ -107,8 +108,9 @@ export function StockEntriesPage() {
                   <th className="py-2 pr-4">Proveedor</th>
                   <th className="py-2 pr-4">Documento</th>
                   <th className="py-2 pr-4">Ítems</th>
-                  <th className="py-2 pr-4">Valor de compra</th>
-                  <th className="py-2 pr-4">Costos adicionales</th>
+                  {canCosts && <th className="py-2 pr-4">Moneda</th>}
+                  {canCosts && <th className="py-2 pr-4">Valor de compra (Bs)</th>}
+                  {canCosts && <th className="py-2 pr-4">Costos adicionales (Bs)</th>}
                   <th className="py-2 pr-4">Estado</th>
                   <th className="py-2">Fecha</th>
                 </tr>
@@ -134,12 +136,25 @@ export function StockEntriesPage() {
                     <td data-label="Ítems" className="py-3 pr-4">
                       {entry.itemsCount}
                     </td>
-                    <td data-label="Valor de compra" className="py-3 pr-4">
-                      {currency.format(Number(entry.purchaseTotal))}
-                    </td>
-                    <td data-label="Costos adicionales" className="py-3 pr-4">
-                      {currency.format(Number(entry.extrasTotal))}
-                    </td>
+                    {canCosts && (
+                      <td data-label="Moneda" className="py-3 pr-4">
+                        {entry.currency === 'USD' ? 'USD' : 'Bs'}
+                      </td>
+                    )}
+                    {canCosts && (
+                      <td data-label="Valor de compra (Bs)" className="py-3 pr-4">
+                        {entry.purchaseTotal === null
+                          ? '—'
+                          : currency.format(Number(entry.purchaseTotal))}
+                      </td>
+                    )}
+                    {canCosts && (
+                      <td data-label="Costos adicionales (Bs)" className="py-3 pr-4">
+                        {entry.extrasTotal === null
+                          ? '—'
+                          : currency.format(Number(entry.extrasTotal))}
+                      </td>
+                    )}
                     <td data-label="Estado" className="py-3 pr-4">
                       <StatusBadge status={entry.status} />
                     </td>

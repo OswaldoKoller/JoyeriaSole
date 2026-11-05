@@ -6,7 +6,8 @@
 //   - Modelos en PascalCase → tablas en snake_case plural (@@map).
 //   - Campos en camelCase → columnas en snake_case (@map).
 //   - IDs UUID v7 (ordenables por tiempo) salvo tablas de alto volumen append-only (BigInt).
-//   - Dinero en Decimal (nunca Float). Moneda única: bolivianos (P-10 aprobado).
+//   - Dinero en Decimal (nunca Float). El sistema opera en bolivianos; los ingresos pueden comprarse
+//     en dólares con tipo de cambio por ingreso (ADR-016).
 //   - Cantidades de stock en Int (unidades). Ver PENDIENTE P-09.
 // =============================================================================
 

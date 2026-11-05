@@ -1,7 +1,11 @@
 import {
   PERMISSIONS,
+  STOCK_ENTRY_CURRENCY_LABELS,
+  SUPPLIER_CURRENCY_LABELS,
   createStockEntrySchema,
+  documentDateBounds,
   type CreateStockEntryInput,
+  type StockEntryCurrency,
   type StockEntryDetail,
 } from '@joyeria/shared';
 import { useState, type SyntheticEvent } from 'react';
@@ -15,9 +19,8 @@ const FIELD_LABELS: Record<string, string> = {
   documentType: 'Tipo de documento',
   documentNumber: 'Número de documento',
   documentDate: 'Fecha del documento',
-  freightCost: 'Transporte',
-  packagingCost: 'Embolsado',
-  otherCosts: 'Valores extras',
+  currency: 'Moneda',
+  exchangeRate: 'Tipo de cambio',
   notes: 'Observaciones',
 };
 
@@ -33,7 +36,7 @@ interface HeaderFormProps {
   onDirtyChange?: (dirty: boolean) => void;
 }
 
-/** Cabecera del ingreso: proveedor, documento de respaldo y costos adicionales (P-03/P-07). */
+/** Cabecera del ingreso: proveedor, documento de respaldo, moneda de compra y tipo de cambio. */
 export function StockEntryHeaderForm({
   entry,
   editable,
@@ -44,22 +47,24 @@ export function StockEntryHeaderForm({
   onDirtyChange,
 }: HeaderFormProps) {
   const canReadSuppliers = useHasPermission(PERMISSIONS.SUPPLIERS_READ);
+  const canReadCosts = useHasPermission(PERMISSIONS.COSTS_READ);
   const suppliers = useActiveSuppliers(canReadSuppliers);
   const initial = {
     supplierId: entry?.supplierId ?? '',
     documentType: entry?.documentType ?? '',
     documentNumber: entry?.documentNumber ?? '',
     documentDate: entry?.documentDate ?? '',
-    freightCost: entry?.freightCost ?? '0.00',
-    packagingCost: entry?.packagingCost ?? '0.00',
-    otherCosts: entry?.otherCosts ?? '0.00',
+    currency: entry?.currency ?? 'BOB',
+    exchangeRate: entry?.exchangeRate ?? '',
     notes: entry?.notes ?? '',
   };
   const [values, setValues] = useState(initial);
+  const [currencyTouched, setCurrencyTouched] = useState(false);
   const [error, setError] = useState('');
+  const bounds = documentDateBounds();
 
-  const set = (field: keyof typeof values) => (value: string) => {
-    const next = { ...values, [field]: value };
+  const change = (patch: Partial<typeof values>) => {
+    const next = { ...values, ...patch };
     setValues(next);
     onDirtyChange?.(JSON.stringify(next) !== JSON.stringify(initial));
   };
@@ -69,6 +74,21 @@ export function StockEntryHeaderForm({
   if (entry && !options.some((supplier) => supplier.id === entry.supplierId)) {
     options.unshift({ id: entry.supplierId, name: entry.supplierName } as (typeof options)[number]);
   }
+  const selected = options.find((supplier) => supplier.id === values.supplierId);
+
+  function chooseSupplier(supplierId: string) {
+    const supplier = options.find((item) => item.id === supplierId);
+    // Sugerencia: la moneda habitual del proveedor, mientras no se haya elegido otra a mano.
+    if (!entry && !currencyTouched && supplier?.defaultCurrency && canReadCosts) {
+      change({
+        supplierId,
+        currency: supplier.defaultCurrency,
+        exchangeRate: supplier.defaultCurrency === 'USD' ? values.exchangeRate : '',
+      });
+    } else {
+      change({ supplierId });
+    }
+  }
 
   async function submit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,9 +96,7 @@ export function StockEntryHeaderForm({
     const parsed = createStockEntrySchema.safeParse({
       ...values,
       documentDate: values.documentDate || null,
-      freightCost: values.freightCost.trim() || '0',
-      packagingCost: values.packagingCost.trim() || '0',
-      otherCosts: values.otherCosts.trim() || '0',
+      exchangeRate: values.currency === 'USD' ? values.exchangeRate.trim() || null : null,
     });
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
@@ -90,22 +108,18 @@ export function StockEntryHeaderForm({
       );
       return;
     }
+    if (values.documentDate && values.documentDate < bounds.min) {
+      setError('La fecha del documento no puede ser anterior a 30 días.');
+      return;
+    }
+    if (values.documentDate && values.documentDate > bounds.max) {
+      setError('La fecha del documento no puede ser futura.');
+      return;
+    }
     await onSubmit(parsed.data);
   }
 
   const disabled = !editable || pending;
-  const money = (field: 'freightCost' | 'packagingCost' | 'otherCosts', label: string) => (
-    <Input
-      label={label}
-      value={values[field]}
-      onChange={(event) => {
-        set(field)(event.target.value);
-      }}
-      inputMode="decimal"
-      disabled={disabled}
-    />
-  );
-
   return (
     <form
       onSubmit={(event) => void submit(event)}
@@ -123,7 +137,7 @@ export function StockEntryHeaderForm({
             id="entry-supplier"
             value={values.supplierId}
             onChange={(event) => {
-              set('supplierId')(event.target.value);
+              chooseSupplier(event.target.value);
             }}
             disabled={disabled}
             className="block min-h-10 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:bg-stone-50"
@@ -145,7 +159,7 @@ export function StockEntryHeaderForm({
           label="Tipo de documento"
           value={values.documentType}
           onChange={(event) => {
-            set('documentType')(event.target.value);
+            change({ documentType: event.target.value });
           }}
           placeholder="Factura, nota de remisión…"
           maxLength={40}
@@ -155,35 +169,80 @@ export function StockEntryHeaderForm({
           label="Número de documento"
           value={values.documentNumber}
           onChange={(event) => {
-            set('documentNumber')(event.target.value);
+            change({ documentNumber: event.target.value });
           }}
           maxLength={60}
           disabled={disabled}
         />
-        <Input
-          label="Fecha del documento"
-          type="date"
-          value={values.documentDate}
-          onChange={(event) => {
-            set('documentDate')(event.target.value);
-          }}
-          disabled={disabled}
-        />
+        <div className="space-y-1">
+          <Input
+            label="Fecha del documento"
+            type="date"
+            value={values.documentDate}
+            min={bounds.min}
+            max={bounds.max}
+            onChange={(event) => {
+              change({ documentDate: event.target.value });
+            }}
+            disabled={disabled}
+          />
+          <p className="text-xs text-stone-500">Hasta 30 días atrás; no puede ser futura.</p>
+        </div>
       </div>
 
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-semibold text-stone-800">
-          Costos adicionales del ingreso (Bs)
-        </legend>
-        <p className="text-xs text-stone-500">
-          Se reparten entre los ítems en proporción a su valor de compra al confirmar.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {money('freightCost', 'Transporte')}
-          {money('packagingCost', 'Embolsado')}
-          {money('otherCosts', 'Valores extras')}
-        </div>
-      </fieldset>
+      {canReadCosts && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold text-stone-800">Moneda de la compra</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label htmlFor="entry-currency" className="block text-sm font-medium text-stone-700">
+                Moneda
+              </label>
+              <select
+                id="entry-currency"
+                value={values.currency}
+                onChange={(event) => {
+                  setCurrencyTouched(true);
+                  const currency = event.target.value as StockEntryCurrency;
+                  change({ currency, ...(currency === 'BOB' && { exchangeRate: '' }) });
+                }}
+                disabled={disabled}
+                className="block min-h-10 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:bg-stone-50"
+              >
+                <option value="BOB">{STOCK_ENTRY_CURRENCY_LABELS.BOB}</option>
+                <option value="USD">{STOCK_ENTRY_CURRENCY_LABELS.USD}</option>
+              </select>
+              {selected?.defaultCurrency && (
+                <p className="text-xs text-stone-500">
+                  Moneda habitual del proveedor:{' '}
+                  {SUPPLIER_CURRENCY_LABELS[selected.defaultCurrency]}.
+                </p>
+              )}
+            </div>
+            {values.currency === 'USD' && (
+              <div className="space-y-1">
+                <Input
+                  label="Tipo de cambio (Bs por USD)"
+                  value={values.exchangeRate}
+                  onChange={(event) => {
+                    change({ exchangeRate: event.target.value });
+                  }}
+                  inputMode="decimal"
+                  placeholder="6.96"
+                  disabled={disabled}
+                />
+                <p className="text-xs text-stone-500">
+                  Manual, mayor que cero, hasta 4 decimales. Queda fijo al confirmar.
+                </p>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-stone-500">
+            Los precios de compra se digitan en esta moneda. Costos, stock y precios del sistema se
+            llevan en bolivianos.
+          </p>
+        </fieldset>
+      )}
 
       <div className="space-y-1">
         <label htmlFor="entry-notes" className="block text-sm font-medium text-stone-700">
@@ -193,7 +252,7 @@ export function StockEntryHeaderForm({
           id="entry-notes"
           value={values.notes}
           onChange={(event) => {
-            set('notes')(event.target.value);
+            change({ notes: event.target.value });
           }}
           rows={2}
           maxLength={2000}

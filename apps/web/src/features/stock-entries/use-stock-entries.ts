@@ -1,10 +1,16 @@
 import type {
+  CostHistoryEntry,
+  CreateStockEntryCostTypeInput,
   CreateStockEntryInput,
   Product,
+  QuickCreateStockEntryItemInput,
+  ReplaceStockEntryCostsInput,
   ReplaceStockEntryItemsInput,
+  StockEntryCostType,
   StockEntryDetail,
   StockEntrySummary,
   Supplier,
+  UpdateStockEntryCostTypeInput,
   UpdateStockEntryInput,
 } from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -72,6 +78,33 @@ export function useReplaceStockEntryItems(id: string) {
   });
 }
 
+export function useReplaceStockEntryCosts(id: string) {
+  const after = useAfterChange();
+  return useMutation({
+    mutationFn: async (input: ReplaceStockEntryCostsInput) =>
+      (await api.put<{ data: StockEntryDetail }>(`/stock-entries/${id}/costs`, input)).data,
+    onSuccess: (detail) => after(detail),
+  });
+}
+
+/** Alta rápida de una pieza nueva dentro del borrador (C1/P-24). Devuelve avisos, p. ej. código repetido. */
+export function useQuickCreateItem(id: string) {
+  const client = useQueryClient();
+  const after = useAfterChange();
+  return useMutation({
+    mutationFn: (input: QuickCreateStockEntryItemInput) =>
+      api.post<{ data: StockEntryDetail; meta: { variantId: string; warnings: string[] } }>(
+        `/stock-entries/${id}/items/quick`,
+        input,
+      ),
+    // La pieza nueva aparece también en el catálogo.
+    onSuccess: async (result) => {
+      await after(result.data);
+      await client.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}
+
 export function useConfirmStockEntry(id: string) {
   const after = useAfterChange();
   return useMutation({
@@ -134,5 +167,46 @@ export function useVariantSearch(q: string) {
     queryKey: variantSearchKey(term),
     queryFn: () => searchVariants(term),
     enabled: term.length >= 2,
+  });
+}
+
+const costTypesKey = ['stock-entry-cost-types'] as const;
+
+/** Tipos de costo adicional (Q-08), activos e inactivos. */
+export function useCostTypes() {
+  return useQuery({
+    queryKey: costTypesKey,
+    queryFn: async () =>
+      (await api.get<{ data: StockEntryCostType[] }>('/stock-entry-cost-types')).data,
+  });
+}
+
+export function useCreateCostType() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateStockEntryCostTypeInput) =>
+      (await api.post<{ data: StockEntryCostType }>('/stock-entry-cost-types', input)).data,
+    onSuccess: () => client.invalidateQueries({ queryKey: costTypesKey }),
+  });
+}
+
+export function useUpdateCostType() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: UpdateStockEntryCostTypeInput }) =>
+      (await api.patch<{ data: StockEntryCostType }>(`/stock-entry-cost-types/${id}`, input)).data,
+    onSuccess: () => client.invalidateQueries({ queryKey: costTypesKey }),
+  });
+}
+
+/** Historial de costos de una variante (C10); requiere costs:read. */
+export function useCostHistory(variantId: string, page: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ['cost-history', variantId, page],
+    queryFn: () =>
+      api.get<Page<CostHistoryEntry>>(
+        `/products/variants/${variantId}/cost-history?page=${page}&pageSize=10`,
+      ),
+    enabled,
   });
 }
