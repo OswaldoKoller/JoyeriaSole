@@ -1,11 +1,15 @@
 import { PERMISSIONS, type Permission } from '@joyeria/shared';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { App } from '../../src/app.ts';
 import { applyStockChanges } from '../../src/modules/inventory/stock-ledger.ts';
 import { buildTestApp, login } from '../helpers/app.ts';
 import { createTestUser, resetDatabase } from '../helpers/db.ts';
 
 const URL = '/api/v1/inventory/counts';
+
+// Cada prueba inicia sesión con Argon2 y encadena decenas de peticiones: en equipos o CI cargados
+// superan los 20 s por defecto sin que haya ningún defecto.
+vi.setConfig({ testTimeout: 180_000, hookTimeout: 180_000 });
 
 const OPERATOR: Permission[] = [
   PERMISSIONS.INVENTORY_COUNTS_READ,
