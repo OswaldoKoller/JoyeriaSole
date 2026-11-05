@@ -48,6 +48,7 @@ Se conservan aserciones y plazos de las pruebas.
 - `buildTestApp(configure?)` — app real con entorno de test; `configure` permite registrar rutas de prueba.
 - `login(app, email, password)` — devuelve la cabecera `cookie` lista para `inject`.
 - `createTestUser(prisma, { permissions })` — usuario con un rol ad-hoc con exactamente esos permisos.
+- `seedAdjustmentReasons(prisma)` — siembra el catálogo de motivos de ajuste (`resetDatabase` lo vacía) y devuelve `code → id`.
 
 ## Qué debe probarse en la Fase 1 (obligatorio)
 
@@ -55,6 +56,7 @@ Se conservan aserciones y plazos de las pruebas.
 - **Inventario**: todo cambio de stock genera movimiento; saldo = suma de movimientos; concurrencia
   (dos operaciones simultáneas sobre la misma variante no pierden actualizaciones).
 - **Ingresos**: crear/editar borrador no cambia stock; confirmar sí, una sola vez; cancelar confirmado falla.
+- **Ajustes** (`adjustments.test.ts`): solicitar no mueve stock; aprobar genera movimiento + saldo + auditoría atómicos; la aprobación **revalida** con el saldo vigente; si una línea falla no se aplica ninguna; concurrencia (dos aprobaciones contra el mismo saldo no dejan stock negativo, doble aprobación del mismo ajuste, orden de bloqueo distinto sin interbloqueo); el Responsable no aprueba, el Vendedor no ve nada; costos ocultos sin `costs:read`; triggers/CHECK de la BD.
 - **Inventario físico**: snapshot correcto; aprobación genera ajustes exactos por diferencia.
 - Auditoría escrita en la misma transacción (si la operación falla, no queda auditoría huérfana).
 
@@ -67,13 +69,13 @@ npm run qa:e2e                   # crea BD efímera y servidores exclusivos
 
 ## Datos de demostración y E2E por roles
 
-`npm run db:seed:demo` (antes `npm run db:seed`) crea datos **ficticios** marcados «DEMO»: 3 usuarios (uno por rol, contraseña `DEMO_USER_PASSWORD`), 4 categorías y 20 productos con stock variado (5 sin stock, 5 bajo mínimo, 10 disponibles). El stock entra como movimientos `INITIAL_STOCK` auditados, nunca editando saldos. Se niega a correr con `NODE_ENV=production` o contra una base que no sea local. `npm run qa` lo ejecuta automáticamente.
+`npm run db:seed:demo` (antes `npm run db:seed`) crea datos **ficticios** marcados «DEMO»: 3 usuarios (uno por rol, contraseña `DEMO_USER_PASSWORD`), 4 categorías y 20 productos con stock variado (5 sin stock, 5 bajo mínimo, 10 disponibles). El stock entra como movimientos `INITIAL_STOCK` auditados, nunca editando saldos. También crea tres ajustes de ejemplo (dos pendientes y uno aprobado) que no alteran los niveles de stock del dashboard. Se niega a correr con `NODE_ENV=production` o contra una base que no sea local. `npm run qa` lo ejecuta automáticamente.
 
-| Usuario DEMO                    | Rol                       | Qué prueba                                                 |
-| ------------------------------- | ------------------------- | ---------------------------------------------------------- |
-| demo-admin@example.invalid      | Administrador             | Todo el menú; carga de stock inicial                       |
-| demo-inventario@example.invalid | Responsable de inventario | Sin Usuarios; crea/edita productos; sin `inventory:adjust` |
-| demo-vendedor@example.invalid   | Vendedor                  | Solo consulta; sin Proveedores ni Usuarios                 |
+| Usuario DEMO                    | Rol                       | Qué prueba                                                                                |
+| ------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| demo-admin@example.invalid      | Administrador             | Todo el menú; carga de stock inicial                                                      |
+| demo-inventario@example.invalid | Responsable de inventario | Sin Usuarios; crea/edita productos; solicita ajustes (`inventory:adjust`), no los aprueba |
+| demo-vendedor@example.invalid   | Vendedor                  | Solo consulta; sin Proveedores ni Usuarios                                                |
 
 `apps/web/e2e/roles-and-products.spec.ts` cubre: menú por rol, credenciales incorrectas, redirección al login sin sesión, bloqueo de rutas por permiso en la web **y** en la API (403), y crear → editar → verificar un producto con carga de stock. El sistema no tiene rol «cliente»: el Vendedor es el usuario restringido.
 

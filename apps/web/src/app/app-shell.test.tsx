@@ -79,11 +79,16 @@ describe('panel lateral', () => {
     const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
     await within(nav).findByRole('link', { name: 'Saldos y alertas' });
 
-    for (const name of ['Punto de venta', 'Historial de ventas', 'Ajustes']) {
+    for (const name of ['Punto de venta', 'Historial de ventas']) {
       expect(within(nav).getByText(name)).toBeVisible();
       expect(within(nav).queryByRole('link', { name })).not.toBeInTheDocument();
     }
-    expect(within(nav).getAllByText('Próximamente').length).toBeGreaterThanOrEqual(4);
+    expect(within(nav).getAllByText('Próximamente').length).toBeGreaterThanOrEqual(3);
+    // Los ajustes ya están implementados (ADR-017): es un enlace real, no «Próximamente».
+    expect(within(nav).getByRole('link', { name: 'Ajustes' })).toHaveAttribute(
+      'href',
+      '/inventario/ajustes',
+    );
   });
 
   it('marca solo una entrada cuando dos comparten ruta (Saldos y Stock inicial)', async () => {

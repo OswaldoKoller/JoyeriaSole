@@ -100,7 +100,28 @@ Crear inventario (DRAFT) → Iniciar (IN_PROGRESS: snapshot del stock del sistem
 - No hay ajustes arbitrarios: cada ajuste registra **quién, cuándo, qué variante, cantidad anterior,
   cantidad nueva, diferencia, motivo y observación** (el movimiento guarda `balance_before`,
   `balance_after`, `quantity`, `reason`, `notes`, `user_id`, `created_at`).
-- El responsable de almacén puede aprobar sus propios conteos físicos y ajustes manuales (P-01). Durante el conteo siguen permitidos los movimientos; la aprobación concilia los ocurridos desde el snapshot (P-13). El alcance del conteo sigue pendiente.
+- El responsable de almacén puede aprobar sus propios conteos físicos (P-01 parcial). Durante el conteo siguen permitidos los movimientos; la aprobación concilia los ocurridos desde el snapshot (P-13). El alcance del conteo sigue pendiente.
+
+## Ajustes manuales (Q-01 B, ADR-017)
+
+```
+Responsable SOLICITA (PENDING) → Administrador APRUEBA → movimientos ADJUSTMENT (el stock cambia aquí)
+                               ├→ Administrador RECHAZA con comentario (REJECTED)
+                               └→ quien solicitó CANCELA (CANCELLED)
+```
+
+- El **Responsable solicita** (`inventory:adjust`); **solo el Administrador aprueba o rechaza**
+  (`inventory:adjust-approve`) y puede aprobar los suyos. El **stock cambia únicamente al aprobar**.
+- Un ajuste puede tener varias variantes; cada línea es una diferencia con signo (negativa = sale). Un
+  solo **motivo** del catálogo (Robo, Pérdida, Muestra, Rotura, Error de registro, Otro) y una
+  **observación** libre, obligatoria si el motivo es «Otro».
+- **Nunca stock negativo**: se valida al solicitar y se **vuelve a validar al aprobar** con el saldo
+  vigente, porque el stock pudo cambiar entre ambos momentos. Si no alcanza, no se aprueba.
+- **Trazabilidad:** quién solicitó y cuándo, quién resolvió y cuándo, variante, cantidad anterior y
+  nueva, diferencia, motivo, observación y comentario de rechazo; costo y valor solo con `costs:read`.
+- **Descontinuar** (B11): atajo «Ajustar a cero» desde Inventario (solicita la salida de todo el saldo);
+  luego se desactiva la ficha. Impedir desactivar con stock > 0 es otra regla (P-22).
+- Un ajuste aprobado no se edita: se corrige con otro ajuste.
 
 ## Control
 

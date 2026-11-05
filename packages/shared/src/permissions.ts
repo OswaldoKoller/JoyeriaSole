@@ -27,11 +27,14 @@ export const PERMISSIONS = {
   STOCK_ENTRIES_CONFIRM: 'stock-entries:confirm',
 
   INVENTORY_READ: 'inventory:read',
+  /** Solicitar ajustes manuales (y cargar el stock inicial). El stock NO cambia hasta que se aprueba. */
   INVENTORY_ADJUST: 'inventory:adjust',
+  /** Aprobar o rechazar ajustes: es lo único que mueve stock en un ajuste (ADR-017). Solo ADMIN. */
+  INVENTORY_ADJUST_APPROVE: 'inventory:adjust-approve',
 
   INVENTORY_COUNTS_READ: 'inventory-counts:read',
   INVENTORY_COUNTS_MANAGE: 'inventory-counts:manage',
-  /** Aprobar diferencias de un inventario físico (genera ajustes). */
+  /** Aprobar un conteo físico: es lo único que genera los ajustes de stock del conteo (ADR-021). */
   INVENTORY_COUNTS_APPROVE: 'inventory-counts:approve',
 
   AUDIT_READ: 'audit:read',
@@ -55,10 +58,11 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'stock-entries:manage': 'Registrar y editar ingresos en borrador',
   'stock-entries:confirm': 'Confirmar ingresos (actualiza stock)',
   'inventory:read': 'Ver stock y movimientos',
-  'inventory:adjust': 'Registrar ajustes de inventario',
-  'inventory-counts:read': 'Ver inventarios físicos',
-  'inventory-counts:manage': 'Crear inventarios físicos y registrar conteos',
-  'inventory-counts:approve': 'Aprobar diferencias de inventario físico',
+  'inventory:adjust': 'Solicitar ajustes de inventario y cargar stock inicial',
+  'inventory:adjust-approve': 'Aprobar o rechazar ajustes de inventario (modifica el stock)',
+  'inventory-counts:read': 'Ver conteos físicos',
+  'inventory-counts:manage': 'Crear conteos físicos y capturar piezas',
+  'inventory-counts:approve': 'Aprobar conteos físicos (ajusta el stock) y regularizar hallazgos',
   'audit:read': 'Ver registro de auditoría',
 };
 
@@ -74,8 +78,9 @@ export type RoleCode = (typeof ROLES)[keyof typeof ROLES];
  * Asignación PRELIMINAR de permisos por rol.
  *
  * Respuestas del cliente (2026-10-09): vendedor sin costos (P-02), responsable de almacén
- * puede aprobar sus propios conteos físicos (P-01 parcial). Falta decidir ajustes manuales;
- * el seed aún no agrega inventory-counts:approve al responsable hasta implementar el conteo.
+ * puede aprobar sus propios conteos físicos (P-01 parcial). Reunión 2026-11-05 (Q-01 B): los
+ * ajustes manuales los solicita el responsable y solo los aprueba el administrador.
+ * Conteo físico (E6/Q-01 B, ADR-021): el Responsable también aprueba los conteos.
  * Solo se usa en el seed inicial; luego los roles se administran en base de datos.
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<
@@ -100,8 +105,11 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
       PERMISSIONS.STOCK_ENTRIES_MANAGE,
       PERMISSIONS.STOCK_ENTRIES_CONFIRM,
       PERMISSIONS.INVENTORY_READ,
+      // Solicita ajustes; aprobarlos es solo del Administrador (Q-01 B, ADR-017).
+      PERMISSIONS.INVENTORY_ADJUST,
       PERMISSIONS.INVENTORY_COUNTS_READ,
       PERMISSIONS.INVENTORY_COUNTS_MANAGE,
+      PERMISSIONS.INVENTORY_COUNTS_APPROVE,
     ],
   },
   SELLER: {

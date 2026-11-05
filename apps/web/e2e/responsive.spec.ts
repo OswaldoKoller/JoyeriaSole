@@ -24,6 +24,8 @@ const ROUTES = [
   ['Mi cuenta', '/mi-cuenta'],
   ['Ingresos', '/ingresos'],
   ['Nuevo ingreso', '/ingresos/nuevo'],
+  ['Ajustes', '/inventario/ajustes'],
+  ['Nuevo ajuste', '/inventario/ajustes/nuevo'],
 ] as const;
 
 /** Controles visibles de la página que quedan fuera de la pantalla o recortados por un ancestro. */

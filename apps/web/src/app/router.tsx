@@ -10,6 +10,9 @@ import { AttributesPage } from '../features/catalog/attributes-page.tsx';
 import { ProductsPage } from '../features/catalog/products-page.tsx';
 import { InventoryPage } from '../features/inventory/inventory-page.tsx';
 import { MovementsPage } from '../features/inventory/movements-page.tsx';
+import { AdjustmentPage } from '../features/adjustments/adjustment-page.tsx';
+import { AdjustmentNewPage } from '../features/adjustments/adjustment-new-page.tsx';
+import { AdjustmentsPage } from '../features/adjustments/adjustments-page.tsx';
 import { StockEntriesPage } from '../features/stock-entries/stock-entries-page.tsx';
 import { StockEntryNewPage } from '../features/stock-entries/stock-entry-new-page.tsx';
 import { StockEntryPage } from '../features/stock-entries/stock-entry-page.tsx';
@@ -84,6 +87,30 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth permissions={[PERMISSIONS.INVENTORY_READ]}>
             <MovementsPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'inventario/ajustes',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.INVENTORY_ADJUST]}>
+            <AdjustmentsPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'inventario/ajustes/nuevo',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.INVENTORY_ADJUST, PERMISSIONS.INVENTORY_READ]}>
+            <AdjustmentNewPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'inventario/ajustes/:id',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.INVENTORY_ADJUST]}>
+            <AdjustmentPage />
           </RequireAuth>
         ),
       },

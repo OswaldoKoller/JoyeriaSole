@@ -39,13 +39,18 @@ model User {
   roles    UserRole[]
   sessions Session[]
 
-  auditLogs               AuditLog[]
-  inventoryMovements      InventoryMovement[]
-  stockEntriesCreated     StockEntry[]         @relation("StockEntryCreatedBy")
-  stockEntriesConfirmed   StockEntry[]         @relation("StockEntryConfirmedBy")
-  inventoryCountsCreated  InventoryCount[]     @relation("InventoryCountCreatedBy")
-  inventoryCountsApproved InventoryCount[]     @relation("InventoryCountApprovedBy")
-  countedItems            InventoryCountItem[]
+  auditLogs                AuditLog[]
+  inventoryMovements       InventoryMovement[]
+  stockEntriesCreated      StockEntry[]            @relation("StockEntryCreatedBy")
+  stockEntriesConfirmed    StockEntry[]            @relation("StockEntryConfirmedBy")
+  inventoryCountsCreated   InventoryCount[]        @relation("InventoryCountCreatedBy")
+  inventoryCountsApproved  InventoryCount[]        @relation("InventoryCountApprovedBy")
+  inventoryCountsOperated  InventoryCount[]        @relation("InventoryCountOperator")
+  countScans               InventoryCountScan[]
+  countFindingsRegularized InventoryCountFinding[] @relation("InventoryCountFindingRegularizedBy")
+  countedItems             InventoryCountItem[]
+  adjustmentsRequested     InventoryAdjustment[]   @relation("InventoryAdjustmentRequestedBy")
+  adjustmentsResolved      InventoryAdjustment[]   @relation("InventoryAdjustmentResolvedBy")
 
   @@map("users")
 }
@@ -139,6 +144,7 @@ model Category {
   children   Category[]          @relation("CategoryTree")
   products   Product[]
   attributes CategoryAttribute[]
+  counts     InventoryCount[]
 
   @@unique([parentId, name])
   @@index([parentId])
@@ -310,13 +316,16 @@ model ProductVariant {
   createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  product          Product                 @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product          Product                   @relation(fields: [productId], references: [id], onDelete: Restrict)
   attributeValues  VariantAttributeValue[]
   inventory        InventoryBalance?
   movements        InventoryMovement[]
   supplierProducts SupplierProduct[]
   stockEntryItems  StockEntryItem[]
   countItems       InventoryCountItem[]
+  countScans       InventoryCountScan[]
+  countFindings    InventoryCountFinding[]
+  adjustmentItems  InventoryAdjustmentItem[]
 
   @@index([productId])
   @@index([status])
@@ -512,13 +521,16 @@ model InventoryMovement {
 }
 
 // -----------------------------------------------------------------------------
-// INVENTARIO FÍSICO (ADR-009)
-//   DRAFT → IN_PROGRESS (conteo) → IN_REVIEW (diferencias) → APPROVED (ajustes) | CANCELLED
+// INVENTARIO FÍSICO (ADR-009, ADR-014, ADR-021): conteo por categoría, a ciegas, con segundo recuento
+//   DRAFT → IN_PROGRESS (captura a ciegas) → [RECOUNT si hay diferencias] → IN_REVIEW → APPROVED | CANCELLED
+//   Solo APPROVED genera movimientos COUNT_ADJUSTMENT, conciliando los movimientos ocurridos durante el conteo.
 // -----------------------------------------------------------------------------
 
 enum InventoryCountStatus {
   DRAFT
   IN_PROGRESS
+  /// Segundo recuento obligatorio, a ciegas, solo de las variantes con diferencia (ADR-021).
+  RECOUNT
   IN_REVIEW
   APPROVED
   CANCELLED
@@ -526,41 +538,94 @@ enum InventoryCountStatus {
   @@map("inventory_count_status")
 }
 
-model InventoryCount {
-  id           String               @id @default(uuid(7)) @db.Uuid
-  number       Int                  @unique @default(autoincrement())
-  status       InventoryCountStatus @default(DRAFT)
-  /// Alcance del conteo (total, por categoría...). Reglas: PENDIENTE (P-13).
-  scope        String?              @db.VarChar(200)
-  notes        String?
-  createdById  String               @map("created_by_id") @db.Uuid
-  approvedById String?              @map("approved_by_id") @db.Uuid
-  startedAt    DateTime?            @map("started_at") @db.Timestamptz(3)
-  approvedAt   DateTime?            @map("approved_at") @db.Timestamptz(3)
-  cancelledAt  DateTime?            @map("cancelled_at") @db.Timestamptz(3)
-  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+enum InventoryCountScanSource {
+  /// Lector de códigos (texto + Enter): suma 1 pieza.
+  SCAN
+  /// Cantidad fijada a mano.
+  MANUAL
 
-  createdBy  User                 @relation("InventoryCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  approvedBy User?                @relation("InventoryCountApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  @@map("inventory_count_scan_source")
+}
+
+enum InventoryCountFindingType {
+  /// El código no existe en el sistema.
+  NOT_FOUND
+  /// La pieza existe pero pertenece a otra categoría, fuera del alcance del conteo.
+  OUT_OF_SCOPE
+
+  @@map("inventory_count_finding_type")
+}
+
+model InventoryCount {
+  id              String               @id @default(uuid(7)) @db.Uuid
+  /// Número correlativo legible (CNT-000001).
+  number          Int                  @unique @default(autoincrement())
+  status          InventoryCountStatus @default(DRAFT)
+  /// Etiqueta del alcance al crear (ruta de la categoría), para conservar el nombre histórico.
+  scope           String?              @db.VarChar(200)
+  /// Categoría contada; incluye a sus subcategorías (Q-13 B / ADR-021). No hay conteo «total».
+  categoryId      String?              @map("category_id") @db.Uuid
+  notes           String?
+  /// Único operador que captura (el que inicia o quien lo toma).
+  operatorId      String?              @map("operator_id") @db.Uuid
+  createdById     String               @map("created_by_id") @db.Uuid
+  approvedById    String?              @map("approved_by_id") @db.Uuid
+  startedAt       DateTime?            @map("started_at") @db.Timestamptz(3)
+  /// Cierre del primer conteo.
+  firstClosedAt   DateTime?            @map("first_closed_at") @db.Timestamptz(3)
+  /// Pasó a revisión (tras el primer conteo sin diferencias o tras el segundo recuento).
+  reviewAt        DateTime?            @map("review_at") @db.Timestamptz(3)
+  approvedAt      DateTime?            @map("approved_at") @db.Timestamptz(3)
+  cancelledAt     DateTime?            @map("cancelled_at") @db.Timestamptz(3)
+  /// Motivo de la cancelación (opcional).
+  resolutionNotes String?              @map("resolution_notes")
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  category   Category?               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  operator   User?                   @relation("InventoryCountOperator", fields: [operatorId], references: [id], onDelete: Restrict)
+  createdBy  User                    @relation("InventoryCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy User?                   @relation("InventoryCountApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
   items      InventoryCountItem[]
+  scans      InventoryCountScan[]
+  findings   InventoryCountFinding[]
 
   @@index([status])
+  @@index([categoryId])
   @@map("inventory_counts")
 }
 
 model InventoryCountItem {
-  id               String    @id @default(uuid(7)) @db.Uuid
-  inventoryCountId String    @map("inventory_count_id") @db.Uuid
-  variantId        String    @map("variant_id") @db.Uuid
-  /// Stock del sistema al iniciar el conteo (snapshot).
-  systemQty        Int       @map("system_qty")
-  countedQty       Int?      @map("counted_qty")
-  countedById      String?   @map("counted_by_id") @db.Uuid
-  countedAt        DateTime? @map("counted_at") @db.Timestamptz(3)
-  /// Motivo de la diferencia, obligatorio al aprobar si countedQty ≠ systemQty.
-  differenceReason String?   @map("difference_reason") @db.VarChar(200)
-  notes            String?
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  inventoryCountId    String    @map("inventory_count_id") @db.Uuid
+  variantId           String    @map("variant_id") @db.Uuid
+  /// Foto del sistema al iniciar el conteo (solo se muestra desde la revisión).
+  systemQty           Int       @map("system_qty")
+  /// Último movimiento de la variante al tomar la foto (cursor de conciliación).
+  snapshotCursor      BigInt    @default(0) @map("snapshot_cursor")
+  /// Primer conteo: piezas contadas (null = sin escaneos; al cerrar pasa a 0).
+  countedQty          Int?      @map("counted_qty")
+  /// Último movimiento de la variante en el momento de la última captura del primer conteo.
+  countedCursor       BigInt?   @map("counted_cursor")
+  countedById         String?   @map("counted_by_id") @db.Uuid
+  countedAt           DateTime? @map("counted_at") @db.Timestamptz(3)
+  /// Se fija al cerrar el primer conteo: hubo diferencia y requiere segundo recuento.
+  needsRecount        Boolean   @default(false) @map("needs_recount")
+  /// Segundo recuento (a ciegas); si existe, prevalece como conteo final.
+  recountQty          Int?      @map("recount_qty")
+  recountCursor       BigInt?   @map("recount_cursor")
+  recountedAt         DateTime? @map("recounted_at") @db.Timestamptz(3)
+  notes               String?
+  /// Resultado de la aprobación (congelado): esperado al momento del conteo, conteo final,
+  /// movimientos conciliados, diferencia aplicada, saldos y movimiento generado.
+  expectedQty         Int?      @map("expected_qty")
+  finalQty            Int?      @map("final_qty")
+  reconciledMovements Int?      @map("reconciled_movements")
+  difference          Int?
+  balanceBefore       Int?      @map("balance_before")
+  balanceAfter        Int?      @map("balance_after")
+  unitCost            Decimal?  @map("unit_cost") @db.Decimal(12, 4)
+  movementId          BigInt?   @map("movement_id")
 
   inventoryCount InventoryCount @relation(fields: [inventoryCountId], references: [id], onDelete: Cascade)
   variant        ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
@@ -569,6 +634,150 @@ model InventoryCountItem {
   @@unique([inventoryCountId, variantId])
   @@index([variantId])
   @@map("inventory_count_items")
+}
+
+/// Registro de cada escaneo o cantidad fijada (trazabilidad pieza por pieza, E5). Se persiste en
+/// cada lectura: al caducar la sesión o cerrar el navegador el conteo se reanuda sin pérdida.
+model InventoryCountScan {
+  id               BigInt                   @id @default(autoincrement())
+  inventoryCountId String                   @map("inventory_count_id") @db.Uuid
+  /// 1 = primer conteo, 2 = segundo recuento.
+  round            Int                      @db.SmallInt
+  variantId        String?                  @map("variant_id") @db.Uuid
+  findingId        String?                  @map("finding_id") @db.Uuid
+  /// Texto leído o tecleado, normalizado.
+  code             String                   @db.VarChar(100)
+  source           InventoryCountScanSource
+  /// Piezas que suma (+1) o ajusta (manual) sobre el conteo de la variante/hallazgo.
+  delta            Int
+  quantityAfter    Int                      @map("quantity_after")
+  /// Último movimiento de la variante al capturar (conciliación).
+  movementCursor   BigInt?                  @map("movement_cursor")
+  userId           String                   @map("user_id") @db.Uuid
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  undoneAt         DateTime?                @map("undone_at") @db.Timestamptz(3)
+
+  inventoryCount InventoryCount         @relation(fields: [inventoryCountId], references: [id], onDelete: Cascade)
+  variant        ProductVariant?        @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  finding        InventoryCountFinding? @relation(fields: [findingId], references: [id], onDelete: Restrict)
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([inventoryCountId, round, id])
+  @@index([variantId])
+  @@index([findingId])
+  @@map("inventory_count_scans")
+}
+
+/// Códigos leídos que no forman parte del conteo: no afectan el stock; el aprobador los marca como
+/// regularizados para su regularización manual posterior (E4).
+model InventoryCountFinding {
+  id                 String                    @id @default(uuid(7)) @db.Uuid
+  inventoryCountId   String                    @map("inventory_count_id") @db.Uuid
+  round              Int                       @db.SmallInt
+  code               String                    @db.VarChar(100)
+  type               InventoryCountFindingType
+  /// Variante identificada cuando es OUT_OF_SCOPE.
+  variantId          String?                   @map("variant_id") @db.Uuid
+  quantity           Int                       @default(0)
+  note               String?
+  regularizedAt      DateTime?                 @map("regularized_at") @db.Timestamptz(3)
+  regularizedById    String?                   @map("regularized_by_id") @db.Uuid
+  regularizationNote String?                   @map("regularization_note")
+  createdAt          DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  inventoryCount InventoryCount       @relation(fields: [inventoryCountId], references: [id], onDelete: Cascade)
+  variant        ProductVariant?      @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  regularizedBy  User?                @relation("InventoryCountFindingRegularizedBy", fields: [regularizedById], references: [id], onDelete: Restrict)
+  scans          InventoryCountScan[]
+
+  @@unique([inventoryCountId, round, code])
+  @@index([variantId])
+  @@map("inventory_count_findings")
+}
+
+// -----------------------------------------------------------------------------
+// AJUSTES MANUALES CON SOLICITUD Y APROBACIÓN (ADR-017, amplía ADR-009)
+//   PENDING → APPROVED (único estado que mueve stock) | REJECTED | CANCELLED
+//   El Responsable solicita (`inventory:adjust`); solo el Administrador aprueba o rechaza.
+// -----------------------------------------------------------------------------
+
+enum AdjustmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@map("adjustment_status")
+}
+
+/// Catálogo de motivos de ajuste (P-20). Lo siembra el seed; `OTHER` exige observación.
+model AdjustmentReason {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  code          String   @unique @db.VarChar(40)
+  name          String   @db.VarChar(100)
+  /// La observación es obligatoria al elegir este motivo («Otro»).
+  requiresNotes Boolean  @default(false) @map("requires_notes")
+  isActive      Boolean  @default(true) @map("is_active")
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  adjustments InventoryAdjustment[]
+
+  @@map("adjustment_reasons")
+}
+
+model InventoryAdjustment {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  /// Número correlativo legible (AJ-000001).
+  number          Int              @unique @default(autoincrement())
+  status          AdjustmentStatus @default(PENDING)
+  reasonId        String           @map("reason_id") @db.Uuid
+  /// Observación del solicitante (obligatoria si el motivo es «Otro»).
+  notes           String?
+  requestedById   String           @map("requested_by_id") @db.Uuid
+  /// Quien aprobó o rechazó, y cuándo.
+  resolvedById    String?          @map("resolved_by_id") @db.Uuid
+  resolvedAt      DateTime?        @map("resolved_at") @db.Timestamptz(3)
+  /// Comentario del Administrador (obligatorio al rechazar).
+  resolutionNotes String?          @map("resolution_notes")
+  cancelledAt     DateTime?        @map("cancelled_at") @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  reason      AdjustmentReason          @relation(fields: [reasonId], references: [id], onDelete: Restrict)
+  requestedBy User                      @relation("InventoryAdjustmentRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  resolvedBy  User?                     @relation("InventoryAdjustmentResolvedBy", fields: [resolvedById], references: [id], onDelete: Restrict)
+  items       InventoryAdjustmentItem[]
+
+  @@index([status, createdAt])
+  @@index([requestedById])
+  @@index([reasonId])
+  @@map("inventory_adjustments")
+}
+
+model InventoryAdjustmentItem {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  adjustmentId      String   @map("adjustment_id") @db.Uuid
+  variantId         String   @map("variant_id") @db.Uuid
+  /// Diferencia con signo solicitada (≠ 0): negativa = salida, positiva = entrada.
+  quantityDelta     Int      @map("quantity_delta")
+  /// Saldo visto al solicitar (informativo: puede cambiar antes de aprobar).
+  quantityAtRequest Int      @map("quantity_at_request")
+  /// Se fijan al aprobar, con el saldo vigente en ese momento.
+  balanceBefore     Int?     @map("balance_before")
+  balanceAfter      Int?     @map("balance_after")
+  /// Costo unitario vigente al aprobar (valorización; solo visible con `costs:read`).
+  unitCost          Decimal? @map("unit_cost") @db.Decimal(12, 4)
+  /// Movimiento ADJUSTMENT generado al aprobar.
+  movementId        BigInt?  @map("movement_id")
+
+  adjustment InventoryAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  variant    ProductVariant      @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@unique([adjustmentId, variantId])
+  @@index([variantId])
+  @@map("inventory_adjustment_items")
 }
 
 // -----------------------------------------------------------------------------

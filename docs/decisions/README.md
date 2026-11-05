@@ -23,5 +23,6 @@ Las decisiones de **negocio** pendientes están en [`docs/business/PENDIENTES.md
 | [013](ADR-013-costeo-ingresos.md)               | Prorrateo por valor y último costo      | Aceptado                       |
 | [014](ADR-014-conteos-con-movimientos.md)       | Conteos con movimientos concurrentes    | Aceptado parcialmente          |
 | [015](ADR-015-reparto-centavos-y-valor-cero.md) | Reparto de centavos y valor cero        | Aceptado                       |
+| [017](ADR-017-ajustes-solicitud-aprobacion.md)  | Ajustes con solicitud y aprobación      | Aceptado                       |
 
 Plantilla: [`TEMPLATE.md`](TEMPLATE.md).

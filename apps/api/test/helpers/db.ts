@@ -1,4 +1,4 @@
-import type { Permission } from '@joyeria/shared';
+import { DEFAULT_ADJUSTMENT_REASONS, type Permission } from '@joyeria/shared';
 import { hashPassword } from '../../src/lib/password.ts';
 import type { PrismaClient } from '../../src/lib/prisma.ts';
 
@@ -46,4 +46,18 @@ export async function createTestUser(
   });
 
   return { user, password };
+}
+
+/** Siembra el catálogo de motivos de ajuste (resetDatabase lo vacía, igual que el resto). */
+export async function seedAdjustmentReasons(prisma: PrismaClient) {
+  const reasons = new Map<string, string>();
+  for (const [index, reason] of DEFAULT_ADJUSTMENT_REASONS.entries()) {
+    const row = await prisma.adjustmentReason.upsert({
+      where: { code: reason.code },
+      update: {},
+      create: { ...reason, sortOrder: index },
+    });
+    reasons.set(reason.code, row.id);
+  }
+  return reasons;
 }

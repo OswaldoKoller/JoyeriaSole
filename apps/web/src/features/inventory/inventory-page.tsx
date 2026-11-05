@@ -1,6 +1,6 @@
 import { PERMISSIONS, initialStockSchema, type InventoryItem } from '@joyeria/shared';
 import { useState, type SyntheticEvent } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
@@ -159,6 +159,15 @@ export function InventoryPage() {
                       >
                         Historial de {item.sku}
                       </Button>
+                      {canAdjust && item.quantity > 0 && (
+                        <Link
+                          to={`/inventario/ajustes/nuevo?sku=${encodeURIComponent(item.sku)}&cero=1`}
+                          aria-label={`Ajustar a cero ${item.sku}`}
+                          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+                        >
+                          Ajustar a cero
+                        </Link>
+                      )}
                       {canAdjust && item.canInitialize && (
                         <Button
                           variant="secondary"
