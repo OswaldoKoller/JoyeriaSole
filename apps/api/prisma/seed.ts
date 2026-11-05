@@ -20,7 +20,7 @@ import {
   ROLES,
   type RoleCode,
 } from '@joyeria/shared';
-import { AttributeDataType } from '../src/generated/prisma/client.ts';
+import type { AttributeDataType, AttributeUsage } from '../src/generated/prisma/client.ts';
 import { hashPassword } from '../src/lib/password.ts';
 import { createPrismaClient } from '../src/lib/prisma.ts';
 
@@ -31,20 +31,35 @@ if (!databaseUrl) throw new Error('DATABASE_URL no está definida');
 
 const prisma = createPrismaClient(databaseUrl);
 
-/** Atributos citados en el requerimiento. Tipos preliminares; valores los carga el cliente. */
-const ATTRIBUTES: { code: string; name: string; dataType: AttributeDataType; unit?: string }[] = [
-  { code: 'material', name: 'Material', dataType: AttributeDataType.OPTION },
-  { code: 'color', name: 'Color', dataType: AttributeDataType.OPTION },
-  { code: 'tono', name: 'Tono', dataType: AttributeDataType.OPTION },
-  { code: 'talla', name: 'Talla', dataType: AttributeDataType.OPTION },
-  { code: 'tamano', name: 'Tamaño', dataType: AttributeDataType.OPTION },
-  { code: 'longitud', name: 'Longitud', dataType: AttributeDataType.OPTION, unit: 'cm' },
-  { code: 'dimensiones', name: 'Dimensiones', dataType: AttributeDataType.TEXT },
-  { code: 'acabado', name: 'Acabado', dataType: AttributeDataType.OPTION },
-  { code: 'piedra', name: 'Piedra', dataType: AttributeDataType.OPTION },
-  { code: 'tipo_cierre', name: 'Tipo de cierre', dataType: AttributeDataType.OPTION },
-  { code: 'genero', name: 'Género', dataType: AttributeDataType.OPTION },
-  { code: 'coleccion', name: 'Colección', dataType: AttributeDataType.OPTION },
+/**
+ * Las 12 definiciones base (B2, RESOLUCIONES-2026-11-05): uso sugerido como eje de variante o como
+ * característica descriptiva. Los VALORES de las listas los entrega el cliente (P-15): no se inventan.
+ */
+const ATTRIBUTES: {
+  code: string;
+  name: string;
+  dataType: AttributeDataType;
+  suggestedUse: AttributeUsage;
+  unit?: string;
+}[] = [
+  { code: 'material', name: 'Material', dataType: 'OPTION', suggestedUse: 'VARIANT_AXIS' },
+  { code: 'color', name: 'Color', dataType: 'OPTION', suggestedUse: 'VARIANT_AXIS' },
+  { code: 'tono', name: 'Tono', dataType: 'OPTION', suggestedUse: 'DESCRIPTIVE' },
+  { code: 'talla', name: 'Talla', dataType: 'OPTION', suggestedUse: 'VARIANT_AXIS' },
+  { code: 'tamano', name: 'Tamaño', dataType: 'OPTION', suggestedUse: 'VARIANT_AXIS' },
+  {
+    code: 'longitud',
+    name: 'Longitud',
+    dataType: 'OPTION',
+    suggestedUse: 'VARIANT_AXIS',
+    unit: 'cm',
+  },
+  { code: 'dimensiones', name: 'Dimensiones', dataType: 'TEXT', suggestedUse: 'DESCRIPTIVE' },
+  { code: 'acabado', name: 'Acabado', dataType: 'OPTION', suggestedUse: 'DESCRIPTIVE' },
+  { code: 'piedra', name: 'Piedra', dataType: 'OPTION', suggestedUse: 'DESCRIPTIVE' },
+  { code: 'tipo_cierre', name: 'Tipo de cierre', dataType: 'OPTION', suggestedUse: 'DESCRIPTIVE' },
+  { code: 'genero', name: 'Género', dataType: 'OPTION', suggestedUse: 'DESCRIPTIVE' },
+  { code: 'coleccion', name: 'Colección', dataType: 'OPTION', suggestedUse: 'DESCRIPTIVE' },
 ];
 
 async function seedPermissionsAndRoles() {
@@ -125,8 +140,10 @@ async function seedAttributes() {
   for (const [index, attr] of ATTRIBUTES.entries()) {
     await prisma.attribute.upsert({
       where: { code: attr.code },
-      update: {},
-      create: { ...attr, unit: attr.unit ?? null, sortOrder: index },
+      // Solo se asegura la marca de sistema: el uso sugerido y el nombre pueden haberlos cambiado
+      // desde la aplicación y el seed no los pisa.
+      update: { isSystem: true },
+      create: { ...attr, unit: attr.unit ?? null, sortOrder: index, isSystem: true },
     });
   }
   console.log(`✔ ${ATTRIBUTES.length} definiciones de atributos (sin valores)`);
