@@ -1,4 +1,11 @@
-import { PERMISSIONS, type CreateSupplierInput, type Supplier } from '@joyeria/shared';
+import {
+  PERMISSIONS,
+  SUPPLIER_CURRENCY_LABELS,
+  SUPPLIER_TYPES,
+  SUPPLIER_TYPE_LABELS,
+  type CreateSupplierInput,
+  type Supplier,
+} from '@joyeria/shared';
 import { useState, type SyntheticEvent } from 'react';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
@@ -12,9 +19,10 @@ export function SuppliersPage() {
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
+  const [type, setType] = useState('all');
   const [editing, setEditing] = useState<Supplier | 'new' | null>(null);
   const [actionError, setActionError] = useState('');
-  const list = useSuppliers(page, search, status);
+  const list = useSuppliers(page, search, status, type);
   const create = useCreateSupplier();
   const update = useUpdateSupplier();
 
@@ -55,7 +63,7 @@ export function SuppliersPage() {
         <div>
           <h1 className="text-2xl font-semibold">Proveedores</h1>
           <p className="text-sm text-stone-600">
-            Contactos para las futuras recepciones de mercadería.
+            Proveedores nacionales y del exterior para las recepciones de mercadería.
           </p>
         </div>
         {canManage && (
@@ -91,7 +99,7 @@ export function SuppliersPage() {
         <form onSubmit={submitSearch} className="flex flex-wrap items-end gap-3">
           <div className="min-w-52 flex-1">
             <Input
-              label="Buscar por nombre o NIT"
+              label="Buscar por nombre, NIT, país o contacto"
               value={draftSearch}
               onChange={(event) => {
                 setDraftSearch(event.target.value);
@@ -120,6 +128,30 @@ export function SuppliersPage() {
               <option value="inactive">Inactivos</option>
             </select>
           </div>
+          <div className="space-y-1">
+            <label
+              htmlFor="supplier-type-filter"
+              className="block text-sm font-medium text-stone-700"
+            >
+              Filtrar por tipo
+            </label>
+            <select
+              id="supplier-type-filter"
+              value={type}
+              onChange={(event) => {
+                setType(event.target.value);
+                setPage(1);
+              }}
+              className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+            >
+              <option value="all">Todos</option>
+              {SUPPLIER_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {SUPPLIER_TYPE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </div>
         </form>
 
         {list.isPending && (
@@ -144,8 +176,10 @@ export function SuppliersPage() {
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
                   <th className="py-2 pr-4">Nombre</th>
+                  <th className="py-2 pr-4">País</th>
                   <th className="py-2 pr-4">NIT</th>
                   <th className="py-2 pr-4">Contacto</th>
+                  <th className="py-2 pr-4">Moneda</th>
                   <th className="py-2 pr-4">Estado</th>
                   {canManage && <th className="py-2">Acciones</th>}
                 </tr>
@@ -153,12 +187,29 @@ export function SuppliersPage() {
               <tbody>
                 {items.map((supplier) => (
                   <tr key={supplier.id} className="border-b border-stone-100">
-                    <td className="py-3 pr-4 font-medium">{supplier.name}</td>
+                    <td className="py-3 pr-4 font-medium">
+                      {supplier.name}{' '}
+                      <span
+                        className={`ml-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                          supplier.type === 'FOREIGN'
+                            ? 'bg-sky-100 text-sky-800'
+                            : 'bg-stone-100 text-stone-700'
+                        }`}
+                      >
+                        {SUPPLIER_TYPE_LABELS[supplier.type]}
+                      </span>
+                    </td>
+                    <td data-label="País" className="py-3 pr-4">
+                      {supplier.country ?? '—'}
+                    </td>
                     <td data-label="NIT" className="py-3 pr-4">
                       {supplier.taxId ?? '—'}
                     </td>
                     <td data-label="Contacto" className="py-3 pr-4">
-                      {supplier.contactName ?? supplier.phone ?? '—'}
+                      {supplier.contactName ?? supplier.phone ?? supplier.whatsapp ?? '—'}
+                    </td>
+                    <td data-label="Moneda" className="py-3 pr-4">
+                      {SUPPLIER_CURRENCY_LABELS[supplier.defaultCurrency]}
                     </td>
                     <td data-label="Estado" className="py-3 pr-4">
                       {supplier.isActive ? 'Activo' : 'Inactivo'}
