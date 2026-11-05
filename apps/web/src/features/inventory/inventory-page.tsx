@@ -1,4 +1,9 @@
-import { PERMISSIONS, initialStockSchema, type InventoryItem } from '@joyeria/shared';
+import {
+  PERMISSIONS,
+  initialStockSchema,
+  movementTypeLabel,
+  type InventoryItem,
+} from '@joyeria/shared';
 import { useState, type SyntheticEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
@@ -280,8 +285,8 @@ export function InventoryPage() {
             <ol className="space-y-2">
               {movements.data.data.map((movement) => (
                 <li key={movement.id} className="border-t border-stone-100 pt-2 text-sm">
-                  {dateTime.format(new Date(movement.createdAt))} · {movement.type} ·{' '}
-                  {movement.quantity > 0 ? '+' : ''}
+                  {dateTime.format(new Date(movement.createdAt))} ·{' '}
+                  {movementTypeLabel(movement.type)} · {movement.quantity > 0 ? '+' : ''}
                   {movement.quantity} piezas · saldo {movement.balanceBefore} →{' '}
                   {movement.balanceAfter}
                   {movement.reason ? ` · ${movement.reason}` : ''}
