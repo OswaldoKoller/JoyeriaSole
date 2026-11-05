@@ -38,13 +38,13 @@ categories ─┐ (parent_id → árbol: categoría / subcategoría)
 
 ### Usuarios y seguridad
 
-| Tabla                            | Propósito                                                                                    |
-| -------------------------------- | -------------------------------------------------------------------------------------------- |
-| `users`                          | Usuarios. `password_hash` Argon2id. `is_active` para desactivar sin borrar.                  |
-| `roles`                          | Agrupaciones de permisos. `is_system` = creados por seed (ADMIN, INVENTORY_MANAGER, SELLER). |
-| `permissions`                    | Catálogo `<recurso>:<acción>` (fuente: `packages/shared/src/permissions.ts`).                |
-| `user_roles`, `role_permissions` | Relaciones N:M.                                                                              |
-| `sessions`                       | Sesiones de servidor. Solo el **hash SHA-256** del token. Revocación con `revoked_at`.       |
+| Tabla                            | Propósito                                                                                                                                     |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `users`                          | Usuarios. `password_hash` Argon2id. `is_active` para desactivar sin borrar. `must_change_password` = clave temporal pendiente de cambio (F2). |
+| `roles`                          | Agrupaciones de permisos. `is_system` = creados por seed (ADMIN, INVENTORY_MANAGER, SELLER).                                                  |
+| `permissions`                    | Catálogo `<recurso>:<acción>` (fuente: `packages/shared/src/permissions.ts`).                                                                 |
+| `user_roles`, `role_permissions` | Relaciones N:M.                                                                                                                               |
+| `sessions`                       | Sesiones de servidor. Solo el **hash SHA-256** del token. Revocación con `revoked_at`.                                                        |
 
 ### Catálogo
 
@@ -91,6 +91,7 @@ La migración `20261010000000_product_variant_sku_sequence` agrega la secuencia 
 Definidas en la migración inicial (SQL), además de las de Prisma:
 
 - `CHECK` de no negatividad en precios, costos, stock mínimo y cantidades de ingresos/conteos.
+- `CHECK (quantity >= 0)` en `inventory_balances` (`inventory_balances_quantity_check`, migración `20261106010000`): no existe stock negativo (P-08). Si un bug lo intentara, PostgreSQL revierte la transacción completa y la API responde un 500 genérico.
 - `inventory_movements`: `quantity <> 0` y `balance_after = balance_before + quantity`.
 - `product_attribute_values`: exactamente un valor no nulo.
 - `categories`: una categoría no puede ser su propio padre.

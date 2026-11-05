@@ -67,6 +67,11 @@ Shell en Windows: Git Bash/PowerShell. `.env` está en la **raíz** del repo.
    cantidad anterior/nueva, diferencia, motivo, observación) (ADR-009).
 6. Acciones importantes quedan en **auditoría** (`audit_logs`) en la misma transacción (ADR-010).
 7. Roles iniciales preliminares: Administrador, Responsable de inventario, Vendedor.
+8. **Sesión fija de 8 horas** desde el login, sin extensión por actividad (P-19, Q-02; ADR-003).
+9. **Sin stock negativo** (P-08): `CHECK (quantity >= 0)` en `inventory_balances` además de la validación del servicio.
+10. **No se desactiva un producto o variante con stock > 0** (P-22): error `STOCK_BLOCKS_DEACTIVATION`; primero un ajuste de salida a cero.
+11. La contraseña olvidada la restablece el Administrador con una clave **temporal** que debe cambiarse al entrar (F2); mientras tanto la API responde `PASSWORD_CHANGE_REQUIRED`.
+12. El Vendedor no ve costos ni valorizaciones en ninguna respuesta (P-02, Q-15.2); la auditoría es solo del Administrador.
 
 ## Decisiones PENDIENTES — no convertir en reglas
 

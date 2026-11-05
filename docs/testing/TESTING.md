@@ -83,6 +83,8 @@ Ejecutar en local: `npm run qa` (todo, con PostgreSQL efímero) o `npm run qa:e2
 
 **E2E en serie.** `playwright.config.ts` fija `workers: 1`: todos los archivos comparten una base de datos y un servidor, y los totales del dashboard (`dashboard.spec.ts`) dependen de los datos DEMO sin modificar, por lo que ese archivo debe ejecutarse antes que los que crean productos (orden alfabético).
 
+**Reglas base (S1).** `auth.test.ts` verifica la sesión fija de 8 h (sin extensión por actividad), `users.test.ts` el restablecimiento con clave temporal (401/403/400/feliz, auditoría sin secretos, bloqueo `PASSWORD_CHANGE_REQUIRED`), `database-integrity.test.ts` + `negative-stock-guard.test.ts` el `CHECK (quantity >= 0)` y que la API no filtre detalles internos, `catalog-deactivation.test.ts` la regla P-22, `cost-visibility.test.ts` que el Vendedor no reciba costos y `role-permissions.test.ts` la matriz de roles. E2E: `password-reset.spec.ts` (restablecer → login con temporal → cambio forzado → login normal) y `product-deactivation.spec.ts` (botón deshabilitado con explicación si hay stock).
+
 **Responsive.** `responsive.spec.ts` recorre 9 pantallas en 5 anchos (320, 390, 768, 1024, 1440 px) y falla si la página desborda horizontalmente **o** si algún botón, enlace o campo queda recortado por un contenedor con scroll horizontal (el defecto que el simple «sin scroll de página» no detecta).
 
 **Limpieza de la base de integración.** `apps/api/test/helpers/global-setup.ts` vacía la base de pruebas al terminar la suite. Sin esto, las filas del último archivo sobrevivían y alteraban los totales exactos del dashboard cuando `npm run qa` reutilizaba la misma base para los E2E.
