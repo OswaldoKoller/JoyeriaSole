@@ -9,11 +9,25 @@
  *   - Stock variado mediante movimientos INITIAL_STOCK auditados: nunca editando saldos (ADR-007).
  *     Reparto: 5 sin stock, 5 bajo mínimo, 10 disponibles.
  *   - 2 proveedores ficticios: uno nacional (Bs) y uno del exterior (China, USD).
+ *   - Un ingreso de importación CONFIRMADO en USD (aduanización y comisiones) y un borrador, sobre
+ *     piezas ya disponibles (no alteran los totales de disponibles / bajo mínimo / sin stock).
  *
  * Idempotente: si los datos DEMO ya existen, no los duplica.
  */
 import path from 'node:path';
-import { PASSWORD_MIN_LENGTH, ROLES, type RoleCode } from '@joyeria/shared';
+import {
+  PASSWORD_MIN_LENGTH,
+  ROLES,
+  computeEntryCosts,
+  convertToBob,
+  formatMoney,
+  formatUnitCost,
+  parseExchangeRate,
+  parseMoney,
+  parseUnitCost,
+  todayInLaPaz,
+  type RoleCode,
+} from '@joyeria/shared';
 import { config as loadEnv } from 'dotenv';
 import { hashPassword } from '../src/lib/password.ts';
 import { createPrismaClient } from '../src/lib/prisma.ts';
@@ -214,12 +228,186 @@ async function seedCatalogAndStock(adminId: string) {
   console.log(`✔ ${CATEGORIES.length} categorías y ${index} productos DEMO con stock variado`);
 }
 
+const IMPORT_DOCUMENT = 'DEMO-IMP-001';
+const IMPORT_DRAFT_DOCUMENT = 'DEMO-IMP-002';
+
+/**
+ * Compra de importación DEMO (S5): un ingreso CONFIRMADO en dólares con aduanización y comisiones, y
+ * un borrador. Usa piezas que ya están «disponibles» y solo les SUMA stock: los totales del
+ * dashboard (disponibles / bajo mínimo / sin stock) no cambian. El stock entra por movimientos
+ * auditados, nunca editando saldos (ADR-007).
+ */
+async function seedImportEntries(managerId: string) {
+  if (await prisma.stockEntry.findFirst({ where: { documentNumber: IMPORT_DOCUMENT } })) {
+    console.log('↷ Los ingresos de importación DEMO ya existen (no se duplican)');
+    return;
+  }
+  const foreign = await prisma.supplier.findFirst({ where: { name: 'Proveedor Demo Guangzhou' } });
+  const pieces = await prisma.productVariant.findMany({
+    where: {
+      product: {
+        name: {
+          in: ['DEMO Anillo Alianza Lisa', 'DEMO Anillo Sello Ónix', 'DEMO Collare Cruz Clásica'],
+        },
+      },
+    },
+    include: { product: true, inventory: true },
+    orderBy: { sku: 'asc' },
+  });
+  const types = await prisma.stockEntryCostType.findMany();
+  const typeId = (code: string) => types.find((type) => type.code === code)?.id;
+  const customs = typeId('CUSTOMS');
+  const commissions = typeId('COMMISSIONS');
+  const transport = typeId('TRANSPORT');
+  if (!foreign || pieces.length < 3 || !customs || !commissions || !transport) {
+    console.log('↷ Faltan proveedores, piezas o tipos de costo DEMO: se omiten los ingresos DEMO');
+    return;
+  }
+
+  const rate = '6.96';
+  const prices = ['4.50', '7.25', '1.80'];
+  const quantities = [20, 12, 30];
+  const extras = [
+    { costTypeId: customs, amount: '150.00', note: 'DUI y despachante (DEMO)' },
+    { costTypeId: commissions, amount: '85.50', note: 'Comisión del agente (DEMO)' },
+  ];
+  const costs = computeEntryCosts({
+    currency: 'USD',
+    exchangeRate: parseExchangeRate(rate),
+    items: pieces.map((piece, index) => ({
+      key: piece.id,
+      receivedQty: quantities[index] ?? 0,
+      unitPrice: parseUnitCost(prices[index] ?? '0'),
+    })),
+    extrasCents: extras.reduce((sum, cost) => sum + parseMoney(cost.amount), 0n),
+  });
+  if (!costs.ok) throw new Error('No se pudo calcular el costo del ingreso DEMO');
+
+  await prisma.$transaction(async (tx) => {
+    const confirmed = await tx.stockEntry.create({
+      data: {
+        supplierId: foreign.id,
+        status: 'CONFIRMED',
+        documentType: 'Factura de importación',
+        documentNumber: IMPORT_DOCUMENT,
+        documentDate: new Date(`${todayInLaPaz()}T00:00:00Z`),
+        currency: 'USD',
+        exchangeRate: rate,
+        notes: 'Ingreso de demostración en dólares (aduanización y comisiones).',
+        createdById: managerId,
+        confirmedById: managerId,
+        confirmedAt: new Date(),
+        costs: { create: extras },
+      },
+    });
+    for (const [index, piece] of pieces.entries()) {
+      const line = costs.lines.find((item) => item.key === piece.id);
+      const quantity = quantities[index] ?? 0;
+      if (!line) throw new Error('Línea de costo no encontrada');
+      await tx.stockEntryItem.create({
+        data: {
+          stockEntryId: confirmed.id,
+          variantId: piece.id,
+          expectedQty: quantity,
+          receivedQty: quantity,
+          unitPrice: prices[index] ?? '0',
+          unitCost: formatUnitCost(line.unitCostBob),
+          unitExtraCost: formatUnitCost(line.unitExtra),
+          extraCostAllocated: formatMoney(line.extraCents),
+          totalCost: formatUnitCost(line.totalCost),
+        },
+      });
+      const before = piece.inventory?.quantity ?? 0;
+      await tx.inventoryMovement.create({
+        data: {
+          variantId: piece.id,
+          type: 'STOCK_ENTRY',
+          quantity,
+          balanceBefore: before,
+          balanceAfter: before + quantity,
+          unitCost: formatUnitCost(line.unitTotal),
+          referenceType: 'STOCK_ENTRY',
+          referenceId: confirmed.id,
+          reason: `Ingreso ING-${confirmed.number.toString().padStart(6, '0')}`,
+          userId: managerId,
+        },
+      });
+      await tx.inventoryBalance.upsert({
+        where: { variantId: piece.id },
+        update: { quantity: before + quantity },
+        create: { variantId: piece.id, quantity: before + quantity },
+      });
+      await tx.productVariant.update({
+        where: { id: piece.id },
+        data: { costPrice: formatUnitCost(line.unitTotal) },
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        action: 'stock_entry.confirmed',
+        entityType: 'StockEntry',
+        entityId: confirmed.id,
+        userId: managerId,
+        after: {
+          status: 'CONFIRMED',
+          currency: 'USD',
+          exchangeRate: rate,
+          extrasTotal: formatMoney(costs.totals.extrasCents),
+        },
+        metadata: { source: 'seed-demo' },
+      },
+    });
+
+    // Borrador: dos piezas, una con diferencia ya justificada, listo para revisar y confirmar.
+    const draft = await tx.stockEntry.create({
+      data: {
+        supplierId: foreign.id,
+        documentType: 'Factura de importación',
+        documentNumber: IMPORT_DRAFT_DOCUMENT,
+        currency: 'USD',
+        exchangeRate: rate,
+        notes: 'Borrador de demostración: pendiente de confirmar.',
+        createdById: managerId,
+        costs: { create: [{ costTypeId: transport, amount: '40.00' }] },
+      },
+    });
+    for (const [index, piece] of pieces.slice(0, 2).entries()) {
+      const price = index === 0 ? '3.10' : '5.40';
+      await tx.stockEntryItem.create({
+        data: {
+          stockEntryId: draft.id,
+          variantId: piece.id,
+          expectedQty: 10,
+          receivedQty: index === 0 ? 10 : 8,
+          differenceReason: index === 0 ? null : 'Faltaron 2 piezas en la caja (DEMO)',
+          unitPrice: price,
+          unitCost: formatUnitCost(convertToBob(parseUnitCost(price), parseExchangeRate(rate))),
+        },
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        action: 'stock_entry.created',
+        entityType: 'StockEntry',
+        entityId: draft.id,
+        userId: managerId,
+        after: { status: 'DRAFT', currency: 'USD', exchangeRate: rate },
+        metadata: { source: 'seed-demo' },
+      },
+    });
+  });
+  console.log('✔ Ingreso de importación DEMO confirmado en USD y un borrador');
+}
+
 try {
   const ids = await seedUsers();
   const adminId = ids.get(ROLES.ADMIN);
   if (!adminId) throw new Error('No se creó el administrador DEMO');
   await seedCatalogAndStock(adminId);
   await seedSuppliers(adminId);
+  const managerId = ids.get(ROLES.INVENTORY_MANAGER);
+  if (!managerId) throw new Error('No se creó el responsable de inventario DEMO');
+  await seedImportEntries(managerId);
 } finally {
   await prisma.$disconnect();
 }

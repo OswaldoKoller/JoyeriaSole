@@ -38,6 +38,7 @@ function toResponse(product: ProductWithDetails, showStock = false) {
     description: product.description,
     model: product.model,
     status: product.status,
+    profileIncomplete: product.profileIncomplete,
     axes: product.variantAxes.map((axis) => ({
       attributeId: axis.attributeId,
       name: axis.attribute.name,
@@ -168,41 +169,59 @@ export class ProductsService {
     ) {
       throw new ForbiddenError('No tiene permiso para establecer precios');
     }
-    return this.prisma.$transaction(async (tx) => {
-      const category = await tx.category.findUnique({ where: { id: input.categoryId } });
-      if (!category || !category.isActive)
-        throw new NotFoundError('Categoría activa no encontrada');
-      const sku = await this.nextSku(tx);
-      if (input.barcode) {
-        const usedSku = await tx.productVariant.findUnique({ where: { sku: input.barcode } });
-        if (usedSku) throw new BusinessRuleError('Ese código coincide con el SKU de otra pieza');
-      }
-      const product = await tx.product.create({
-        data: {
-          categoryId: input.categoryId,
-          name: input.name,
-          description: input.description || null,
-          model: input.model || null,
-          variants: {
-            create: {
-              sku,
-              label: 'Única',
-              barcode: input.barcode || null,
-              salePrice: input.salePrice ?? '0',
-              minStock: input.minStock,
-            },
+    return this.prisma.$transaction((tx) => this.createWithin(tx, input, request));
+  }
+
+  /**
+   * Alta de producto + variante única dentro de una transacción ajena. La reutiliza el alta
+   * rápida de piezas desde un ingreso (C1), que añade `profileIncomplete` y su propia metadata.
+   * No comprueba permisos: quien llama debe haberlos validado.
+   */
+  async createWithin(
+    tx: Prisma.TransactionClient,
+    input: CreateProductInput,
+    request: FastifyRequest,
+    options: { profileIncomplete?: boolean; metadata?: Prisma.InputJsonValue } = {},
+  ) {
+    const category = await tx.category.findUnique({ where: { id: input.categoryId } });
+    if (!category || !category.isActive) throw new NotFoundError('Categoría activa no encontrada');
+    const sku = await this.nextSku(tx);
+    if (input.barcode) {
+      const usedSku = await tx.productVariant.findUnique({ where: { sku: input.barcode } });
+      if (usedSku) throw new BusinessRuleError('Ese código coincide con el SKU de otra pieza');
+    }
+    const product = await tx.product.create({
+      data: {
+        categoryId: input.categoryId,
+        name: input.name,
+        description: input.description || null,
+        model: input.model || null,
+        profileIncomplete: options.profileIncomplete ?? false,
+        variants: {
+          create: {
+            sku,
+            label: 'Única',
+            barcode: input.barcode || null,
+            salePrice: input.salePrice ?? '0',
+            minStock: input.minStock,
           },
         },
-        include: withDetails,
-      });
-      const after = toResponse(product);
-      await recordAudit(
-        tx,
-        { action: 'product.created', entityType: 'Product', entityId: product.id, after },
-        request,
-      );
-      return after;
+      },
+      include: withDetails,
     });
+    const after = toResponse(product);
+    await recordAudit(
+      tx,
+      {
+        action: 'product.created',
+        entityType: 'Product',
+        entityId: product.id,
+        after,
+        ...(options.metadata !== undefined && { metadata: options.metadata }),
+      },
+      request,
+    );
+    return after;
   }
 
   async update(id: string, input: UpdateProductInput, request: FastifyRequest) {

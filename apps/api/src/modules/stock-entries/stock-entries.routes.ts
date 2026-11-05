@@ -1,6 +1,9 @@
 import {
   PERMISSIONS,
   createStockEntrySchema,
+  quickCreateStockEntryItemSchema,
+  quickCreateStockEntryResponseSchema,
+  replaceStockEntryCostsSchema,
   replaceStockEntryItemsSchema,
   stockEntryDetailSchema,
   stockEntryListQuerySchema,
@@ -15,8 +18,11 @@ const idParams = z.object({ id: z.uuid() });
 const detail = z.object({ data: stockEntryDetailSchema });
 
 /**
- * Ingresos de mercadería (roadmap, orden 2). Un ingreso NO cambia el stock mientras sea borrador:
- * solo la confirmación (permiso propio) genera movimientos, saldos y último costo.
+ * Ingresos de mercadería. Un ingreso NO cambia el stock mientras sea borrador: solo la
+ * confirmación (permiso propio) genera movimientos, saldos y último costo.
+ *
+ * Costos: quien carga precios, costos adicionales o confirma necesita además `costs:read`; sin
+ * ese permiso las respuestas de lectura ocultan todo dato de costo (el Vendedor no ve ninguno).
  *
  * La autorización va en `preValidation` (no en `preHandler`): Fastify valida el cuerpo antes del
  * `preHandler`, y quien no tiene sesión o permiso recibiría un 400 con el detalle del esquema en
@@ -39,7 +45,7 @@ export const stockEntriesRoutes: FastifyPluginAsyncZod = async (app) => {
         },
       },
     },
-    async (request) => service.list(request.query),
+    async (request) => service.list(request.query, request),
   );
 
   app.get(
@@ -48,7 +54,7 @@ export const stockEntriesRoutes: FastifyPluginAsyncZod = async (app) => {
       preValidation: app.requirePermission(PERMISSIONS.STOCK_ENTRIES_READ),
       schema: { params: idParams, response: { 200: detail } },
     },
-    async (request) => ({ data: await service.get(request.params.id) }),
+    async (request) => ({ data: await service.get(request.params.id, request) }),
   );
 
   app.post(
@@ -75,7 +81,10 @@ export const stockEntriesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.put(
     '/:id/items',
     {
-      preValidation: app.requirePermission(PERMISSIONS.STOCK_ENTRIES_MANAGE),
+      preValidation: app.requirePermission(
+        PERMISSIONS.STOCK_ENTRIES_MANAGE,
+        PERMISSIONS.COSTS_READ,
+      ),
       schema: { params: idParams, body: replaceStockEntryItemsSchema, response: { 200: detail } },
     },
     async (request) => ({
@@ -83,10 +92,51 @@ export const stockEntriesRoutes: FastifyPluginAsyncZod = async (app) => {
     }),
   );
 
+  app.put(
+    '/:id/costs',
+    {
+      preValidation: app.requirePermission(
+        PERMISSIONS.STOCK_ENTRIES_MANAGE,
+        PERMISSIONS.COSTS_READ,
+      ),
+      schema: { params: idParams, body: replaceStockEntryCostsSchema, response: { 200: detail } },
+    },
+    async (request) => ({
+      data: await service.replaceCosts(request.params.id, request.body, request),
+    }),
+  );
+
+  // Alta rápida de una pieza nueva dentro del borrador (C1/P-24): crea producto + variante + ítem.
+  app.post(
+    '/:id/items/quick',
+    {
+      preValidation: app.requirePermission(
+        PERMISSIONS.STOCK_ENTRIES_MANAGE,
+        PERMISSIONS.CATALOG_MANAGE,
+        PERMISSIONS.COSTS_READ,
+      ),
+      schema: {
+        params: idParams,
+        body: quickCreateStockEntryItemSchema,
+        response: { 201: quickCreateStockEntryResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const result = await service.quickCreateItem(request.params.id, request.body, request);
+      return reply.status(201).send({
+        data: result.detail,
+        meta: { variantId: result.variantId, warnings: result.warnings },
+      });
+    },
+  );
+
   app.post(
     '/:id/confirm',
     {
-      preValidation: app.requirePermission(PERMISSIONS.STOCK_ENTRIES_CONFIRM),
+      preValidation: app.requirePermission(
+        PERMISSIONS.STOCK_ENTRIES_CONFIRM,
+        PERMISSIONS.COSTS_READ,
+      ),
       schema: { params: idParams, response: { 200: detail } },
     },
     async (request) => ({ data: await service.confirm(request.params.id, request) }),

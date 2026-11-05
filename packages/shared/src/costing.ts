@@ -2,14 +2,20 @@
  * Costeo de ingresos de mercadería (ADR-013 y ADR-015).
  *
  * Toda la aritmética es ENTERA y exacta (BigInt), nunca de coma flotante:
- *  - costo unitario: unidades de 1/10 000 (4 decimales);
- *  - importes del documento (transporte, embolsado, extras): centavos (2 decimales).
+ *  - precios y costos unitarios: unidades de 1/10 000 (4 decimales);
+ *  - tipo de cambio (Bs por USD): unidades de 1/10 000 (4 decimales);
+ *  - costos adicionales del documento: centavos (2 decimales).
  *
- * Esta función la usan la API (al confirmar) y la interfaz (vista previa), por lo que ambas
+ * Compras en dólares (ADR-016): el precio unitario digitado se convierte a bolivianos con el tipo
+ * de cambio del ingreso (`convertToBob`) y SOBRE ese valor ya convertido se reparten los costos
+ * adicionales (`allocateExtraCosts`, ADR-015). `computeEntryCosts` encadena ambos pasos.
+ *
+ * Estas funciones las usan la API (al confirmar) y la interfaz (vista previa), por lo que ambas
  * calculan siempre el mismo resultado.
  */
 
 const UNIT_RE = /^(0|[1-9]\d{0,7})(?:\.(\d{1,4}))?$/;
+const RATE_RE = /^(0|[1-9]\d{0,3})(?:\.(\d{1,4}))?$/;
 const MONEY_RE = /^(0|[1-9]\d{0,9})(?:\.(\d{1,2}))?$/;
 
 /** «12.5» → 125000n (unidades de 1/10 000). Lanza si el formato no es válido. */
@@ -126,4 +132,135 @@ export function allocateExtraCosts(
   });
 
   return { ok: true, lines, totalValue };
+}
+
+// ---------------------------------------------------------------------------
+// Compras en dólares y costo total del ingreso (ADR-016)
+// ---------------------------------------------------------------------------
+
+/** Mayor costo unitario que cabe en la columna `Decimal(12,4)`: 99 999 999,9999. */
+export const MAX_UNIT_COST_UNITS = 999_999_999_999n;
+
+/**
+ * «6.96» → 69600n (unidades de 1/10 000). Bolivianos por cada dólar, hasta 4 decimales, mayor que
+ * cero y de hasta 4 cifras enteras. Lanza si el formato no es válido.
+ */
+export function parseExchangeRate(value: string): bigint {
+  const match = RATE_RE.exec(value);
+  if (!match) throw new RangeError(`Tipo de cambio inválido: ${value}`);
+  const units = BigInt(match[1] ?? '0') * 10_000n + BigInt((match[2] ?? '').padEnd(4, '0'));
+  if (units === 0n) throw new RangeError('El tipo de cambio debe ser mayor que cero');
+  return units;
+}
+
+/**
+ * Equivalente en bolivianos de un precio unitario: precio × tipo de cambio, redondeado a 4
+ * decimales con la mitad hacia arriba. Ambos argumentos vienen en unidades de 1/10 000.
+ */
+export function convertToBob(priceUnits: bigint, rateUnits: bigint): bigint {
+  return (priceUnits * rateUnits + 5_000n) / 10_000n;
+}
+
+export type PurchaseCurrency = 'BOB' | 'USD';
+
+export interface EntryCostItemInput {
+  /** Identificador estable de la línea (para el desempate del reparto). */
+  key: string;
+  receivedQty: number;
+  /** Precio de compra unitario en la moneda del ingreso, en unidades de 1/10 000. */
+  unitPrice: bigint;
+}
+
+export interface EntryCostLine extends AllocationLine {
+  /** Precio unitario original (moneda del ingreso). */
+  unitPrice: bigint;
+  /** Equivalente unitario en Bs del precio de compra. */
+  unitCostBob: bigint;
+  /** receivedQty × unitPrice en la moneda del ingreso, unidades de 1/10 000. */
+  valueOriginal: bigint;
+  /** Costo total del ítem en Bs = valor de compra + costos adicionales asignados (1/10 000). */
+  totalCost: bigint;
+}
+
+export interface EntryCostTotals {
+  /** Valor de compra en la moneda del ingreso (1/10 000). */
+  purchaseOriginal: bigint;
+  /** Valor de compra en Bs (1/10 000). */
+  purchaseBob: bigint;
+  /** Costos adicionales del ingreso, centavos. */
+  extrasCents: bigint;
+  /** Valor de compra + costos adicionales, en Bs (1/10 000). */
+  grand: bigint;
+}
+
+export type EntryCostResult =
+  | { ok: true; lines: EntryCostLine[]; totals: EntryCostTotals }
+  | { ok: false; reason: 'ZERO_VALUE' | 'MISSING_RATE' | 'OVERFLOW' };
+
+/**
+ * Conversión a Bs + reparto de costos adicionales de un ingreso completo.
+ *  - BOB: el precio es ya el costo en Bs; no admite tipo de cambio.
+ *  - USD: exige tipo de cambio; el costo unitario en Bs se redondea a 4 decimales ANTES de
+ *    multiplicar por la cantidad, de modo que `cantidad × costo unitario` es exacto (ADR-016).
+ *  - OVERFLOW: algún precio o costo convertido no cabe en `Decimal(12,4)`.
+ *  - ZERO_VALUE: hay costos adicionales y el valor de compra es cero (ADR-015).
+ */
+export function computeEntryCosts(input: {
+  currency: PurchaseCurrency;
+  exchangeRate: bigint | null;
+  items: readonly EntryCostItemInput[];
+  extrasCents: bigint;
+}): EntryCostResult {
+  const { currency, exchangeRate } = input;
+  if (currency === 'USD' && (exchangeRate === null || exchangeRate <= 0n)) {
+    return { ok: false, reason: 'MISSING_RATE' };
+  }
+
+  const converted = input.items.map((item) => {
+    const unitCostBob =
+      currency === 'USD' && exchangeRate !== null
+        ? convertToBob(item.unitPrice, exchangeRate)
+        : item.unitPrice;
+    return { item, unitCostBob };
+  });
+  if (
+    converted.some(
+      ({ item, unitCostBob }) =>
+        item.unitPrice > MAX_UNIT_COST_UNITS || unitCostBob > MAX_UNIT_COST_UNITS,
+    )
+  ) {
+    return { ok: false, reason: 'OVERFLOW' };
+  }
+
+  const allocation = allocateExtraCosts(
+    converted.map(({ item, unitCostBob }) => ({
+      key: item.key,
+      receivedQty: item.receivedQty,
+      unitCost: unitCostBob,
+    })),
+    input.extrasCents,
+  );
+  if (!allocation.ok) return { ok: false, reason: allocation.reason };
+
+  const lines = allocation.lines.map((line, index): EntryCostLine => {
+    const entry = converted[index];
+    const unitPrice = entry?.item.unitPrice ?? 0n;
+    return {
+      ...line,
+      unitPrice,
+      unitCostBob: entry?.unitCostBob ?? 0n,
+      valueOriginal: BigInt(entry?.item.receivedQty ?? 0) * unitPrice,
+      totalCost: line.value + line.extraCents * 100n,
+    };
+  });
+  return {
+    ok: true,
+    lines,
+    totals: {
+      purchaseOriginal: lines.reduce((sum, line) => sum + line.valueOriginal, 0n),
+      purchaseBob: allocation.totalValue,
+      extrasCents: input.extrasCents,
+      grand: allocation.totalValue + input.extrasCents * 100n,
+    },
+  };
 }

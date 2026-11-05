@@ -35,6 +35,9 @@ export const PERMISSIONS = {
   INVENTORY_COUNTS_APPROVE: 'inventory-counts:approve',
 
   AUDIT_READ: 'audit:read',
+
+  /** Configuración del sistema (p. ej. tipos de costo de ingreso). Solo el Administrador. */
+  SETTINGS_MANAGE: 'settings:manage',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -60,6 +63,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'inventory-counts:manage': 'Crear inventarios físicos y registrar conteos',
   'inventory-counts:approve': 'Aprobar diferencias de inventario físico',
   'audit:read': 'Ver registro de auditoría',
+  'settings:manage': 'Administrar la configuración del sistema (tipos de costo de ingreso)',
 };
 
 export const ROLES = {

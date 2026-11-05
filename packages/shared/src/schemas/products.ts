@@ -22,6 +22,8 @@ export const productSchema = z.object({
   description: z.string().nullable(),
   model: z.string().nullable(),
   status: z.enum(['DRAFT', 'ACTIVE', 'INACTIVE']),
+  /** Creada desde un ingreso con datos mínimos: falta completar la ficha (C1). */
+  profileIncomplete: z.boolean(),
   axes: z.array(
     z.object({
       attributeId: z.uuid(),
@@ -66,6 +68,8 @@ export const updateProductSchema = z
     name: z.string().trim().min(1).max(200).optional(),
     description: z.string().trim().max(2000).nullable().optional(),
     model: z.string().trim().max(100).nullable().optional(),
+    /** Permite marcar la ficha como completa (o volver a marcarla incompleta). */
+    profileIncomplete: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Indique al menos un cambio');
 
