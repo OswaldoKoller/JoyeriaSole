@@ -14,6 +14,7 @@ import { StockEntriesPage } from '../features/stock-entries/stock-entries-page.t
 import { StockEntryNewPage } from '../features/stock-entries/stock-entry-new-page.tsx';
 import { StockEntryPage } from '../features/stock-entries/stock-entry-page.tsx';
 import { CostTypesPage } from '../features/stock-entries/cost-types-page.tsx';
+import { PricingPage } from '../features/pricing/pricing-page.tsx';
 import { DashboardPage } from '../features/dashboard/dashboard-page.tsx';
 import { NotFoundPage } from '../pages/not-found-page.tsx';
 import { AppShell } from './app-shell.tsx';
@@ -69,6 +70,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth permissions={[PERMISSIONS.CATALOG_READ]}>
             <ProductsPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'precios',
+        element: (
+          <RequireAuth anyPermissions={[PERMISSIONS.PRICES_PROPOSE, PERMISSIONS.PRICES_APPROVE]}>
+            <PricingPage />
           </RequireAuth>
         ),
       },

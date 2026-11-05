@@ -13,7 +13,7 @@ import { useCategories } from './use-categories.ts';
 import { useCreateProduct, useUpdateProduct } from './use-products.ts';
 
 export function ProductForm({ editing, onClose }: { editing?: Product; onClose: () => void }) {
-  const canPrice = useHasPermission(PERMISSIONS.PRICES_MANAGE);
+  const canPrice = useHasPermission(PERMISSIONS.PRICES_APPROVE);
   const categories = useCategories();
   const create = useCreateProduct();
   const update = useUpdateProduct();
@@ -143,7 +143,7 @@ export function ProductForm({ editing, onClose }: { editing?: Product; onClose: 
         )}
         {!editing && canPrice && (
           <Input
-            label="Precio de venta (Bs, opcional)"
+            label="Precio de venta inicial (Bs, opcional)"
             inputMode="decimal"
             value={salePrice}
             onChange={(event) => {
@@ -170,7 +170,19 @@ export function ProductForm({ editing, onClose }: { editing?: Product; onClose: 
       {!editing && (
         <p className="text-sm text-stone-600">
           El SKU se asigna automáticamente. Si no hay código del proveedor, podrás generar uno
-          propio después de guardar.
+          propio después de guardar.{' '}
+          {canPrice
+            ? 'El precio de venta inicial queda registrado en el historial; después solo cambia desde Precios.'
+            : 'El precio de venta se define después desde Precios (lo fija el Administrador).'}
+        </p>
+      )}
+      {editing && (
+        <p className="text-sm text-stone-600">
+          El precio de venta no se edita aquí: se cambia desde{' '}
+          <Link to="/precios" className="text-brand-700 underline">
+            Precios
+          </Link>
+          .
         </p>
       )}
       {error && (

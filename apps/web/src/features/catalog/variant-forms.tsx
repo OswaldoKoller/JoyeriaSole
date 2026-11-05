@@ -146,7 +146,7 @@ export function ConfigureAxesForm({ product, onClose }: { product: Product; onCl
 }
 
 export function CreateVariantForm({ product, onClose }: { product: Product; onClose: () => void }) {
-  const canPrice = useHasPermission(PERMISSIONS.PRICES_MANAGE);
+  const canPrice = useHasPermission(PERMISSIONS.PRICES_APPROVE);
   const create = useCreateVariant();
   const [options, setOptions] = useState<Record<string, string>>({});
   const [barcode, setBarcode] = useState('');
@@ -230,7 +230,7 @@ export function CreateVariantForm({ product, onClose }: { product: Product; onCl
         />
         {canPrice && (
           <Input
-            label="Precio de venta de la variante (Bs, opcional)"
+            label="Precio de venta inicial de la variante (Bs, opcional)"
             inputMode="decimal"
             value={salePrice}
             onChange={(event) => {

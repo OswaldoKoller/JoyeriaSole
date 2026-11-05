@@ -11,9 +11,13 @@ import { useCurrentUser } from './use-auth.ts';
 export function RequireAuth({
   children,
   permissions = [],
+  anyPermissions,
 }: {
   children: ReactNode;
+  /** El usuario debe tener TODOS. */
   permissions?: Permission[];
+  /** El usuario debe tener AL MENOS UNO (p. ej. solicitar o aprobar precios). */
+  anyPermissions?: Permission[];
 }) {
   const { data: user, isPending, isError } = useCurrentUser();
   const location = useLocation();
@@ -21,7 +25,10 @@ export function RequireAuth({
   if (isPending) return <FullPageMessage>Cargando…</FullPageMessage>;
   if (isError) return <FullPageMessage>No se pudo conectar con el servidor.</FullPageMessage>;
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  if (!permissions.every((p) => user.permissions.includes(p))) {
+  if (
+    !permissions.every((p) => user.permissions.includes(p)) ||
+    (anyPermissions && !anyPermissions.some((p) => user.permissions.includes(p)))
+  ) {
     return <FullPageMessage>No tiene permiso para ver esta sección.</FullPageMessage>;
   }
   return children;

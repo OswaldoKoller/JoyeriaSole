@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
+import { VariantPriceHistory } from '../pricing/variant-price-history.tsx';
 import { CostHistory } from '../stock-entries/cost-history.tsx';
 import { BarcodePreview } from './barcode-preview.tsx';
 import { ProductForm } from './product-form.tsx';
@@ -21,6 +22,9 @@ export function ProductsPage() {
   const canManage = useHasPermission(PERMISSIONS.CATALOG_MANAGE);
   const canReadInventory = useHasPermission(PERMISSIONS.INVENTORY_READ);
   const canReadCosts = useHasPermission(PERMISSIONS.COSTS_READ);
+  const canProposePrice = useHasPermission(PERMISSIONS.PRICES_PROPOSE);
+  const canApprovePrice = useHasPermission(PERMISSIONS.PRICES_APPROVE);
+  const canSeePrices = canProposePrice || canApprovePrice;
   const [page, setPage] = useState(1);
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState('');
@@ -257,11 +261,23 @@ export function ProductsPage() {
                         </p>
                       )}
                       <p>
-                        <strong>Precio:</strong>{' '}
+                        <strong>Precio de venta (neto):</strong>{' '}
                         {Number(variant.salePrice) > 0
                           ? currency.format(Number(variant.salePrice))
-                          : 'Sin precio definido'}
+                          : 'Sin precio'}{' '}
+                        {canSeePrices && (
+                          <Link
+                            to={`/precios?q=${encodeURIComponent(variant.sku)}`}
+                            aria-label={`Cambiar el precio de ${variant.sku} en Precios`}
+                            className="inline-block py-1 text-brand-700 underline"
+                          >
+                            {canApprovePrice ? 'Cambiar en Precios' : 'Solicitar cambio en Precios'}
+                          </Link>
+                        )}
                       </p>
+                      {canSeePrices && (
+                        <VariantPriceHistory variantId={variant.id} sku={variant.sku} />
+                      )}
                       <p>
                         <strong>Código de barras:</strong> {variant.barcode ?? 'Sin código'}
                       </p>
