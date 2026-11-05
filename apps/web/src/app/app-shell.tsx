@@ -7,6 +7,7 @@ import {
   PackagePlus,
   Receipt,
   RotateCcw,
+  ScrollText,
   ShoppingCart,
   Wrench,
   FolderTree,
@@ -142,6 +143,12 @@ const GROUPS: Group[] = [
     label: 'Acceso',
     items: [
       { label: 'Usuarios', to: '/usuarios', icon: Users, permission: PERMISSIONS.USERS_READ },
+      {
+        label: 'Auditoría',
+        to: '/auditoria',
+        icon: ScrollText,
+        permission: PERMISSIONS.AUDIT_READ,
+      },
       { label: 'Mi cuenta', to: '/mi-cuenta', icon: UserRound },
     ],
   },
