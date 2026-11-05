@@ -81,7 +81,7 @@ try {
     ...process.env,
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
-    SESSION_TTL_HOURS: '3',
+    SESSION_TTL_HOURS: '8',
     DATABASE_URL: url,
     TEST_DATABASE_URL: url,
     AUTH_SECRET: randomBytes(48).toString('hex'),

@@ -20,10 +20,10 @@ La API y la web permiten crear cuentas y cambiar la contraseña propia. Las prue
 
 ## Decisiones necesarias antes de mutaciones
 
-| ID   | Respuesta que falta                                               | Efecto en el contrato                                                           |
-| ---- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| P-21 | Aprobado: varios roles por usuario.                               | La asignación ya puede implementarse; requiere `users:manage` y `roles:manage`. |
-| P-19 | Aprobado: sesión fija de 3 horas, mínimo 10 caracteres y sin 2FA. | Validaciones y duración implementadas; verificar E2E final.                     |
+| ID   | Respuesta que falta                                                                      | Efecto en el contrato                                                                          |
+| ---- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| P-21 | Aprobado: varios roles por usuario.                                                      | La asignación ya puede implementarse; requiere `users:manage` y `roles:manage`.                |
+| P-19 | Aprobado: sesión fija (8 h desde 2026-11-05; antes 3 h), mínimo 10 caracteres y sin 2FA. | Validaciones y duración implementadas; restablecimiento con clave temporal (F2) añadido en S1. |
 
 La respuesta del cliente está registrada en [PENDIENTES.md](../business/PENDIENTES.md). La expiración se fija al iniciar sesión y no se extiende por actividad.
 

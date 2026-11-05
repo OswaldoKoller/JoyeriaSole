@@ -28,11 +28,12 @@ const envSchema = z
     FRONTEND_URL: z.url().default('http://localhost:5173'),
 
     AUTH_SECRET: z.string().min(32, 'AUTH_SECRET debe tener al menos 32 caracteres'),
+    /** Sesión fija de 8 horas desde el login, sin extensión por actividad (P-19, Q-02; ADR-003). */
     SESSION_TTL_HOURS: z.coerce
       .number()
       .int()
-      .refine((hours) => hours === 3, 'La sesión debe durar 3 horas')
-      .default(3),
+      .refine((hours) => hours === 8, 'La sesión debe durar 8 horas')
+      .default(8),
     /**
      * Intentos de login (y de cambio de contraseña) permitidos cada 15 minutos por IP.
      * Solo se sube en el servidor de pruebas E2E, que inicia sesión muchas veces desde una IP.
