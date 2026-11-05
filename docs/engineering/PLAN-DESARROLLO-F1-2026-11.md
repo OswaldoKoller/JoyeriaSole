@@ -284,3 +284,22 @@ devoluciones a proveedor y control por lotes. Los cambios de clientes (C9) solo 
 2. Decisión sobre G-01 (fusionar los PR) y G-02 (qué hacer con el trabajo de Codex).
 3. Aprobación de este plan o de sus cambios. Al aprobarse S0 se ejecuta primero: no se escribe código de
    negocio antes de dejar `develop` limpio.
+
+## 11. Actualización tras las respuestas (2026-11-05)
+
+Las respuestas a las Q-xx están en la sección 7 de
+[RESOLUCIONES-2026-11-05.md](../business/RESOLUCIONES-2026-11-05.md) y **prevalecen sobre este plan**
+donde difieren. Cambios:
+
+- **S7 se simplifica.** No hay multiplicador, redondeo ni sugerencia de precio (Q-04/Q-05). Queda: precio
+  de venta manual por variante, panel de costos (precio de compra, subtotal, costos adicionales, costo
+  total), ganancia en Bs y % sobre costo (Q-06), solicitud/aprobación/cambio directo, historial y precio
+  neto. **ADR-018** trata solo de aprobación e historial de precios.
+- **S2:** sin campo de número de serie (Q-03); etiqueta con SKU para todas las piezas (Q-10).
+- **S3:** fotos dentro de PostgreSQL tras una interfaz de almacenamiento (Q-09 C).
+- **S5:** solo dólares (Q-07); costos por monto (Q-08).
+- **S6/S8:** ajustes solo los aprueba el Administrador y solo afectan el stock al aprobarse; conteos los
+  aprueba Responsable o Administrador (Q-01).
+- **S9:** solo la base de cambios, sin pantallas (Q-12).
+- **Ejecución:** se trabaja en tres pistas paralelas con ramas propias que parten de `feature/f1-base`
+  (punta del PR #4 más la documentación y el despliegue local); se integran y verifican juntas.
