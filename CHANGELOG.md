@@ -7,6 +7,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y
 
 ### Agregado
 
+- **S2 · Catálogo completo** (decisiones del cliente del 2026-11-05: B1–B11, C1, Q-03, Q-10):
+  - Atributos: uso sugerido (eje de variante / característica) para las 12 definiciones base, definiciones nuevas, alta/edición/desactivación de valores con código corto y asignación de atributos a categorías (obligatorio / eje sugerido). Migraciones `catalog_attribute_usage` (`suggested_use`, `is_system`) y `supplier_product_code_index`.
+  - Ficha de producto: características descriptivas (texto, número, lista, sí/no), ejes de variante desde la creación, ayuda de nomenclatura (B4), precio de venta neto, stock mínimo por variante editable (B10) y categorías de dos niveles con activar/desactivar.
+  - Códigos (Q-10): un código de proveedor repetido ya no se guarda como código de barras, se avisa y la pieza se identifica por su SKU; se conserva en `supplier_products` si se indica el proveedor. Búsqueda unificada `GET /catalog/variants/lookup` por SKU, código de barras o código del proveedor.
+  - Etiquetas `/catalogo/etiquetas`: Code 128 del SKU + SKU legible, copias por pieza, tamaño configurable (50 × 25 mm por defecto, guardado en el navegador), vista previa e impresión con `@page` (una etiqueta por página).
+  - Ficha incompleta (C1) y «Sin precio» (D9): insignias, filtros y contadores en Inicio (`GET /products/health`).
+  - Eliminación física de fichas sin movimientos solo para el Administrador (`catalog:delete`, B11).
+  - La vista previa Code 128 descargable de la ficha se reemplazó por la pantalla de etiquetas.
 - **S1 · Reglas base transversales** (decisiones del cliente del 2026-11-05):
   - Sesión **fija de 8 horas** desde el login, sin extensión por actividad (P-19, Q-02); `SESSION_TTL_HOURS` solo acepta `8`. ADR-003 enmendado.
   - `CHECK (quantity >= 0)` en `inventory_balances` (P-08): el stock negativo es imposible a nivel de base de datos.

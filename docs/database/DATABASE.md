@@ -48,28 +48,28 @@ categories ─┐ (parent_id → árbol: categoría / subcategoría)
 
 ### Catálogo
 
-| Tabla                      | Propósito                                                                                             |
-| -------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `categories`               | Árbol (subcategoría = categoría con `parent_id`). `slug` único. Profundidad: P-04.                    |
-| `attributes`               | Definición: código, nombre, tipo (`OPTION`/`TEXT`/`NUMBER`/`BOOLEAN`), unidad.                        |
-| `attribute_options`        | Valores de atributos `OPTION` ("Plata 925", "Talla 16"). `code` opcional para componer SKU.           |
-| `category_attributes`      | Plantilla: qué atributos sugiere una categoría y cuáles como ejes de variante.                        |
-| `products`                 | Ficha comercial. Estado `DRAFT`/`ACTIVE`/`INACTIVE`.                                                  |
-| `product_variant_axes`     | Qué atributos generan variantes en **este** producto.                                                 |
-| `product_attribute_values` | Atributos descriptivos comunes (CHECK: exactamente un valor).                                         |
-| `product_variants`         | **Unidad de inventario**: `sku` único, `barcode` único opcional, costo, precio, stock mínimo, estado. |
-| `variant_attribute_values` | Valor de cada eje para la variante (solo opciones).                                                   |
+| Tabla                      | Propósito                                                                                                                                                                                                |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `categories`               | Árbol (subcategoría = categoría con `parent_id`). `slug` único. Profundidad: P-04.                                                                                                                       |
+| `attributes`               | Definición: código, nombre, tipo (`OPTION`/`TEXT`/`NUMBER`/`BOOLEAN`), unidad, `suggested_use` (`VARIANT_AXIS`/`DESCRIPTIVE`, enum `attribute_usage`, B2) e `is_system` (las 12 base: no se desactivan). |
+| `attribute_options`        | Valores de atributos `OPTION` ("Plata 925", "Talla 16"). `code` opcional para componer SKU.                                                                                                              |
+| `category_attributes`      | Plantilla: qué atributos usa una categoría, cuáles son obligatorios y cuáles se sugieren como ejes. Gestionada con `PUT /categories/:id/attributes`.                                                     |
+| `products`                 | Ficha comercial. Estado `DRAFT`/`ACTIVE`/`INACTIVE`.                                                                                                                                                     |
+| `product_variant_axes`     | Qué atributos generan variantes en **este** producto.                                                                                                                                                    |
+| `product_attribute_values` | Atributos descriptivos comunes (CHECK: exactamente un valor).                                                                                                                                            |
+| `product_variants`         | **Unidad de inventario**: `sku` único, `barcode` único opcional, costo, precio, stock mínimo, estado.                                                                                                    |
+| `variant_attribute_values` | Valor de cada eje para la variante (solo opciones).                                                                                                                                                      |
 
 La migración `20261010000000_product_variant_sku_sequence` agrega la secuencia PostgreSQL para el SKU correlativo `SKU-000001`. Las secuencias no reutilizan números de transacciones canceladas; por eso puede haber huecos sin duplicados. La variante base se crea en la misma transacción que el producto.
 
 ### Proveedores e ingresos
 
-| Tabla               | Propósito                                                                                                       |
-| ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `suppliers`         | Proveedores. `tax_id` (NIT) único opcional.                                                                     |
-| `supplier_products` | Código del proveedor para cada variante (ayuda a identificar piezas al recibir).                                |
-| `stock_entries`     | Ingreso: proveedor, documento, estado `DRAFT`/`CONFIRMED`/`CANCELLED`, costos adicionales, quién creó/confirmó. |
-| `stock_entry_items` | Ítems: cantidad esperada vs. recibida, costo unitario, costo adicional prorrateado.                             |
+| Tabla               | Propósito                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `suppliers`         | Proveedores. `tax_id` (NIT) único opcional.                                                                                          |
+| `supplier_products` | Código del proveedor para cada variante (identifica piezas al recibir y alimenta la búsqueda unificada; índice por `supplier_code`). |
+| `stock_entries`     | Ingreso: proveedor, documento, estado `DRAFT`/`CONFIRMED`/`CANCELLED`, costos adicionales, quién creó/confirmó.                      |
+| `stock_entry_items` | Ítems: cantidad esperada vs. recibida, costo unitario, costo adicional prorrateado.                                                  |
 
 ### Inventario
 
