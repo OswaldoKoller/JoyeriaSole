@@ -967,7 +967,7 @@ describe('conteo físico a ciegas con segundo recuento', () => {
         method: 'PUT',
         url: `/api/v1/stock-entries/${entryId}/items`,
         headers: { cookie: stocker.cookie },
-        payload: { items: [{ variantId: v.id, receivedQty: 5, unitCost: '2' }] },
+        payload: { items: [{ variantId: v.id, receivedQty: 5, unitPrice: '2' }] },
       });
       const confirmed = await app.inject({
         method: 'POST',
