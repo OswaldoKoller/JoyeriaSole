@@ -252,7 +252,12 @@ export const stockEntryDetailSchema = stockEntrySummarySchema.extend({
 /** Respuesta del alta rápida: el ingreso actualizado y los avisos (p. ej. código repetido). */
 export const quickCreateStockEntryResponseSchema = z.object({
   data: stockEntryDetailSchema,
-  meta: z.object({ variantId: z.uuid(), warnings: z.array(z.string()) }),
+  meta: z.object({
+    variantId: z.uuid(),
+    /** Producto recién creado: permite adjuntarle fotos (Q-09 9.1). */
+    productId: z.uuid(),
+    warnings: z.array(z.string()),
+  }),
 });
 
 /** Una compra confirmada de una variante (historial de costos, C10). */

@@ -687,7 +687,12 @@ export class StockEntriesService {
         },
         request,
       );
-      return { detail: await this.detailOf(tx, id, request), variantId: variant.id, warnings };
+      return {
+        detail: await this.detailOf(tx, id, request),
+        variantId: variant.id,
+        productId: product.id,
+        warnings,
+      };
     });
   }
 

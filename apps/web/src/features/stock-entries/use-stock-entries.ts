@@ -93,10 +93,10 @@ export function useQuickCreateItem(id: string) {
   const after = useAfterChange();
   return useMutation({
     mutationFn: (input: QuickCreateStockEntryItemInput) =>
-      api.post<{ data: StockEntryDetail; meta: { variantId: string; warnings: string[] } }>(
-        `/stock-entries/${id}/items/quick`,
-        input,
-      ),
+      api.post<{
+        data: StockEntryDetail;
+        meta: { variantId: string; productId: string; warnings: string[] };
+      }>(`/stock-entries/${id}/items/quick`, input),
     // La pieza nueva aparece también en el catálogo.
     onSuccess: async (result) => {
       await after(result.data);

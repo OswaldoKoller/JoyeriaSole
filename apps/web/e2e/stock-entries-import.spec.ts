@@ -59,6 +59,12 @@ async function stockOf(page: Page, name: string) {
   return Number(await row.getByRole('cell').nth(2).innerText());
 }
 
+// PNG válido de 1×1 px (67 bytes): evita guardar binarios en el repositorio.
+const PNG_1X1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
 async function quickCreate(
   page: Page,
   piece: { name: string; code?: string; quantity: string; price: string },
@@ -172,6 +178,14 @@ test('importación: ingreso en USD con aduanización, comisiones y pieza nueva',
   await expect(created).toBeVisible();
   await expect(created).toContainText(/SKU-\d{6}/);
   await expect(created).not.toContainText('Aviso');
+  // Q-09 (9.1): la foto de la pieza nueva se adjunta ahí mismo.
+  await created.getByLabel(/^Subir foto de /).setInputFiles({
+    name: 'pieza.png',
+    mimeType: 'image/png',
+    buffer: PNG_1X1,
+  });
+  await expect(created.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByText(/Caben 4 más/)).toBeVisible();
   const newRow = items.getByRole('row', { name: new RegExp(NEW_PIECE) });
   await expect(newRow).toContainText('Ficha incompleta');
 

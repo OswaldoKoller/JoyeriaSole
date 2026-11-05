@@ -1,4 +1,5 @@
 import {
+  PERMISSIONS,
   quickCreateStockEntryItemSchema,
   type StockEntryCurrency,
   type StockEntryDetail,
@@ -7,13 +8,15 @@ import { useState, type SyntheticEvent } from 'react';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { ApiError } from '../../lib/api-client.ts';
+import { useHasPermission } from '../auth/use-auth.ts';
+import { PhotoUploader } from '../catalog/photos/photo-uploader.tsx';
 import { useCategories } from '../catalog/use-categories.ts';
 import { useQuickCreateItem } from './use-stock-entries.ts';
 
 /** Estado que vive en la página (no aquí): el editor se reinicia al guardar y no debe perderlo. */
 export interface QuickCreateState {
   open: boolean;
-  notice: { sku: string; warnings: string[] } | null;
+  notice: { sku: string; productId: string; productName: string; warnings: string[] } | null;
 }
 
 interface Props {
@@ -47,6 +50,8 @@ export function QuickCreatePiece({
   const [quantity, setQuantity] = useState('1');
   const [unitPrice, setUnitPrice] = useState('');
   const [error, setError] = useState('');
+  const canManageCatalog = useHasPermission(PERMISSIONS.CATALOG_MANAGE);
+  const [photosUploaded, setPhotosUploaded] = useState(0);
 
   const active = categories.data?.data.filter((item) => item.isActive) ?? [];
   const byId = new Map(active.map((item) => [item.id, item]));
@@ -88,8 +93,14 @@ export function QuickCreatePiece({
       const created = result.data.items.find((item) => item.variantId === result.meta.variantId);
       onStateChange({
         open: true,
-        notice: { sku: created?.sku ?? '', warnings: result.meta.warnings },
+        notice: {
+          sku: created?.sku ?? '',
+          productId: result.meta.productId,
+          productName: parsed.data.name,
+          warnings: result.meta.warnings,
+        },
       });
+      setPhotosUploaded(0);
       setName('');
       setSupplierCode('');
       setQuantity('1');
@@ -145,6 +156,19 @@ export function QuickCreatePiece({
               Aviso: {warning}
             </p>
           ))}
+          {canManageCatalog && (
+            <div className="pt-1 text-stone-800">
+              <p className="font-medium">Fotos de la pieza (opcional)</p>
+              <PhotoUploader
+                productId={state.notice.productId}
+                productName={state.notice.productName}
+                photoCount={photosUploaded}
+                onUploaded={() => {
+                  setPhotosUploaded((count) => count + 1);
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
 

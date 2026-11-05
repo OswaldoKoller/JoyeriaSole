@@ -125,7 +125,11 @@ export const stockEntriesRoutes: FastifyPluginAsyncZod = async (app) => {
       const result = await service.quickCreateItem(request.params.id, request.body, request);
       return reply.status(201).send({
         data: result.detail,
-        meta: { variantId: result.variantId, warnings: result.warnings },
+        meta: {
+          variantId: result.variantId,
+          productId: result.productId,
+          warnings: result.warnings,
+        },
       });
     },
   );
