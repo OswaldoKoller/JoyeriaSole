@@ -7,7 +7,7 @@ import { createTestUser, resetDatabase } from '../helpers/db.ts';
 const MANAGER: Permission[] = [
   PERMISSIONS.CATALOG_READ,
   PERMISSIONS.CATALOG_MANAGE,
-  PERMISSIONS.PRICES_MANAGE,
+  PERMISSIONS.PRICES_APPROVE,
 ];
 
 describe('catálogo', () => {
@@ -144,7 +144,7 @@ describe('catálogo', () => {
       expect(n(second.variants[0].sku)).toBeGreaterThan(n(product.variants[0].sku));
     });
 
-    it('no permite fijar precio sin prices:manage', async () => {
+    it('no permite fijar precio sin prices:approve', async () => {
       const category = (await createCategory('Pulseras')).json().data;
       const noPrices = await sessionWith([PERMISSIONS.CATALOG_READ, PERMISSIONS.CATALOG_MANAGE]);
       const res = await app.inject({

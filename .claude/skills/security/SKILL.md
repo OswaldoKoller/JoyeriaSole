@@ -38,7 +38,7 @@ Referencia: `docs/security/SECURITY.md`.
 ```
 [ALTA] apps/api/src/modules/x/x.routes.ts:42 — El endpoint PATCH /x/:id no tiene requirePermission.
 Escenario: un vendedor autenticado puede cambiar precios enviando PATCH directo.
-Corrección: preHandler: app.requirePermission(PERMISSIONS.PRICES_MANAGE)
+Corrección: preHandler: app.requirePermission(PERMISSIONS.PRICES_APPROVE)
 ```
 
 ## Cambios sensibles que requieren aprobación del usuario

@@ -5,7 +5,7 @@ import type {
   CreateVariantInput,
   UpdateProductInput,
 } from '@joyeria/shared';
-import { PERMISSIONS } from '@joyeria/shared';
+import { PERMISSIONS, hasSalePrice } from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import type { Prisma } from '../../generated/prisma/client.ts';
 import {
@@ -18,6 +18,7 @@ import {
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
+import { recordInitialPrice } from '../pricing/pricing.service.ts';
 
 const withDetails = {
   category: true,
@@ -80,6 +81,20 @@ export class ProductsService {
     const usedBarcode = await tx.productVariant.findUnique({ where: { barcode: sku } });
     if (usedBarcode) throw new ConflictError('El SKU coincide con un código de barras existente');
     return sku;
+  }
+
+  /**
+   * El precio de venta solo se fija al CREAR la pieza o variante, y únicamente con `prices:approve`
+   * (queda en el historial como INITIAL). Todo cambio posterior pasa por el módulo de precios.
+   */
+  private assertCanSetInitialPrice(salePrice: string | undefined, request: FastifyRequest) {
+    if (
+      salePrice !== undefined &&
+      hasSalePrice(salePrice) &&
+      !getAuth(request).user.permissions.includes(PERMISSIONS.PRICES_APPROVE)
+    ) {
+      throw new ForbiddenError('No tiene permiso para establecer precios');
+    }
   }
 
   private async validateSelections(
@@ -163,12 +178,7 @@ export class ProductsService {
   }
 
   async create(input: CreateProductInput, request: FastifyRequest) {
-    if (
-      input.salePrice !== undefined &&
-      !getAuth(request).user.permissions.includes(PERMISSIONS.PRICES_MANAGE)
-    ) {
-      throw new ForbiddenError('No tiene permiso para establecer precios');
-    }
+    this.assertCanSetInitialPrice(input.salePrice, request);
     return this.prisma.$transaction((tx) => this.createWithin(tx, input, request));
   }
 
@@ -209,6 +219,10 @@ export class ProductsService {
       },
       include: withDetails,
     });
+    const baseVariant = product.variants[0];
+    if (baseVariant && input.salePrice !== undefined) {
+      await recordInitialPrice(tx, baseVariant, input.salePrice, request);
+    }
     const after = toResponse(product);
     await recordAudit(
       tx,
@@ -360,12 +374,7 @@ export class ProductsService {
   }
 
   async addVariant(productId: string, input: CreateVariantInput, request: FastifyRequest) {
-    if (
-      input.salePrice !== undefined &&
-      !getAuth(request).user.permissions.includes(PERMISSIONS.PRICES_MANAGE)
-    ) {
-      throw new ForbiddenError('No tiene permiso para establecer precios');
-    }
+    this.assertCanSetInitialPrice(input.salePrice, request);
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId}::uuid FOR UPDATE`;
       const product = await tx.product.findUnique({
@@ -427,6 +436,9 @@ export class ProductsService {
           optionId: item.optionId,
         })),
       });
+      if (input.salePrice !== undefined) {
+        await recordInitialPrice(tx, variant, input.salePrice, request);
+      }
       const updated = await tx.product.findUniqueOrThrow({
         where: { id: productId },
         include: withDetails,

@@ -71,6 +71,8 @@ export const updateProductSchema = z
     /** Permite marcar la ficha como completa (o volver a marcarla incompleta). */
     profileIncomplete: z.boolean().optional(),
   })
+  // El precio de venta NO se edita aquí: después de crear la pieza solo cambia por /pricing (ADR-018).
+  .strict()
   .refine((value) => Object.keys(value).length > 0, 'Indique al menos un cambio');
 
 export const assignBarcodeSchema = z.object({ barcode: z.string().trim().min(1).max(64) });

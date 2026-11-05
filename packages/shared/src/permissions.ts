@@ -15,8 +15,10 @@ export const PERMISSIONS = {
   CATALOG_MANAGE: 'catalog:manage',
   /** Ver costos de compra. Separado de catalog:read porque puede ser información sensible. */
   COSTS_READ: 'costs:read',
-  /** Cambiar costo o precio de venta. Toda modificación queda en auditoría. */
-  PRICES_MANAGE: 'prices:manage',
+  /** Solicitar cambios de precio de venta (el Administrador los aprueba). ADR-018. */
+  PRICES_PROPOSE: 'prices:propose',
+  /** Aprobar o rechazar solicitudes de precio, cambiar precios directamente y fijar el precio inicial. */
+  PRICES_APPROVE: 'prices:approve',
 
   SUPPLIERS_READ: 'suppliers:read',
   SUPPLIERS_MANAGE: 'suppliers:manage',
@@ -51,7 +53,8 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'catalog:read': 'Ver catálogo (categorías, atributos, productos, variantes)',
   'catalog:manage': 'Crear y editar catálogo',
   'costs:read': 'Ver costos de compra',
-  'prices:manage': 'Modificar costos y precios de venta',
+  'prices:propose': 'Solicitar cambios de precio de venta',
+  'prices:approve': 'Aprobar o rechazar cambios de precio y cambiar precios directamente',
   'suppliers:read': 'Ver proveedores',
   'suppliers:manage': 'Crear y editar proveedores',
   'stock-entries:read': 'Ver ingresos de mercadería',
@@ -98,6 +101,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
       PERMISSIONS.CATALOG_READ,
       PERMISSIONS.CATALOG_MANAGE,
       PERMISSIONS.COSTS_READ,
+      PERMISSIONS.PRICES_PROPOSE,
       PERMISSIONS.SUPPLIERS_READ,
       PERMISSIONS.SUPPLIERS_MANAGE,
       PERMISSIONS.STOCK_ENTRIES_READ,
