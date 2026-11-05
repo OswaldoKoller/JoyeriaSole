@@ -15,3 +15,4 @@ export * from './schemas/products.ts';
 export * from './schemas/inventory.ts';
 export * from './schemas/stock-entries.ts';
 export * from './schemas/adjustments.ts';
+export * from './schemas/inventory-counts.ts';

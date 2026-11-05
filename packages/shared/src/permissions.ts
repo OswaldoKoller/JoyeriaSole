@@ -34,7 +34,7 @@ export const PERMISSIONS = {
 
   INVENTORY_COUNTS_READ: 'inventory-counts:read',
   INVENTORY_COUNTS_MANAGE: 'inventory-counts:manage',
-  /** Aprobar diferencias de un inventario físico (genera ajustes). */
+  /** Aprobar un conteo físico: es lo único que genera los ajustes de stock del conteo (ADR-021). */
   INVENTORY_COUNTS_APPROVE: 'inventory-counts:approve',
 
   AUDIT_READ: 'audit:read',
@@ -60,9 +60,9 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'inventory:read': 'Ver stock y movimientos',
   'inventory:adjust': 'Solicitar ajustes de inventario y cargar stock inicial',
   'inventory:adjust-approve': 'Aprobar o rechazar ajustes de inventario (modifica el stock)',
-  'inventory-counts:read': 'Ver inventarios físicos',
-  'inventory-counts:manage': 'Crear inventarios físicos y registrar conteos',
-  'inventory-counts:approve': 'Aprobar diferencias de inventario físico',
+  'inventory-counts:read': 'Ver conteos físicos',
+  'inventory-counts:manage': 'Crear conteos físicos y capturar piezas',
+  'inventory-counts:approve': 'Aprobar conteos físicos (ajusta el stock) y regularizar hallazgos',
   'audit:read': 'Ver registro de auditoría',
 };
 
@@ -80,7 +80,7 @@ export type RoleCode = (typeof ROLES)[keyof typeof ROLES];
  * Respuestas del cliente (2026-10-09): vendedor sin costos (P-02), responsable de almacén
  * puede aprobar sus propios conteos físicos (P-01 parcial). Reunión 2026-11-05 (Q-01 B): los
  * ajustes manuales los solicita el responsable y solo los aprueba el administrador.
- * El seed aún no agrega inventory-counts:approve al responsable hasta implementar el conteo.
+ * Conteo físico (E6/Q-01 B, ADR-021): el Responsable también aprueba los conteos.
  * Solo se usa en el seed inicial; luego los roles se administran en base de datos.
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<
@@ -109,6 +109,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
       PERMISSIONS.INVENTORY_ADJUST,
       PERMISSIONS.INVENTORY_COUNTS_READ,
       PERMISSIONS.INVENTORY_COUNTS_MANAGE,
+      PERMISSIONS.INVENTORY_COUNTS_APPROVE,
     ],
   },
   SELLER: {
