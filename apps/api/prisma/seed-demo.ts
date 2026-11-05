@@ -8,6 +8,7 @@
  *   - 4 categorías y 20 productos (una variante cada uno, SKU correlativo, precio en Bs).
  *   - Stock variado mediante movimientos INITIAL_STOCK auditados: nunca editando saldos (ADR-007).
  *     Reparto: 5 sin stock, 5 bajo mínimo, 10 disponibles.
+ *   - 2 proveedores ficticios: uno nacional (Bs) y uno del exterior (China, USD).
  *
  * Idempotente: si los datos DEMO ya existen, no los duplica.
  */
@@ -91,6 +92,54 @@ async function seedUsers() {
   return ids;
 }
 
+const DEMO_SUPPLIERS = [
+  {
+    name: 'Proveedor Demo La Paz',
+    type: 'NATIONAL',
+    country: 'Bolivia',
+    contactName: 'DEMO Contacto Nacional',
+    phone: '+591 70000000',
+    whatsapp: '+591 70000000',
+    defaultCurrency: 'BOB',
+    paymentTerms: 'Contado contra entrega',
+  },
+  {
+    name: 'Proveedor Demo Guangzhou',
+    type: 'FOREIGN',
+    country: 'China',
+    contactName: 'DEMO Contacto Exterior',
+    whatsapp: '+86 130 0000 0000',
+    email: 'ventas@proveedor-demo.example.invalid',
+    defaultCurrency: 'USD',
+    paymentTerms: '50% anticipo y 50% contra embarque',
+  },
+] as const;
+
+async function seedSuppliers(adminId: string) {
+  let created = 0;
+  for (const demo of DEMO_SUPPLIERS) {
+    // El nombre no es único en el modelo: la existencia se decide por nombre para ser idempotente.
+    if (await prisma.supplier.findFirst({ where: { name: demo.name } })) continue;
+    const supplier = await prisma.supplier.create({ data: demo });
+    await prisma.auditLog.create({
+      data: {
+        action: 'supplier.created',
+        entityType: 'Supplier',
+        entityId: supplier.id,
+        userId: adminId,
+        after: { name: supplier.name, type: supplier.type },
+        metadata: { source: 'seed-demo' },
+      },
+    });
+    created += 1;
+  }
+  console.log(
+    created > 0
+      ? `✔ ${created} proveedores DEMO (nacional y del exterior)`
+      : '↷ Los proveedores DEMO ya existen (no se duplican)',
+  );
+}
+
 async function seedCatalogAndStock(adminId: string) {
   const already = await prisma.category.findFirst({ where: { name: 'DEMO Anillos' } });
   if (already) {
@@ -170,6 +219,7 @@ try {
   const adminId = ids.get(ROLES.ADMIN);
   if (!adminId) throw new Error('No se creó el administrador DEMO');
   await seedCatalogAndStock(adminId);
+  await seedSuppliers(adminId);
 } finally {
   await prisma.$disconnect();
 }

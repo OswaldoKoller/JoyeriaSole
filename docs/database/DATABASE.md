@@ -64,12 +64,12 @@ La migración `20261010000000_product_variant_sku_sequence` agrega la secuencia 
 
 ### Proveedores e ingresos
 
-| Tabla               | Propósito                                                                                                       |
-| ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `suppliers`         | Proveedores. `tax_id` (NIT) único opcional.                                                                     |
-| `supplier_products` | Código del proveedor para cada variante (ayuda a identificar piezas al recibir).                                |
-| `stock_entries`     | Ingreso: proveedor, documento, estado `DRAFT`/`CONFIRMED`/`CANCELLED`, costos adicionales, quién creó/confirmó. |
-| `stock_entry_items` | Ítems: cantidad esperada vs. recibida, costo unitario, costo adicional prorrateado.                             |
+| Tabla               | Propósito                                                                                                                                                                                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `suppliers`         | Proveedores. `tax_id` (NIT) único opcional; `type` (`NATIONAL`/`FOREIGN`, defecto `NATIONAL`), `country`, `whatsapp`, `default_currency` (`BOB`/`USD`, defecto `BOB`) y `payment_terms` (migración `20261106020000_supplier_profile_v2`, compatible con filas existentes). |
+| `supplier_products` | Código del proveedor para cada variante (ayuda a identificar piezas al recibir).                                                                                                                                                                                           |
+| `stock_entries`     | Ingreso: proveedor, documento, estado `DRAFT`/`CONFIRMED`/`CANCELLED`, costos adicionales, quién creó/confirmó.                                                                                                                                                            |
+| `stock_entry_items` | Ítems: cantidad esperada vs. recibida, costo unitario, costo adicional prorrateado.                                                                                                                                                                                        |
 
 ### Inventario
 

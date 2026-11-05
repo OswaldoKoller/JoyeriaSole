@@ -5,18 +5,19 @@ Este documento describe **conceptos y flujos**. Las reglas no confirmadas se mar
 
 ## Glosario
 
-| Término                  | Significado                                                                                                                                   |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Producto**             | Ficha comercial: nombre, descripción, modelo, categoría, atributos comunes. No tiene stock propio.                                            |
-| **Variante**             | Unidad controlable de inventario. Tiene SKU, código de barras, stock, stock mínimo, costo, precio y estado. Todo producto tiene ≥ 1 variante. |
-| **Eje de variante**      | Atributo que diferencia variantes de un mismo producto (material, talla, longitud...).                                                        |
-| **Atributo descriptivo** | Atributo común a todas las variantes del producto (colección, género, tipo de cierre...).                                                     |
-| **SKU**                  | Código interno único por variante, generado con correlativo automático. Formato técnico actual: `SKU-000001`.                                 |
-| **Etiqueta propia**      | Code 128 con el SKU de la variante. La continuidad del código del proveedor para búsqueda sigue por confirmar (P-06).                         |
-| **Movimiento**           | Registro inmutable de un cambio de stock (+ entrada / − salida).                                                                              |
-| **Saldo (balance)**      | Stock actual de una variante = suma de sus movimientos.                                                                                       |
-| **Ingreso**              | Recepción de mercadería de un proveedor con su documento de respaldo.                                                                         |
-| **Inventario físico**    | Conteo real comparado contra el sistema para detectar y corregir diferencias.                                                                 |
+| Término                  | Significado                                                                                                                                                                                                                                                                               |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Producto**             | Ficha comercial: nombre, descripción, modelo, categoría, atributos comunes. No tiene stock propio.                                                                                                                                                                                        |
+| **Variante**             | Unidad controlable de inventario. Tiene SKU, código de barras, stock, stock mínimo, costo, precio y estado. Todo producto tiene ≥ 1 variante.                                                                                                                                             |
+| **Eje de variante**      | Atributo que diferencia variantes de un mismo producto (material, talla, longitud...).                                                                                                                                                                                                    |
+| **Atributo descriptivo** | Atributo común a todas las variantes del producto (colección, género, tipo de cierre...).                                                                                                                                                                                                 |
+| **SKU**                  | Código interno único por variante, generado con correlativo automático. Formato técnico actual: `SKU-000001`.                                                                                                                                                                             |
+| **Etiqueta propia**      | Code 128 con el SKU de la variante. La continuidad del código del proveedor para búsqueda sigue por confirmar (P-06).                                                                                                                                                                     |
+| **Movimiento**           | Registro inmutable de un cambio de stock (+ entrada / − salida).                                                                                                                                                                                                                          |
+| **Saldo (balance)**      | Stock actual de una variante = suma de sus movimientos.                                                                                                                                                                                                                                   |
+| **Proveedor**            | Ficha (C8): nombre (único dato obligatorio), tipo nacional/del exterior, país, NIT o identificador fiscal, contacto, teléfono, WhatsApp, correo, dirección, moneda habitual de compra (Bs/USD, solo sugerida al registrar un ingreso), condiciones de pago (texto libre), notas y estado. |
+| **Ingreso**              | Recepción de mercadería de un proveedor con su documento de respaldo.                                                                                                                                                                                                                     |
+| **Inventario físico**    | Conteo real comparado contra el sistema para detectar y corregir diferencias.                                                                                                                                                                                                             |
 
 ## Producto vs. Variante
 
