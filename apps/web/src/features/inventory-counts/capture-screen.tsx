@@ -308,9 +308,9 @@ export function CaptureScreen({ count }: { count: InventoryCountBlindDetail }) {
             />
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button type="submit" disabled={scan.isPending}>
-              Registrar lectura
-            </Button>
+            {/* Sin `disabled` mientras hay una lectura en curso: un botón de envío deshabilitado bloquea el Enter
+                del lector y se perderían las lecturas rápidas. */}
+            <Button type="submit">Registrar lectura</Button>
             <Button variant="secondary" disabled={undo.isPending} onClick={() => void undoLast()}>
               Deshacer última lectura
             </Button>
