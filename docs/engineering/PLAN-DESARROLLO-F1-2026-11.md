@@ -4,6 +4,10 @@
 (2026-11-05)»). El texto de las secciones 1 a 11 conserva la propuesta original; donde difiere, prevalece
 la sección 12 y las decisiones de [DECISIONES-ABIERTAS-2026-11-05.md](../business/DECISIONES-ABIERTAS-2026-11-05.md)
 ya respondidas.
+**Regla de autorización compartida (cliente, 2026-11-05, posterior):** el Administrador **y** el Responsable
+de inventario pueden autorizar ajustes, precios, stock inicial y conteos; donde este plan dice que solo el
+Administrador aprueba (D4, Q-01 B, S6/S7/S8), prevalece esa regla (ver la sección 7 de
+[RESOLUCIONES-2026-11-05.md](../business/RESOLUCIONES-2026-11-05.md)).
 Reglas del cliente: [RESOLUCIONES-2026-11-05.md](../business/RESOLUCIONES-2026-11-05.md). No se asignan
 fechas (consistente con [ROADMAP.md](ROADMAP.md)); el tamaño es relativo: **S** pequeña, **M** mediana,
 **L** grande.
@@ -318,7 +322,7 @@ Pistas: **T1** `feature/f1-catalogo` · **T2** `feature/f1-ingresos-precios` · 
 | Rebanada | Estado       | Rama / pista     | Qué existe y qué falta                                                                                                                                                                                                                                                                                       |
 | -------- | ------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | S0       | Parcial      | Integración      | Documentación puesta en orden (PENDIENTES, CHANGELOG, API, base de datos, ADR) y ramas integradas. Falta fusionar los PR #1–#4 en `develop` y publicar las ramas de documentación y despliegue local (solo cuando el usuario lo pida).                                                                       |
-| S1       | Hecha        | T1               | Sesión fija de 8 h, `CHECK (quantity >= 0)`, bloqueo de desactivación con stock, clave temporal con cambio obligatorio, matriz de permisos probada. En la integración el stock inicial pasó a `inventory:initial-stock` (solo Administrador).                                                                |
+| S1       | Hecha        | T1               | Sesión fija de 8 h, `CHECK (quantity >= 0)`, bloqueo de desactivación con stock, clave temporal con cambio obligatorio, matriz de permisos probada. En la integración el stock inicial pasó a `inventory:initial-stock` (Administrador y Responsable).                                                       |
 | S2       | Hecha        | T1               | Atributos y valores, categorías de dos niveles, ficha completa, códigos y búsqueda unificada, etiquetas Code 128, ficha incompleta y «Sin precio», eliminación física solo Administrador. Pantallas de Productos, Categorías, Atributos y Etiquetas. Faltan las listas de valores que entrega el cliente.    |
 | S3       | Parcial      | T1               | Fotos de producto en PostgreSQL (`PhotoStorage`, ADR-020): subida, portada, orden, borrado, galería y miniaturas. **Falta** conectar el componente `PhotoUploader` (listo) al alta rápida de pieza dentro del ingreso.                                                                                       |
 | S4       | Hecha        | T2               | Proveedores v2 (tipo, país, WhatsApp, moneda habitual, condiciones de pago).                                                                                                                                                                                                                                 |
@@ -341,6 +345,7 @@ Pistas: **T1** `feature/f1-catalogo` · **T2** `feature/f1-ingresos-precios` · 
 4. **Revisión de seguridad** (S12) en curso; mover el resto de la autorización a `preValidation`.
 5. **Despliegue y demostración** (S13): `npm run local:up -- --demo` sirve para enseñar la Fase 1; el hosting
    real depende de las respuestas del bloque I.
-6. Decisiones del cliente por confirmar: ver [PENDIENTES.md](../business/PENDIENTES.md) (en particular P-40,
-   stock inicial solo del Administrador; P-41, ficha incompleta; P-42, bandeja de pendientes; P-C1 a P-C3,
-   conteos; P-30, cambios de pieza).
+6. Decisiones del cliente por confirmar: ver [PENDIENTES.md](../business/PENDIENTES.md) (en particular P-43,
+   riesgo aceptado de auto-aprobación; P-41, ficha incompleta; P-42, bandeja de pendientes; P-C1 a P-C3,
+   conteos; P-30, cambios de pieza). P-40 (stock inicial) quedó resuelta por la regla de autorización
+   compartida.

@@ -240,7 +240,8 @@ function Detail({ adjustment }: { adjustment: AdjustmentDetail }) {
           )}
           {!canApprove && (
             <p className="text-sm text-stone-600">
-              Esperando la aprobación del Administrador. El stock no cambia hasta entonces.
+              Esperando la aprobación de quien autoriza (Administrador o Responsable de inventario).
+              El stock no cambia hasta entonces.
             </p>
           )}
           <div className="flex flex-wrap gap-3">

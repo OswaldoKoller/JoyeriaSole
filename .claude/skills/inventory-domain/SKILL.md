@@ -22,7 +22,7 @@ Referencias: `docs/business/DOMINIO.md`, `docs/business/PENDIENTES.md`, ADR-001,
    veces debe fallar con `BusinessRuleError`.
 6. **Inventario físico**: snapshot `system_qty` al iniciar; conteo; revisión; solo la aprobación crea
    `COUNT_ADJUSTMENT` por cada diferencia con motivo obligatorio.
-7. **Ajustes** manuales (ADR-017): el Responsable solicita (`inventory:adjust`), solo el Administrador aprueba (`inventory:adjust-approve`); el stock cambia únicamente al aprobar, con motivo del catálogo, sin stock negativo (revalidado al aprobar) y auditados. Toda escritura de stock usa `applyStockChanges` (`modules/inventory/stock-ledger.ts`).
+7. **Ajustes** manuales (ADR-017): el Responsable o el Administrador solicitan (`inventory:adjust`) y ambos pueden aprobar (`inventory:adjust-approve`, regla 2026-11-05); el stock cambia únicamente al aprobar, con motivo del catálogo, sin stock negativo (revalidado al aprobar) y auditados. Toda escritura de stock usa `applyStockChanges` (`modules/inventory/stock-ledger.ts`).
 8. **Auditoría** de: cambios de producto/variante, desactivaciones, cambios de costo/precio (antes →
    después), confirmaciones, cancelaciones, ajustes, aprobaciones.
 9. **Lector de códigos**: entrada de teclado; búsqueda por `barcode` exacto y luego `sku` exacto.

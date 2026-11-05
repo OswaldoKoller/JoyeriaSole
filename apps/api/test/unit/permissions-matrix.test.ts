@@ -6,14 +6,14 @@ import {
 } from '@joyeria/shared';
 import { describe, expect, it } from 'vitest';
 
-/** Matriz de permisos por rol de los ajustes (Q-01 B, ADR-017). */
+/** Matriz de permisos por rol de los ajustes (Q-01 B, ADR-017; autorización compartida desde 2026-11-05). */
 describe('matriz de permisos de ajustes de inventario', () => {
   const has = (role: keyof typeof DEFAULT_ROLE_PERMISSIONS, permission: string) =>
     DEFAULT_ROLE_PERMISSIONS[role].permissions.some((code) => code === permission);
 
-  it('solo el Administrador aprueba ajustes', () => {
+  it('el Administrador y el Responsable aprueban ajustes (regla 2026-11-05); el Vendedor no', () => {
     expect(has('ADMIN', PERMISSIONS.INVENTORY_ADJUST_APPROVE)).toBe(true);
-    expect(has('INVENTORY_MANAGER', PERMISSIONS.INVENTORY_ADJUST_APPROVE)).toBe(false);
+    expect(has('INVENTORY_MANAGER', PERMISSIONS.INVENTORY_ADJUST_APPROVE)).toBe(true);
     expect(has('SELLER', PERMISSIONS.INVENTORY_ADJUST_APPROVE)).toBe(false);
   });
 
@@ -23,9 +23,9 @@ describe('matriz de permisos de ajustes de inventario', () => {
     expect(has('SELLER', PERMISSIONS.INVENTORY_ADJUST)).toBe(false);
   });
 
-  it('el stock inicial (cambia stock sin aprobación) es solo del Administrador', () => {
+  it('el stock inicial lo cargan el Administrador y el Responsable; el Vendedor no', () => {
     expect(has('ADMIN', PERMISSIONS.INVENTORY_INITIAL_STOCK)).toBe(true);
-    expect(has('INVENTORY_MANAGER', PERMISSIONS.INVENTORY_INITIAL_STOCK)).toBe(false);
+    expect(has('INVENTORY_MANAGER', PERMISSIONS.INVENTORY_INITIAL_STOCK)).toBe(true);
     expect(has('SELLER', PERMISSIONS.INVENTORY_INITIAL_STOCK)).toBe(false);
   });
 

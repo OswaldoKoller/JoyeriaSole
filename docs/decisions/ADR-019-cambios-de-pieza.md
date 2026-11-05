@@ -92,3 +92,10 @@ opuestos y los reportes (kardex, valorización, conteos) necesitan saber cuál e
 - El kardex y el historial muestran los cambios sin cambios de esquema adicionales.
 - Pendiente de negocio: quién registra los cambios en el punto de venta (P-30) y si la pieza devuelta
   pasa por una revisión antes de ser vendible.
+
+## Actualización 2026-11-05: regla de autorización compartida
+
+`inventory:exchange` ya era del Administrador y del Responsable de inventario, en línea con la regla de
+autorización compartida del cliente ([RESOLUCIONES-2026-11-05](../business/RESOLUCIONES-2026-11-05.md)). El
+cambio de pieza no pasa por un segundo aprobador: lo registra y queda auditado quien tenga el permiso (riesgo
+aceptado, P-43).

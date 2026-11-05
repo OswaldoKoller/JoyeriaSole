@@ -82,7 +82,7 @@ describe('detalle de un ajuste', () => {
     );
     // El usuario y sus permisos llegan en otra petición: se espera a que se resuelva.
     expect(
-      await screen.findByText(/Esperando la aprobación del Administrador/),
+      await screen.findByText(/Esperando la aprobación de quien autoriza/),
     ).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Cancelar solicitud' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Aprobar ajuste' })).not.toBeInTheDocument();

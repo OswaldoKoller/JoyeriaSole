@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * Precios de venta (S7, ADR-018): el Responsable solicita, el Administrador aprueba en masa y el
- * precio nuevo aparece en el catálogo para el Vendedor, que no ve costos. El Administrador también
- * cambia precios directamente y todo queda en el historial. Los tests de este archivo son
+ * Precios de venta (S7, ADR-018): desde la regla de 2026-11-05 el Responsable y el Administrador
+ * autorizan, así que ambos aplican precios directamente; el precio nuevo aparece en el catálogo para
+ * el Vendedor, que no ve costos, y todo queda en el historial. El flujo solicitar → aprobar (para
+ * roles con solo `prices:propose`) se prueba en la API (pricing.test.ts). Los tests de este archivo son
  * dependientes entre sí y corren en orden; las piezas se crean por API con nombres propios.
  */
 const PASSWORD = process.env.DEMO_USER_PASSWORD ?? '';
@@ -57,9 +58,7 @@ async function searchPrices(page: Page, term: string) {
 
 test.describe.configure({ mode: 'serial' });
 
-test('el Responsable solicita cambios de precio en lote y ve la ganancia al escribir', async ({
-  page,
-}) => {
+test('el Responsable aplica precios en lote y ve la ganancia al escribir', async ({ page }) => {
   await login(page, USERS.inventario);
   skus[RING] = await createPiece(page, RING);
   skus[NECKLACE] = await createPiece(page, NECKLACE);
@@ -77,45 +76,10 @@ test('el Responsable solicita cambios de precio en lote y ve la ganancia al escr
   await expect(ring.getByLabel(/Ganancia del nuevo precio: .*120,50/)).toBeVisible();
   await necklace.getByLabel(`Nuevo precio de ${skus[NECKLACE]}`).fill('80');
 
-  // El Responsable no puede «Aplicar ahora»: solo solicita.
-  await expect(page.getByRole('button', { name: /Aplicar ahora/ })).toHaveCount(0);
+  // El Responsable autoriza: el cambio rige de inmediato y queda en el historial.
   await page.getByLabel('Motivo del cambio (opcional)').fill('Precio de lanzamiento');
-  await page.getByRole('button', { name: 'Solicitar cambio (2)' }).click();
-  await expect(page.getByText(/Se enviaron 2 solicitudes/)).toBeVisible();
-
-  // El precio vigente NO cambia hasta que el Administrador apruebe.
-  await expect(ring).toContainText('Sin precio');
-  await expect(ring).toContainText(/Pendiente: Bs\s120,50/);
-
-  // El Responsable no aprueba: la pestaña Pendientes solo permite cancelar las propias, y la API
-  // rechaza la aprobación.
-  await page.getByRole('tab', { name: 'Pendientes' }).click();
-  await expect(page.getByRole('button', { name: /Aprobar seleccionadas/ })).toHaveCount(0);
-  const approve = await page.request.post('/api/v1/pricing/changes/approve', {
-    data: { ids: ['01900000-0000-7000-8000-000000000000'] },
-  });
-  expect(approve.status()).toBe(403);
-  await logout(page);
-});
-
-test('el Administrador aprueba en masa y el precio nuevo rige de inmediato', async ({ page }) => {
-  await login(page, USERS.admin);
-  await menu(page).getByRole('link', { name: 'Precios' }).click();
-  await page.getByRole('tab', { name: /Pendientes/ }).click();
-
-  const ringBox = page.getByLabel(`Seleccionar solicitud de ${skus[RING]}`);
-  const necklaceBox = page.getByLabel(`Seleccionar solicitud de ${skus[NECKLACE]}`);
-  await expect(ringBox).toBeVisible();
-  await ringBox.check();
-  await necklaceBox.check();
-  await page.getByRole('button', { name: /Aprobar seleccionadas \(2\)/ }).click();
-  await expect(page.getByText('Se aprobaron 2 cambios de precio.')).toBeVisible();
-  await expect(page.getByLabel(`Seleccionar solicitud de ${skus[RING]}`)).toHaveCount(0);
-
-  // Ya rigen: el panel de Precios los muestra como precio de venta.
-  await page.getByRole('tab', { name: 'Precios', exact: true }).click();
-  await searchPrices(page, skus[RING] ?? '');
-  const ring = page.getByRole('row').filter({ hasText: skus[RING] });
+  await page.getByRole('button', { name: 'Aplicar ahora (2)' }).click();
+  await expect(page.getByText('Se aplicaron 2 precios nuevos.')).toBeVisible();
   await expect(ring).toContainText('120,50');
   await expect(ring).not.toContainText('Sin precio');
   await logout(page);
@@ -157,13 +121,12 @@ test('el Administrador cambia un precio directamente y queda en el historial', a
   await expect(page.getByText('Se aplicó 1 precio nuevo.')).toBeVisible();
   await expect(necklace).toContainText('95,00');
 
-  // Historial de la variante: la solicitud aprobada y el cambio directo.
+  // Historial de la variante: el cambio del Responsable y el del Administrador.
   await necklace
     .getByRole('button', { name: `Ver historial de precios de ${skus[NECKLACE]}` })
     .click();
   const history = page.getByRole('region', { name: `Historial de precios de ${skus[NECKLACE]}` });
-  await expect(history).toContainText('Cambio directo del Administrador');
-  await expect(history).toContainText('Solicitud');
+  await expect(history).toContainText('Cambio directo (con autorización)');
   await expect(history.getByRole('row').filter({ hasText: 'Aprobado' })).toHaveCount(2);
 
   // Historial global.
@@ -179,7 +142,7 @@ test('el Administrador cambia un precio directamente y queda en el historial', a
   const card = page.getByRole('article').filter({ hasText: NECKLACE });
   await expect(card).toContainText('95,00');
   await card.getByRole('button', { name: `Ver historial de precios de ${skus[NECKLACE]}` }).click();
-  await expect(card).toContainText('Cambio directo del Administrador');
+  await expect(card).toContainText('Cambio directo (con autorización)');
   await expect(card.getByRole('link', { name: /Cambiar el precio de/ })).toBeVisible();
   await logout(page);
 });

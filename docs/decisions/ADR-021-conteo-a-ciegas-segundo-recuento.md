@@ -56,3 +56,11 @@ ADR-014 fijó que se concilian los movimientos ocurridos durante el conteo, pero
 - Un código desconocido leído en las dos rondas aparece como dos hallazgos (uno por ronda).
 - No hay integración con marcas de lectores: el lector es un teclado (texto + Enter).
 - Quedan fuera: ubicaciones/estantes (multi-sucursal), conteo cíclico programado y el aviso por diferencias grandes.
+
+## Actualización 2026-11-05: regla de autorización compartida
+
+La regla de autorización compartida del cliente ([RESOLUCIONES-2026-11-05](../business/RESOLUCIONES-2026-11-05.md))
+confirma que **el Administrador y el Responsable de inventario aprueban conteos** con
+`inventory-counts:approve`; no cambia nada en este ADR. Se hace explícito que quien aprueba puede ser quien
+capturó el conteo (sin segregación obligatoria; riesgo aceptado, trazable por auditoría: P-43). Los ajustes
+(ADR-017) y los precios (ADR-018) pasaron a seguir la misma regla.

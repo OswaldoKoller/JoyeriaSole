@@ -86,7 +86,7 @@ La migración `20261010000000_product_variant_sku_sequence` agrega la secuencia 
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `price_changes` | **Historial inmutable** de precios de venta por variante (ADR-018): `previous_price`/`new_price` (`Decimal(12,2)`), `status` (`PENDING`/`APPROVED`/`REJECTED`/`CANCELLED`), `origin` (`REQUEST`/`ADMIN_DIRECT`/`INITIAL`), `requested_by_id`, `decided_by_id`, fechas, `reason`, `decision_comment`, `cost_snapshot` (`Decimal(12,4)`, costo total del momento) y `batch_id` (lote de la decisión). |
 
-Migración `20261106020300_price_changes`. Reglas en la base: `CHECK` de precios >= 0 y distintos; estado coherente con la decisión (PENDING sin decidir, el resto con quién y cuándo); `ADMIN_DIRECT` e `INITIAL` nacen `APPROVED` por el mismo usuario; solo el solicitante cancela; `REJECTED` exige comentario; índice único parcial **una `PENDING` por variante**; y un trigger que impide `DELETE` y cualquier `UPDATE` de un cambio resuelto (de una pendiente solo permite resolverla: estado, decisor, fecha, comentario y lote). `product_variants.sale_price` solo cambia dentro de la transacción que registra el cambio en `price_changes` y su auditoría.
+Migración `20261106020300_price_changes`. Reglas en la base: `CHECK` de precios >= 0 y distintos; estado coherente con la decisión (PENDING sin decidir, el resto con quién y cuándo); `ADMIN_DIRECT` e `INITIAL` nacen `APPROVED` por el mismo usuario; solo el solicitante cancela; `REJECTED` exige comentario; índice único parcial **una `PENDING` por variante**; y un trigger que impide `DELETE` y cualquier `UPDATE` de un cambio resuelto (de una pendiente solo permite resolverla: estado, decisor, fecha, comentario y lote). `product_variants.sale_price` solo cambia dentro de la transacción que registra el cambio en `price_changes` y su auditoría. El valor de enum `ADMIN_DIRECT` no cambia, pero desde la regla de autorización compartida (2026-11-05) lo registra también el Responsable de inventario (quien tenga `prices:approve`); su etiqueta visible es «Cambio directo (con autorización)». Sin cambios de esquema ni migración.
 
 ### Inventario
 
@@ -158,5 +158,7 @@ registro, Otro) y los tipos de costo de importación (Transporte, Embolsado, Adu
 Otro); solo agrega los que faltan y no pisa cambios hechos después.
 
 Cuando se agregan o reasignan permisos (p. ej. `prices:propose`/`prices:approve`,
-`inventory:adjust-approve` o `inventory:initial-stock`, este último solo del Administrador) hay que
-**volver a ejecutar el seed** en las bases existentes.
+`inventory:adjust-approve` o `inventory:initial-stock`) hay que **volver a ejecutar el seed** en las
+bases existentes. Desde la regla de autorización compartida (2026-11-05) el Responsable de inventario
+también tiene `inventory:adjust-approve`, `prices:approve` e `inventory:initial-stock`; en bases ya
+sembradas se le asignan al volver a ejecutar el seed o desde la pantalla de roles.

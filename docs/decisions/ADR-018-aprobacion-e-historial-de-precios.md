@@ -59,3 +59,19 @@ Solo con `costs:read`, junto al precio vigente y al nuevo: **ganancia en Bs** `(
 - El permiso `prices:manage` desaparece; lo reemplazan `prices:propose` y `prices:approve` (el seed los agrega a los roles; hay que volver a ejecutarlo en bases existentes).
 - Precios existentes sin historial: el primer cambio registra el precio vigente como «anterior»; no se inventan filas retroactivas.
 - Abierto para otras fases: bandeja global «Pendientes de aprobación» con contador en el inicio del Administrador (Q-14; el endpoint `GET /pricing/pending-count` ya existe) y vendibilidad por precio (Fase 2).
+
+## Actualización 2026-11-05: regla de autorización compartida
+
+El cliente fijó, después de las decisiones Q-01 B y D4 y para evitar bloqueos, que **tanto el Administrador
+como el Responsable de inventario pueden autorizar** ([RESOLUCIONES-2026-11-05](../business/RESOLUCIONES-2026-11-05.md),
+regla de autorización compartida). Efecto sobre este ADR (el texto anterior no se reescribe):
+
+- `prices:approve` lo tienen ahora el Administrador **y** el Responsable de inventario: ambos aprueban o
+  rechazan solicitudes (uno o en masa), cambian precios directamente y fijan el precio inicial al crear una
+  pieza o variante. Donde arriba dice «el Administrador decide» o «solo el Administrador», léase «quien tiene
+  `prices:approve`».
+- El Responsable puede aprobar sus propias solicitudes; no hay segregación obligatoria (riesgo aceptado,
+  trazable por auditoría: P-43). La regla «una solicitud pendiente por variante» no cambia.
+- El flujo **solicitar → aprobar** sigue para roles con solo `prices:propose`.
+- El origen `ADMIN_DIRECT` conserva su valor en el enum y la base, pero su etiqueta visible pasa a ser
+  **«Cambio directo (con autorización)»**, porque ya no lo registra únicamente el Administrador.

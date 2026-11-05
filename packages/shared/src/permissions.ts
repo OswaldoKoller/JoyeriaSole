@@ -33,9 +33,9 @@ export const PERMISSIONS = {
   INVENTORY_READ: 'inventory:read',
   /** Solicitar ajustes manuales. El stock NO cambia hasta que se aprueba. */
   INVENTORY_ADJUST: 'inventory:adjust',
-  /** Cargar el stock inicial de una pieza (cambia el stock sin aprobación previa). Solo ADMIN. */
+  /** Cargar el stock inicial de una pieza (cambia el stock sin aprobación previa). ADMIN y Responsable. */
   INVENTORY_INITIAL_STOCK: 'inventory:initial-stock',
-  /** Aprobar o rechazar ajustes: es lo único que mueve stock en un ajuste (ADR-017). Solo ADMIN. */
+  /** Aprobar o rechazar ajustes: es lo único que mueve stock en un ajuste (ADR-017). ADMIN y Responsable (regla 2026-11-05). */
   INVENTORY_ADJUST_APPROVE: 'inventory:adjust-approve',
   /** Registrar un cambio de pieza (entra la devuelta, sale la entregada). Mueve stock (ADR-019). */
   INVENTORY_EXCHANGE: 'inventory:exchange',
@@ -122,8 +122,13 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
       PERMISSIONS.STOCK_ENTRIES_MANAGE,
       PERMISSIONS.STOCK_ENTRIES_CONFIRM,
       PERMISSIONS.INVENTORY_READ,
-      // Solicita ajustes; aprobarlos es solo del Administrador (Q-01 B, ADR-017).
+      // Regla 2026-11-05 (tras Q-01 B): el Responsable también autoriza —ajustes, precios, stock
+      // inicial y conteos—, para que ningún trámite quede bloqueado esperando solo al Administrador.
+      // Lo único exclusivo del Administrador sigue siendo auditoría, usuarios/roles y borrado físico.
       PERMISSIONS.INVENTORY_ADJUST,
+      PERMISSIONS.INVENTORY_ADJUST_APPROVE,
+      PERMISSIONS.INVENTORY_INITIAL_STOCK,
+      PERMISSIONS.PRICES_APPROVE,
       // Registra cambios de pieza (ADR-019). El Vendedor NO: quién los registra en el punto de venta
       // futuro está pendiente (P-30).
       PERMISSIONS.INVENTORY_EXCHANGE,

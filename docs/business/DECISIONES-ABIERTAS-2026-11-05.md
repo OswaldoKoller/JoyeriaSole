@@ -4,6 +4,11 @@ Lo que **no** quedó claro en las respuestas del cliente, convertido en opciones
 estructura actual del sistema. Contexto: [RESOLUCIONES-2026-11-05.md](RESOLUCIONES-2026-11-05.md).
 Plan que depende de estas respuestas: [PLAN-DESARROLLO-F1-2026-11.md](../engineering/PLAN-DESARROLLO-F1-2026-11.md).
 
+**Nota posterior (2026-11-05):** después de responder Q-01 B y D4, el cliente fijó una regla de
+autorización compartida: el Administrador **y** el Responsable de inventario pueden autorizar (ajustes,
+precios, stock inicial, conteos). Donde este documento dice que «solo el Administrador» aprueba ajustes o
+precios, prevalece esa regla; ver la sección 7 de [RESOLUCIONES-2026-11-05.md](RESOLUCIONES-2026-11-05.md).
+
 **Cómo responder:** basta una línea por pregunta (por ejemplo `Q-01 B · Q-02 A · Q-03 A`). La opción
 marcada **(Recomendada)** es la que mejor encaja con lo ya construido y con lo que el cliente dijo; si
 no hay objeción se adopta. Una opción no elegida no se implementa.

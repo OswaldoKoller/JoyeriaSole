@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * Ajustes de inventario con solicitud y aprobación (ADR-017): el Responsable solicita, el
- * Administrador aprueba o rechaza, y el stock cambia ÚNICAMENTE al aprobar.
+ * Ajustes de inventario con solicitud y aprobación (ADR-017): el Responsable solicita; desde la regla
+ * de 2026-11-05 tanto él como el Administrador pueden aprobar o rechazar, y el stock cambia
+ * ÚNICAMENTE al aprobar. Aquí aprueba el Administrador (segunda persona).
  * Usa los datos DEMO. Corre después de dashboard/responsive (orden alfabético), que dependen de
  * los totales originales del seed, y antes de stock-entries, que usa otras piezas.
  */
@@ -44,7 +45,7 @@ async function pickReason(page: Page, reason: string) {
   await page.getByLabel('Motivo del ajuste').selectOption({ label: reason });
 }
 
-test('el Responsable solicita, el Administrador aprueba y recién entonces cambia el stock', async ({
+test('el Responsable solicita, un autorizador aprueba y recién entonces cambia el stock', async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -66,24 +67,17 @@ test('el Responsable solicita, el Administrador aprueba y recién entonces cambi
   await page.getByLabel('Observación (opcional)').fill('E2E: se rompió el broche');
   await page.getByRole('button', { name: 'Enviar solicitud' }).click();
 
-  // 2) Queda pendiente: el Responsable no puede aprobar y el stock NO cambió
+  // 2) Queda pendiente y el stock NO cambió (el Responsable puede autorizar, pero aún no lo hizo)
   await expect(page).toHaveURL(/\/inventario\/ajustes\/[0-9a-f-]{36}$/);
-  const detailUrl = page.url();
   const heading = page.getByRole('heading', { name: /Ajuste AJ-\d{6}/ });
   await expect(heading).toContainText('Pendiente de aprobación');
-  await expect(page.getByText(/Esperando la aprobación del Administrador/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Aprobar ajuste' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Rechazar ajuste' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Aprobar ajuste' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Rechazar ajuste' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancelar solicitud' })).toBeVisible();
   const number = /AJ-\d{6}/.exec(await heading.innerText())?.[0];
   if (!number) throw new Error('No se leyó el número del ajuste');
   expect(await stockOf(page, 'Dije Luna')).toBe(before);
 
-  // La API tampoco deja aprobar al Responsable
-  const id = detailUrl.split('/').pop();
-  expect((await page.request.post(`/api/v1/inventory/adjustments/${id}/approve`)).status()).toBe(
-    403,
-  );
   await logout(page);
 
   // 3) El Administrador ve el pendiente, lo abre y aprueba

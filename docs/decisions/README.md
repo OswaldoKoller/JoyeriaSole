@@ -30,4 +30,8 @@ Las decisiones de **negocio** pendientes están en [`docs/business/PENDIENTES.md
 | [020](ADR-020-fotos-de-producto.md)                          | Fotos de producto en PostgreSQL tras `PhotoStorage` | Aceptado                           |
 | [021](ADR-021-conteo-a-ciegas-segundo-recuento.md)           | Conteo físico a ciegas con segundo recuento         | Aceptado (enmienda de 009 y 014)   |
 
+Los ADR 017, 018, 019 y 021 llevan al final una nota «Actualización 2026-11-05» con la regla de
+autorización compartida (el Administrador y el Responsable de inventario autorizan; ver
+[RESOLUCIONES-2026-11-05](../business/RESOLUCIONES-2026-11-05.md)). El texto original no se reescribe.
+
 Plantilla: [`TEMPLATE.md`](TEMPLATE.md).

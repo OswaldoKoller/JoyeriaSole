@@ -153,7 +153,7 @@ Proveedor → Llegada → Documento de recepción → Verificación física → 
 - Precio de venta: lo **fija el cliente a mano** por variante (un solo precio, **neto**, en Bs; sin listas de precios). Precio 0 = «Sin precio»: válido, pero la pieza no será vendible en la Fase 2 hasta tener precio (D9).
 - Las compras pueden ser en dólares (P-10 reabierto, Q-07); costos, stock y precios de venta siempre en bolivianos.
 - **No hay fórmula, multiplicador, redondeo ni sugerencia de precio** (P-03 sustituida por Q-04/Q-05). Para decidir el precio el sistema muestra, solo con `costs:read`: precio de compra unitario y subtotal del último ingreso, costos adicionales por pieza y **costo total unitario**; y la **ganancia** del precio vigente y del nuevo: **Ganancia en Bs** y **% sobre el costo total** (costo 0 → «—»). Una ganancia negativa se advierte, no se bloquea.
-- **Aprobación de precios (P-25 cerrada, [ADR-018](../decisions/ADR-018-aprobacion-e-historial-de-precios.md)):** el Responsable de inventario **solicita** (uno o varios) y solo el Administrador **aprueba o rechaza** (uno a uno o en masa; el rechazo exige comentario). El Administrador también puede **cambiar directamente**, aunque sea quien lo modifica: queda aprobado por él mismo. Vigencia inmediata, sin umbrales. Una variante admite una sola solicitud pendiente; el solicitante puede cancelarla.
+- **Aprobación de precios (P-25 cerrada, [ADR-018](../decisions/ADR-018-aprobacion-e-historial-de-precios.md)):** quien tiene `prices:propose` **solicita** (uno o varios) y quien tiene `prices:approve` —el Administrador **o** el Responsable de inventario, regla de autorización compartida del 2026-11-05— **aprueba o rechaza** (uno a uno o en masa; el rechazo exige comentario). Quien aprueba también puede **cambiar directamente** («Cambio directo (con autorización)»), aunque sea quien lo modifica: queda aprobado por él mismo, y el Responsable puede aprobar sus propias solicitudes (riesgo aceptado, P-43). Vigencia inmediata, sin umbrales. Una variante admite una sola solicitud pendiente; el solicitante puede cancelarla.
 - **Historial de precios** en entidad propia (`price_changes`, inmutable): precio anterior y nuevo, estado, origen (solicitud, cambio directo, precio inicial), quién solicitó y decidió, fechas, comentario y costo total del momento (solo con `costs:read`). El precio inicial al crear una pieza lo fija solo quien puede aprobar precios.
 - Todo cambio de costo/precio queda en auditoría (anterior → nuevo).
 
@@ -190,13 +190,19 @@ Crear conteo por categoría (DRAFT) → Iniciar (IN_PROGRESS: foto del sistema +
 ## Ajustes manuales (Q-01 B, ADR-017)
 
 ```
-Responsable SOLICITA (PENDING) → Administrador APRUEBA → movimientos ADJUSTMENT (el stock cambia aquí)
-                               ├→ Administrador RECHAZA con comentario (REJECTED)
-                               └→ quien solicitó CANCELA (CANCELLED)
+Quien tiene inventory:adjust SOLICITA (PENDING) → quien tiene inventory:adjust-approve APRUEBA
+                                                    → movimientos ADJUSTMENT (el stock cambia aquí)
+                                                  ├→ RECHAZA con comentario (REJECTED)
+                                                  └→ quien solicitó CANCELA (CANCELLED)
 ```
 
-- El **Responsable solicita** (`inventory:adjust`); **solo el Administrador aprueba o rechaza**
-  (`inventory:adjust-approve`) y puede aprobar los suyos. El **stock cambia únicamente al aprobar**.
+- **Regla de autorización compartida (cliente, 2026-11-05, posterior a Q-01 B):** el **Administrador y el
+  Responsable de inventario** pueden solicitar y también aprobar o rechazar (`inventory:adjust-approve`),
+  incluidos sus propios ajustes. Así no se bloquea un ajuste esperando a una sola persona. Un rol que solo
+  tenga `inventory:adjust` (p. ej. un rol personalizado) solicita y otra persona decide. La auditoría deja
+  trazable quién pidió y quién aprobó (riesgo aceptado, P-43). El **stock cambia únicamente al aprobar**.
+- Lo mismo vale para el **stock inicial** (`inventory:initial-stock`, P-40) y los **conteos**. Sigue siendo
+  exclusivo del Administrador: auditoría, usuarios/roles, borrado físico y configuración.
 - Un ajuste puede tener varias variantes; cada línea es una diferencia con signo (negativa = sale). Un
   solo **motivo** del catálogo (Robo, Pérdida, Muestra, Rotura, Error de registro, Otro) y una
   **observación** libre, obligatoria si el motivo es «Otro».

@@ -81,3 +81,18 @@ Hasta ahora solo existía el stock inicial; el permiso `inventory:adjust` era ú
 - Los ajustes aprobados no se corrigen: se compensan con otro ajuste.
 - Quedan sin definir el aviso por ajustes grandes (E1, sin cifras) y el límite de piezas por línea
   (1 000 000 por defecto, técnico).
+
+## Actualización 2026-11-05: regla de autorización compartida
+
+El cliente fijó, después de Q-01 B y para evitar bloqueos, que **tanto el Administrador como el Responsable
+de inventario pueden autorizar** ([RESOLUCIONES-2026-11-05](../business/RESOLUCIONES-2026-11-05.md), regla
+de autorización compartida). Efecto sobre este ADR (el texto anterior no se reescribe):
+
+- `inventory:adjust-approve` ya **no** es «solo Administrador»: lo tienen también el Responsable de inventario
+  y el Administrador. El Responsable puede aprobar y rechazar ajustes, incluidos los suyos; no hay
+  segregación obligatoria (riesgo aceptado, trazable por auditoría: P-43).
+- El flujo **solicitar → aprobar** sigue vigente para roles que tengan solo `inventory:adjust` (p. ej. roles
+  personalizados): solicitan y otra persona con `inventory:adjust-approve` decide.
+- `inventory:initial-stock` (stock inicial, P-40) también es del Administrador y del Responsable; la
+  consecuencia sobre el stock inicial descrita arriba queda resuelta por esta regla.
+- Sigue siendo exclusivo del Administrador: auditoría, usuarios/roles, borrado físico y configuración.

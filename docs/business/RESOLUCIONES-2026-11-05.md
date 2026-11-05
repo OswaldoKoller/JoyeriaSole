@@ -182,7 +182,7 @@ Estas respuestas prevalecen sobre las secciones anteriores cuando difieren.
 
 | Q    | Respuesta                 | Regla resultante                                                                                                                                                                                                                                                            |
 | ---- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Q-01 | B · subpregunta a         | **Conteos:** los aprueba el Responsable de inventario o el Administrador. **Ajustes manuales:** los solicita el Responsable y solo los aprueba el Administrador. El stock cambia **únicamente al aprobar** el ajuste.                                                       |
+| Q-01 | B · subpregunta a         | **Conteos:** los aprueba el Responsable de inventario o el Administrador. **Ajustes manuales:** los solicita el Responsable y los aprueba el Administrador (ampliado después: ver la regla compartida de abajo). El stock cambia **únicamente al aprobar** el ajuste.       |
 | Q-02 | A                         | Sesión **fija de 8 horas** desde el login, sin extensión por actividad.                                                                                                                                                                                                     |
 | Q-03 | A                         | Sin control por número de serie ni por lotes.                                                                                                                                                                                                                               |
 | Q-04 | Respuesta propia          | **El cliente pone el precio de venta de cada ítem a mano.** No hay redondeo automático.                                                                                                                                                                                     |
@@ -203,3 +203,36 @@ Estas respuestas prevalecen sobre las secciones anteriores cuando difieren.
 restricciones. Se adoptó G-02 A (el trabajo de Codex es **referencia**, no se fusiona) y, para G-01, el
 trabajo se apila sobre la punta del PR #4 en la rama `feature/f1-base`; **no se fusiona nada en
 `develop` remoto** sin que el usuario lo pida.
+
+### Regla de autorización compartida (2026-11-05, posterior)
+
+Tras la reunión, y como instrucción posterior a las respuestas anteriores, el cliente fijó una **regla de
+autorización compartida** para evitar bloqueos cuando el Administrador no está disponible:
+
+> **Tanto el Administrador como el Responsable de inventario pueden autorizar.**
+
+Alcance de la regla (quién autoriza qué):
+
+- Aprobar o rechazar **ajustes de inventario** (`inventory:adjust-approve`).
+- Aprobar o rechazar **precios de venta** y cambiarlos directamente (`prices:approve`), incluido fijar el
+  precio inicial al crear una pieza o variante.
+- Cargar el **stock inicial** de una pieza (`inventory:initial-stock`).
+- Aprobar **conteos físicos** (`inventory-counts:approve`; ya lo tenía el Responsable por Q-01 B).
+
+Qué cambia respecto de lo anterior:
+
+- **Modifica Q-01 B** (tabla anterior): los ajustes ya **no** los aprueba solo el Administrador, y los
+  precios (D4) ya no son solo del Administrador. El Responsable de inventario recibe `inventory:adjust-approve`,
+  `prices:approve` e `inventory:initial-stock`.
+- **No hay segregación obligatoria:** el Responsable puede aprobar sus propias solicitudes. Es un riesgo
+  aceptado, trazable por la auditoría (ver P-43 en [PENDIENTES.md](PENDIENTES.md)).
+- El flujo **«solicitar → aprobar» sigue existiendo** para los roles que tengan solo `inventory:adjust` o
+  `prices:propose` (p. ej. roles personalizados creados por el Administrador).
+- La etiqueta del origen de precio `ADMIN_DIRECT` pasa a ser **«Cambio directo (con autorización)»**; el valor
+  del enum no cambia.
+
+Sigue siendo **exclusivo del Administrador:** la auditoría (`audit:read`, Q-15.3), usuarios, roles y
+restablecimiento de claves, el borrado físico de productos (`catalog:delete`) y la configuración
+(`settings:manage`).
+
+Motivo: evitar que un ajuste, un precio o la carga inicial queden detenidos esperando a una sola persona.

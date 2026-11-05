@@ -36,12 +36,43 @@
 6. Nunca commitear `.env`, credenciales, dumps de BD ni backups.
 7. Dependencias nuevas: revisar mantenimiento y `npm audit` antes de agregarlas.
 
+## Roles y permisos: quién puede qué
+
+Fuente de verdad: `packages/shared/src/permissions.ts` (`DEFAULT_ROLE_PERMISSIONS`, solo para el seed
+inicial; luego los roles se administran en base de datos). La API autoriza siempre por permiso, nunca por
+nombre de rol.
+
+**Regla de autorización compartida (cliente, 2026-11-05):** tanto el **Administrador** como el
+**Responsable de inventario** pueden autorizar. Ver [RESOLUCIONES-2026-11-05](../business/RESOLUCIONES-2026-11-05.md).
+
+Pueden **Administrador y Responsable de inventario** (el Vendedor no puede ninguna de estas):
+
+- Solicitar ajustes y cambios de precio (`inventory:adjust`, `prices:propose`).
+- Aprobar o rechazar ajustes (`inventory:adjust-approve`) y cargar el stock inicial (`inventory:initial-stock`).
+- Aprobar o rechazar precios, cambiarlos directamente (origen `ADMIN_DIRECT`, etiqueta «Cambio directo (con
+  autorización)») y fijar el precio inicial (`prices:approve`).
+- Aprobar conteos físicos (`inventory-counts:approve`) y registrar cambios de pieza (`inventory:exchange`).
+
+Son **exclusivos del Administrador** (el Responsable no los tiene):
+
+- Auditoría (`audit:read`, Q-15.3).
+- Usuarios, roles y restablecer claves (`users:read`, `users:manage`, `roles:manage`).
+- Borrado físico de fichas de producto (`catalog:delete`).
+- Configuración del sistema (`settings:manage`).
+
+El Vendedor solo tiene `catalog:read` e `inventory:read`, sin costos (P-02).
+
+Un rol personalizado con solo `inventory:adjust` o `prices:propose` sigue el flujo **solicitar → aprobar**:
+solicita y otra persona con el permiso de aprobar decide. El Responsable puede aprobar sus propias
+solicitudes (no hay segregación obligatoria); el riesgo está aceptado más abajo.
+
 ## Riesgos conocidos y aceptados
 
 | Riesgo                                                                                                                                    | Evaluación                                                                                                                                                                                                                                                                                                       |
 | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm audit` reporta 4 vulnerabilidades _high_ en `mysql2` y `deepmerge-ts`, dependencias transitivas del **CLI de Prisma 7** (oct. 2026). | `mysql2` solo se usa con bases MySQL (no es nuestro caso). `deepmerge-ts` se usa para combinar la configuración local de Prisma (entrada de confianza). No explotables en este uso. La "solución" de npm es bajar a Prisma 6 (cambio incompatible). **Acción:** actualizar Prisma cuando publique la corrección. |
 | Sin 2FA.                                                                                                                                  | Decisión aprobada P-19 (2026-10-09).                                                                                                                                                                                                                                                                             |
+| Auto-aprobación: el Responsable puede aprobar sus propias solicitudes (ajustes, precios, conteos) y registrar cambios de pieza.           | Aceptado por regla del cliente (2026-11-05): evita bloqueos. No hay segundo aprobador; la trazabilidad está en la auditoría (quién pidió, quién aprobó, cuándo) y en el historial propio de cada módulo. Alternativa futura: segundo aprobador por umbral de valor (P-43).                                       |
 
 ## Pendiente para producción
 

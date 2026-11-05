@@ -20,7 +20,7 @@ export const priceChangeOriginSchema = z.enum(PRICE_CHANGE_ORIGINS);
 export type PriceChangeOrigin = z.infer<typeof priceChangeOriginSchema>;
 export const PRICE_CHANGE_ORIGIN_LABELS: Record<PriceChangeOrigin, string> = {
   REQUEST: 'Solicitud',
-  ADMIN_DIRECT: 'Cambio directo del Administrador',
+  ADMIN_DIRECT: 'Cambio directo (con autorización)',
   INITIAL: 'Precio inicial',
 };
 
