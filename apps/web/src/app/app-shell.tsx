@@ -93,6 +93,7 @@ const GROUPS: Group[] = [
       },
       {
         label: 'Conteo físico',
+        to: '/inventario/conteos',
         icon: ClipboardCheck,
         permission: PERMISSIONS.INVENTORY_COUNTS_READ,
       },

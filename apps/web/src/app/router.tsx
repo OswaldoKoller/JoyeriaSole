@@ -13,6 +13,8 @@ import { MovementsPage } from '../features/inventory/movements-page.tsx';
 import { AdjustmentPage } from '../features/adjustments/adjustment-page.tsx';
 import { AdjustmentNewPage } from '../features/adjustments/adjustment-new-page.tsx';
 import { AdjustmentsPage } from '../features/adjustments/adjustments-page.tsx';
+import { CountPage } from '../features/inventory-counts/count-page.tsx';
+import { CountsPage } from '../features/inventory-counts/counts-page.tsx';
 import { StockEntriesPage } from '../features/stock-entries/stock-entries-page.tsx';
 import { StockEntryNewPage } from '../features/stock-entries/stock-entry-new-page.tsx';
 import { StockEntryPage } from '../features/stock-entries/stock-entry-page.tsx';
@@ -111,6 +113,22 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth permissions={[PERMISSIONS.INVENTORY_ADJUST]}>
             <AdjustmentPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'inventario/conteos',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.INVENTORY_COUNTS_READ]}>
+            <CountsPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'inventario/conteos/:id',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.INVENTORY_COUNTS_READ]}>
+            <CountPage />
           </RequireAuth>
         ),
       },

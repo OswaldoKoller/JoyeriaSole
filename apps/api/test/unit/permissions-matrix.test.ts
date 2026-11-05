@@ -23,6 +23,21 @@ describe('matriz de permisos de ajustes de inventario', () => {
     expect(has('SELLER', PERMISSIONS.INVENTORY_ADJUST)).toBe(false);
   });
 
+  it('conteos físicos: el Administrador y el Responsable capturan y aprueban; el Vendedor no (E6, Q-15)', () => {
+    for (const role of ['ADMIN', 'INVENTORY_MANAGER'] as const) {
+      expect(has(role, PERMISSIONS.INVENTORY_COUNTS_READ)).toBe(true);
+      expect(has(role, PERMISSIONS.INVENTORY_COUNTS_MANAGE)).toBe(true);
+      expect(has(role, PERMISSIONS.INVENTORY_COUNTS_APPROVE)).toBe(true);
+    }
+    for (const permission of [
+      PERMISSIONS.INVENTORY_COUNTS_READ,
+      PERMISSIONS.INVENTORY_COUNTS_MANAGE,
+      PERMISSIONS.INVENTORY_COUNTS_APPROVE,
+    ]) {
+      expect(has('SELLER', permission)).toBe(false);
+    }
+  });
+
   it('el Vendedor solo consulta catálogo e inventario', () => {
     expect(DEFAULT_ROLE_PERMISSIONS.SELLER.permissions).toEqual([
       PERMISSIONS.CATALOG_READ,
