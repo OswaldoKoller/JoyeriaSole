@@ -1,7 +1,9 @@
 # Plan de desarrollo de la Fase 1 — tras la reunión del 2026-11-05
 
-**Estado: propuesta, sin implementar.** Nada de este plan se construye hasta que el usuario lo apruebe
-y cierre las decisiones marcadas en [DECISIONES-ABIERTAS-2026-11-05.md](../business/DECISIONES-ABIERTAS-2026-11-05.md).
+**Estado: plan aprobado e implementado en gran parte** (ver la sección 12, «Estado de implementación
+(2026-11-05)»). El texto de las secciones 1 a 11 conserva la propuesta original; donde difiere, prevalece
+la sección 12 y las decisiones de [DECISIONES-ABIERTAS-2026-11-05.md](../business/DECISIONES-ABIERTAS-2026-11-05.md)
+ya respondidas.
 Reglas del cliente: [RESOLUCIONES-2026-11-05.md](../business/RESOLUCIONES-2026-11-05.md). No se asignan
 fechas (consistente con [ROADMAP.md](ROADMAP.md)); el tamaño es relativo: **S** pequeña, **M** mediana,
 **L** grande.
@@ -303,3 +305,42 @@ donde difieren. Cambios:
 - **S9:** solo la base de cambios, sin pantallas (Q-12).
 - **Ejecución:** se trabaja en tres pistas paralelas con ramas propias que parten de `feature/f1-base`
   (punta del PR #4 más la documentación y el despliegue local); se integran y verifican juntas.
+
+## 12. Estado de implementación (2026-11-05)
+
+Resumen de lo construido al integrar las tres pistas en la rama `feature/f1-integracion`. Fuentes: el
+historial de esa rama, los módulos de `apps/api/src/modules` y las pantallas de `apps/web/src/features`.
+Nada se fusionó en `develop` remoto (G-01 sigue sin ejecutar: los PR #1–#4 continúan abiertos).
+
+Pistas: **T1** `feature/f1-catalogo` · **T2** `feature/f1-ingresos-precios` · **T3** `feature/f1-inventario` ·
+**Integración** `feature/f1-integracion` (fusiona las tres y agrega lo transversal).
+
+| Rebanada | Estado       | Rama / pista     | Qué existe y qué falta                                                                                                                                                                                                                                                                                       |
+| -------- | ------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| S0       | Parcial      | Integración      | Documentación puesta en orden (PENDIENTES, CHANGELOG, API, base de datos, ADR) y ramas integradas. Falta fusionar los PR #1–#4 en `develop` y publicar las ramas de documentación y despliegue local (solo cuando el usuario lo pida).                                                                       |
+| S1       | Hecha        | T1               | Sesión fija de 8 h, `CHECK (quantity >= 0)`, bloqueo de desactivación con stock, clave temporal con cambio obligatorio, matriz de permisos probada. En la integración el stock inicial pasó a `inventory:initial-stock` (solo Administrador).                                                                |
+| S2       | Hecha        | T1               | Atributos y valores, categorías de dos niveles, ficha completa, códigos y búsqueda unificada, etiquetas Code 128, ficha incompleta y «Sin precio», eliminación física solo Administrador. Pantallas de Productos, Categorías, Atributos y Etiquetas. Faltan las listas de valores que entrega el cliente.    |
+| S3       | Parcial      | T1               | Fotos de producto en PostgreSQL (`PhotoStorage`, ADR-020): subida, portada, orden, borrado, galería y miniaturas. **Falta** conectar el componente `PhotoUploader` (listo) al alta rápida de pieza dentro del ingreso.                                                                                       |
+| S4       | Hecha        | T2               | Proveedores v2 (tipo, país, WhatsApp, moneda habitual, condiciones de pago).                                                                                                                                                                                                                                 |
+| S5       | Hecha        | T2               | Ingresos v2: USD con tipo de cambio, lista abierta de costos con tipos (`settings:manage`), prorrateo exacto, panel de costos, alta rápida de pieza (sin foto todavía), discrepancias, fechas, entregas parciales e historial de costos (ADR-016).                                                           |
+| S6       | Hecha        | T3 e Integración | Ajustes con solicitud y aprobación (ADR-017), motivos, pantallas `/inventario/ajustes`. La bandeja «Pendientes de aprobación» del Inicio (Q-14) se agregó en la integración (`GET /approvals/pending`).                                                                                                      |
+| S7       | Hecha        | T2               | Precios manuales con solicitud, aprobación en masa o cambio directo, historial inmutable y ganancia en vivo (ADR-018). Sin multiplicador ni redondeo (Q-04/Q-05).                                                                                                                                            |
+| S8       | Hecha        | T3               | Conteo físico a ciegas por categoría, segundo recuento, hallazgos, conciliación y aprobación atómica (ADR-021). Pantallas `/inventario/conteos`. Quedan abiertas P-C1 a P-C3.                                                                                                                                |
+| S9       | Hecha (base) | T3               | Movimientos `EXCHANGE_IN`/`EXCHANGE_OUT` y operación atómica de cambio de pieza, sin pantallas por decisión del cliente (ADR-019). Sin estado «en preparación» (Q-11 A). Queda P-30 (quién registra cambios en ventas).                                                                                      |
+| S10      | Pendiente    | —                | No hay módulo ni pantalla de auditoría, reportes ni exportaciones (esperan respuestas G1–G6). La auditoría se escribe en cada operación; la pantalla será solo para el Administrador (Q-15.3). Existen el dashboard de alertas y el historial global de movimientos.                                         |
+| S11      | Pendiente    | —                | No hay importador. Espera respuestas H1–H3 y el archivo real del cliente.                                                                                                                                                                                                                                    |
+| S12      | En curso     | Integración      | **Revisión de seguridad en curso.** Los módulos nuevos (ingresos, precios, ajustes, conteos, cambios, pendientes) ya autorizan en `preValidation`; faltan usuarios, proveedores, inventario base y catálogo (~45 endpoints, aún en `preHandler`). Pruebas de rendimiento y rotación de secretos: pendientes. |
+| S13      | Pendiente    | —                | Despliegue y demostración: hosting y dominio sin definir (P-18), usuarios reales sin definir (F1), manual, capacitación y acta de aceptación.                                                                                                                                                                |
+
+### Pendiente conocido al cierre
+
+1. **Alta rápida de pieza dentro del ingreso sin subir foto**: el componente `PhotoUploader` ya existe y la
+   API lo soporta (`POST /products/:id/photos`); falta usarlo en la pantalla de ingresos (Q-09 9.1).
+2. **Auditoría solo para el Administrador, en pantalla** (S10): hoy solo se registra.
+3. **Pruebas de rendimiento** con el volumen del cliente (~2.000 piezas, 3–5 usuarios).
+4. **Revisión de seguridad** (S12) en curso; mover el resto de la autorización a `preValidation`.
+5. **Despliegue y demostración** (S13): `npm run local:up -- --demo` sirve para enseñar la Fase 1; el hosting
+   real depende de las respuestas del bloque I.
+6. Decisiones del cliente por confirmar: ver [PENDIENTES.md](../business/PENDIENTES.md) (en particular P-40,
+   stock inicial solo del Administrador; P-41, ficha incompleta; P-42, bandeja de pendientes; P-C1 a P-C3,
+   conteos; P-30, cambios de pieza).

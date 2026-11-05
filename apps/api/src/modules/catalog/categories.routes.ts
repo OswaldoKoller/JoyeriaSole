@@ -17,7 +17,7 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: { response: { 200: z.object({ data: z.array(categorySchema) }) } },
     },
     async () => service.list(),
@@ -25,7 +25,7 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: { params, response: { 200: item } },
     },
     async (request) => ({ data: await service.get(request.params.id) }),
@@ -33,7 +33,7 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { body: createCategorySchema, response: { 201: item } },
     },
     async (request, reply) =>
@@ -42,7 +42,7 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params, body: updateCategorySchema, response: { 200: item } },
     },
     async (request) => ({ data: await service.update(request.params.id, request.body, request) }),
@@ -50,7 +50,7 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.put(
     '/:id/attributes',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params, body: setCategoryAttributesSchema, response: { 200: item } },
     },
     async (request) => ({

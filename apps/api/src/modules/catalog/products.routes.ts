@@ -29,7 +29,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: {
         querystring: productListQuerySchema,
         response: {
@@ -45,7 +45,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/health',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: { response: { 200: z.object({ data: catalogHealthSchema }) } },
     },
     async () => ({ data: await service.health() }),
@@ -53,7 +53,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/lookup',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: {
         querystring: z.object({ code: z.string().trim().min(1).max(64) }),
         response: { 200: item },
@@ -64,7 +64,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: { params: idParams, response: { 200: item } },
     },
     async (request) => ({ data: await service.get(request.params.id, canSeeStock(request)) }),
@@ -72,7 +72,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { body: createProductSchema, response: { 201: itemWithWarnings } },
     },
     async (request, reply) => {
@@ -83,7 +83,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params: idParams, body: updateProductSchema, response: { 200: item } },
     },
     async (request) => ({ data: await service.update(request.params.id, request.body, request) }),
@@ -92,7 +92,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_DELETE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_DELETE),
       schema: {
         params: idParams,
         response: { 200: z.object({ data: z.object({ id: z.uuid() }) }) },
@@ -103,7 +103,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     '/variants/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params: idParams, body: updateVariantSchema, response: { 200: item } },
     },
     async (request) => ({
@@ -113,7 +113,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     '/variants/:id/status',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params: idParams, body: updateVariantStatusSchema, response: { 200: item } },
     },
     async (request) => ({
@@ -123,7 +123,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     '/variants/:id/barcode',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params: idParams, body: assignBarcodeSchema, response: { 200: itemWithWarnings } },
     },
     async (request) => {
@@ -138,7 +138,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/variants/:id/barcode/generate',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params: idParams, response: { 200: item } },
     },
     async (request) => ({ data: await service.generateBarcode(request.params.id, request) }),
@@ -146,7 +146,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/:id/axes',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params: idParams, body: configureAxesSchema, response: { 200: item } },
     },
     async (request) => ({
@@ -156,7 +156,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/:id/variants',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params: idParams, body: createVariantSchema, response: { 201: itemWithWarnings } },
     },
     async (request, reply) => {

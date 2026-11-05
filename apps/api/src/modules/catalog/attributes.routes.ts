@@ -21,7 +21,7 @@ export const attributesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: {
         querystring: z.object({
           includeInactive: z
@@ -37,7 +37,7 @@ export const attributesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { body: createAttributeSchema, response: { 201: item } },
     },
     async (request, reply) =>
@@ -46,7 +46,7 @@ export const attributesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params: idParams, body: updateAttributeSchema, response: { 200: item } },
     },
     async (request) => ({ data: await service.update(request.params.id, request.body, request) }),
@@ -54,7 +54,7 @@ export const attributesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/:id/options',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: {
         params: idParams,
         body: createAttributeOptionSchema,
@@ -69,7 +69,7 @@ export const attributesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     '/:id/options/:optionId',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: {
         params: optionParams,
         body: updateAttributeOptionSchema,

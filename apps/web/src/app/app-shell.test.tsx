@@ -109,7 +109,7 @@ describe('panel lateral', () => {
   });
 
   it('marca solo una entrada cuando dos comparten ruta (Saldos y Stock inicial)', async () => {
-    mockUser(['inventory:read', 'inventory:adjust']);
+    mockUser(['inventory:read', 'inventory:adjust', 'inventory:initial-stock']);
     const { unmount } = renderWithProviders(<AppShell />, { route: '/inventario' });
     let nav = screen.getByRole('navigation', { name: 'Navegación principal' });
     expect(await within(nav).findByRole('link', { name: 'Stock inicial' })).not.toHaveAttribute(

@@ -1,7 +1,6 @@
 import { PERMISSIONS, pendingApprovalsSchema, type Permission } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { ForbiddenError } from '../../lib/errors.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { ApprovalsService } from './approvals.service.ts';
 
@@ -21,18 +20,7 @@ export const approvalsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/pending',
     {
-      preValidation: [
-        app.authenticate,
-        async (request) => {
-          const { user } = getAuth(request);
-          if (
-            user.mustChangePassword ||
-            !APPROVE_PERMISSIONS.some((p) => user.permissions.includes(p))
-          ) {
-            throw new ForbiddenError();
-          }
-        },
-      ],
+      preValidation: app.requireAnyPermission(...APPROVE_PERMISSIONS),
       schema: { response: { 200: z.object({ data: pendingApprovalsSchema }) } },
     },
     async (request) => ({ data: await service.pending(getAuth(request).user.permissions) }),

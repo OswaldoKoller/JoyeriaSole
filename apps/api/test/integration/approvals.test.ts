@@ -34,6 +34,19 @@ describe('bandeja de pendientes de aprobación (Q-14)', () => {
     }
   });
 
+  it('con clave temporal pendiente responde PASSWORD_CHANGE_REQUIRED (no lista nada)', async () => {
+    const { user, password } = await createTestUser(app.prisma, {
+      permissions: [PERMISSIONS.PRICES_APPROVE],
+    });
+    await app.prisma.user.update({ where: { id: user.id }, data: { mustChangePassword: true } });
+    const { cookie } = await login(app, user.email, password);
+    for (const url of [URL, '/api/v1/pricing/variants', '/api/v1/pricing/changes']) {
+      const res = await app.inject({ method: 'GET', url, headers: { cookie } });
+      expect(res.statusCode, url).toBe(403);
+      expect(res.json().error.code, url).toBe('PASSWORD_CHANGE_REQUIRED');
+    }
+  });
+
   it('sin pendientes devuelve ceros; cada total solo se calcula con su permiso', async () => {
     const admin = await session([
       PERMISSIONS.INVENTORY_ADJUST_APPROVE,

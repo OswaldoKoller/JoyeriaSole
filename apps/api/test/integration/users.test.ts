@@ -368,6 +368,29 @@ describe('restablecimiento de contraseña por el Administrador (F2)', () => {
     return { admin, target, cookie };
   }
 
+  it('un rol con users:manage no puede modificar ni restablecer la clave de un Administrador', async () => {
+    const { target, cookie } = await adminAndTarget();
+    // El objetivo pasa a tener el rol ADMIN; quien llama solo tiene users:manage (rol ad-hoc).
+    await app.prisma.role.updateMany({
+      where: { users: { some: { userId: target.user.id } } },
+      data: { code: 'ADMIN' },
+    });
+    const reset = await app.inject({
+      method: 'POST',
+      url: resetUrl(target.user.id),
+      headers: { cookie },
+      payload: { temporaryPassword: TEMPORARY },
+    });
+    expect(reset.statusCode).toBe(403);
+    const patch = await app.inject({
+      method: 'PATCH',
+      url: `${url}/${target.user.id}`,
+      headers: { cookie },
+      payload: { name: 'Otro nombre' },
+    });
+    expect(patch.statusCode).toBe(403);
+  });
+
   it('exige sesión (401) y users:manage (403)', async () => {
     const { target } = await adminAndTarget();
     const payload = { temporaryPassword: TEMPORARY };

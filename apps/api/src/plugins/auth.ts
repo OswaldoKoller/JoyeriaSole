@@ -27,6 +27,11 @@ declare module 'fastify' {
      * temporal (mustChangePassword) responde 403 PASSWORD_CHANGE_REQUIRED sin evaluar permisos.
      */
     requirePermission: (...permissions: Permission[]) => preHandlerAsyncHookHandler;
+    /**
+     * Igual que `requirePermission`, pero basta AL MENOS UNO de los permisos indicados (p. ej.
+     * solicitar o aprobar precios). También responde 403 PASSWORD_CHANGE_REQUIRED con clave temporal.
+     */
+    requireAnyPermission: (...permissions: Permission[]) => preHandlerAsyncHookHandler;
     sessionCookie: SessionCookieHelpers;
   }
   interface FastifyRequest {
@@ -145,6 +150,22 @@ export const authPlugin = fp<{ env: Env }>(
         if (missing.length > 0) {
           request.log.warn(
             { userId: auth.user.id, missing, url: request.url },
+            'security: acceso denegado por permisos',
+          );
+          throw new ForbiddenError();
+        }
+      };
+      return handler;
+    });
+
+    app.decorate('requireAnyPermission', (...allowed: Permission[]) => {
+      const handler: preHandlerAsyncHookHandler = async (request) => {
+        const auth = await resolveAuth(request);
+        if (!auth) throw new UnauthenticatedError();
+        if (auth.user.mustChangePassword) throw new PasswordChangeRequiredError();
+        if (!allowed.some((p) => auth.user.permissions.includes(p))) {
+          request.log.warn(
+            { userId: auth.user.id, required: allowed, url: request.url },
             'security: acceso denegado por permisos',
           );
           throw new ForbiddenError();

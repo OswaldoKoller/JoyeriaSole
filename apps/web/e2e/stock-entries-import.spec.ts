@@ -234,7 +234,9 @@ test('importación: ingreso en USD con aduanización, comisiones y pieza nueva',
   await expect(history).toContainText(/102[,.]0625/);
   await expect(history).toContainText(/6\.9600/);
   await card.getByRole('button', { name: /como completa/ }).click();
-  await expect(card).not.toContainText('Ficha incompleta');
+  // Se quita la marca que dejó el alta rápida (P-41). La insignia «Ficha incompleta» sigue hasta
+  // que la ficha tenga descripción o características: la regla calculada (C1) también cuenta.
+  await expect(card.getByRole('button', { name: /como completa/ })).toHaveCount(0);
 
   // 9) Entrega parcial: otro ingreso con el mismo comprobante muestra el anterior
   const second = await page.request.post('/api/v1/stock-entries', {
@@ -275,7 +277,7 @@ test('un código de proveedor repetido avisa y no se guarda como código de barr
 
   await page.goto(`/ingresos/${draftId}`);
   await quickCreate(page, {
-    name: 'E2E Anillo repetido',
+    name: 'E2E Anillo código repetido',
     code: NEW_PIECE_CODE,
     quantity: '2',
     price: '1',
@@ -285,8 +287,10 @@ test('un código de proveedor repetido avisa y no se guarda como código de barr
   await expect(created).toContainText(/Aviso: .*otra pieza de este proveedor/);
 
   await page.goto('/productos');
-  await page.getByLabel('Buscar por nombre, SKU o código de barras').fill('E2E Anillo repetido');
+  await page
+    .getByLabel('Buscar por nombre, SKU o código de barras')
+    .fill('E2E Anillo código repetido');
   await page.getByRole('button', { name: 'Buscar' }).click();
-  const card = page.getByRole('article').filter({ hasText: 'E2E Anillo repetido' });
+  const card = page.getByRole('article').filter({ hasText: 'E2E Anillo código repetido' });
   await expect(card).toContainText('Sin código');
 });

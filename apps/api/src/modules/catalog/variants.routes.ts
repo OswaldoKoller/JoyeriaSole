@@ -14,7 +14,7 @@ export const catalogVariantsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/lookup',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: {
         querystring: z.object({ code: z.string().trim().min(1).max(64) }),
         response: { 200: z.object({ data: variantLookupSchema }) },

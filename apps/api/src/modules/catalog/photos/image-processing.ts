@@ -10,10 +10,29 @@ export type DetectedImageType = 'image/jpeg' | 'image/png' | 'image/webp';
 export const STORED_PHOTO_TYPE = 'image/webp';
 export const STORED_PHOTO_QUALITY = 82;
 /** Tope de píxeles de la imagen decodificada (defensa contra «bombas de descompresión»). */
-export const MAX_INPUT_PIXELS = 64_000_000;
+export const MAX_INPUT_PIXELS = 30_000_000;
 
 // Sin caché interna de libvips: las fotos se procesan una vez y no se reutilizan.
 sharp.cache(false);
+sharp.concurrency(2);
+
+/** Máximo de imágenes decodificándose a la vez: acota la memoria del contenedor único. */
+const MAX_CONCURRENT_JOBS = 2;
+let running = 0;
+const waiting: (() => void)[] = [];
+
+async function withSlot<T>(job: () => Promise<T>): Promise<T> {
+  if (running >= MAX_CONCURRENT_JOBS) {
+    await new Promise<void>((resolve) => waiting.push(resolve));
+  }
+  running += 1;
+  try {
+    return await job();
+  } finally {
+    running -= 1;
+    waiting.shift()?.();
+  }
+}
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
@@ -59,19 +78,21 @@ export async function processPhoto(input: Uint8Array): Promise<ProcessedPhoto> {
     throw new ValidationError('El archivo no es una imagen válida. Use una foto JPG, PNG o WebP.');
   }
   try {
-    const { data, info } = await sharp(input, {
-      limitInputPixels: MAX_INPUT_PIXELS,
-      failOn: 'error',
-    })
-      .rotate()
-      .resize({
-        width: PHOTO_MAX_SIDE_PX,
-        height: PHOTO_MAX_SIDE_PX,
-        fit: 'inside',
-        withoutEnlargement: true,
+    const { data, info } = await withSlot(() =>
+      sharp(input, {
+        limitInputPixels: MAX_INPUT_PIXELS,
+        failOn: 'error',
       })
-      .webp({ quality: STORED_PHOTO_QUALITY })
-      .toBuffer({ resolveWithObject: true });
+        .rotate()
+        .resize({
+          width: PHOTO_MAX_SIDE_PX,
+          height: PHOTO_MAX_SIDE_PX,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .webp({ quality: STORED_PHOTO_QUALITY })
+        .toBuffer({ resolveWithObject: true }),
+    );
     return {
       bytes: data,
       contentType: STORED_PHOTO_TYPE,

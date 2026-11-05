@@ -25,7 +25,7 @@ export const suppliersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.SUPPLIERS_READ),
+      preValidation: app.requirePermission(PERMISSIONS.SUPPLIERS_READ),
       schema: {
         querystring: listQuery,
         response: {
@@ -42,7 +42,7 @@ export const suppliersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.SUPPLIERS_READ),
+      preValidation: app.requirePermission(PERMISSIONS.SUPPLIERS_READ),
       schema: { params: idParams, response: { 200: itemResponse } },
     },
     async (request) => ({ data: await service.get(request.params.id) }),
@@ -51,7 +51,7 @@ export const suppliersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
       schema: { body: createSupplierSchema, response: { 201: itemResponse } },
     },
     async (request, reply) =>
@@ -61,7 +61,7 @@ export const suppliersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
       schema: { params: idParams, body: updateSupplierSchema, response: { 200: itemResponse } },
     },
     async (request) => ({ data: await service.update(request.params.id, request.body, request) }),

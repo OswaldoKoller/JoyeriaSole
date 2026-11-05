@@ -47,7 +47,6 @@ export const errorHandlerPlugin = fp(
           return send(409, {
             code: ERROR_CODES.CONFLICT,
             message: 'Ya existe un registro con esos datos únicos',
-            details: { fields: error.meta?.target },
           });
         }
         if (error.code === 'P2003') {

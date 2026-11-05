@@ -60,7 +60,7 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/:id/photos',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: { params: productParams, response: { 200: photoList } },
     },
     async (request) => ({ data: await service.list(request.params.id) }),
@@ -69,7 +69,7 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/:id/photos/:photoId',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: { params: photoParams },
     },
     async (request, reply) => {
@@ -95,7 +95,7 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/:id/photos',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       // Subir fotos es costoso (decodifica y re-codifica): tope propio por usuario/IP.
       config: { rateLimit: { max: 40, timeWindow: '1 minute' } },
       schema: { params: productParams, response: { 201: photoItem } },
@@ -122,7 +122,7 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
   app.put(
     '/:id/photos/order',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params: productParams, body: reorderPhotosSchema, response: { 200: photoList } },
     },
     async (request) => ({
@@ -133,7 +133,7 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
   app.put(
     '/:id/photos/:photoId/cover',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params: photoParams, response: { 200: photoList } },
     },
     async (request) => ({
@@ -144,7 +144,7 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     '/:id/photos/:photoId',
     {
-      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
       schema: { params: photoParams, response: { 200: photoList } },
     },
     async (request) => ({

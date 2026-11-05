@@ -8,7 +8,7 @@
 Sistema web de inventario para una tienda de joyería y productos de moda (Bolivia). Pyme, pocos
 usuarios, acceso desde Internet.
 
-**Fase actual:** F1-01 Proveedores implementado y F1-02 Usuarios en desarrollo tras indicación del cliente el 2026-10-09; ver `docs/engineering/PHASE-1-PREPARATION.md`. **Alcance de Fase 1:** catálogo (categorías,
+**Fase actual:** Fase 1 implementada en la rama de integración tras las reuniones del 2026-11-05 (catálogo, ingresos, precios, inventario, ajustes, conteos, usuarios); ver `docs/engineering/PLAN-DESARROLLO-F1-2026-11.md` §12. **Alcance de Fase 1:** catálogo (categorías,
 atributos, productos, variantes, SKU, códigos de barras, proveedores, costos, precios, stock mínimo,
 estado), ingresos de mercadería, inventario (saldos, movimientos, ajustes, inventario físico),
 control (sin stock, bajo mínimo, historial) y usuarios/roles/permisos.
@@ -77,9 +77,11 @@ Shell en Windows: Git Bash/PowerShell. `.env` está en la **raíz** del repo.
 
 Ver `docs/business/PENDIENTES.md` y `docs/business/RESOLUCIONES-2026-10-09.md`. Las más sensibles que siguen pendientes o parciales:
 
-- **P-03: "Costo total × 2 = precio de venta" — PENDIENTE DE CONFIRMACIÓN.** No implementar como regla.
-- P-06 detalles de códigos/QR · P-07 prorrateo y método de costeo ·
-  P-01 ajustes manuales · P-13 alcance del inventario físico.
+- **P-03: SUSTITUIDA (2026-11-05).** El cliente fija el precio de venta de cada ítem a mano; NO hay
+  multiplicador ni redondeo ni sugerencia (ADR-018). No implementar "costo × 2".
+- Resueltas e implementadas: P-01 (ajustes: solicita el Responsable, aprueba el Administrador; conteos:
+  aprueba Responsable o Administrador), P-07 (prorrateo exacto, ADR-015/016), P-13 (conteo a ciegas por
+  categoría, ADR-021). Siguen abiertas las de `docs/business/PENDIENTES.md` (p. ej. P-06 detalles de QR).
 
 Si una tarea depende de una decisión pendiente: **detenerse y preguntar**, proponer alternativas, no asumir.
 Si se descubre una decisión no listada: agregarla a PENDIENTES.md.

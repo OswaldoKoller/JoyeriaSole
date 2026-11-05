@@ -6,7 +6,12 @@ import type {
 } from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import type { Prisma } from '../../generated/prisma/client.ts';
-import { BusinessRuleError, NotFoundError, ValidationError } from '../../lib/errors.ts';
+import {
+  BusinessRuleError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../../lib/errors.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { hashPassword } from '../../lib/password.ts';
 import { getAuth } from '../../plugins/auth.ts';
@@ -112,9 +117,21 @@ export class UsersService {
       throw new BusinessRuleError('No se puede quitar el último administrador activo');
   }
 
+  /**
+   * Una cuenta con rol ADMIN solo la modifica otro Administrador: evita que un rol personalizado con
+   * `users:manage` (sin `roles:manage`) restablezca la clave de un Administrador y escale privilegios.
+   */
+  private assertCanTouch(target: UserWithRoles, request: FastifyRequest) {
+    const targetIsAdmin = target.roles.some(({ role }) => role.code === 'ADMIN');
+    if (targetIsAdmin && !getAuth(request).user.roles.includes('ADMIN')) {
+      throw new ForbiddenError('Solo un Administrador puede modificar a otro Administrador');
+    }
+  }
+
   async update(id: string, input: UpdateUserInput, request: FastifyRequest) {
     return this.prisma.$transaction(async (tx) => {
       const previous = await this.lockedUser(tx, id);
+      this.assertCanTouch(previous, request);
       if (input.isActive === false && previous.isActive) await this.protectLastAdmin(tx, previous);
       const next = await tx.user.update({ where: { id }, data: input, include: withRoles });
       if (input.isActive === false && previous.isActive) {
@@ -158,6 +175,7 @@ export class UsersService {
     const passwordHash = await hashPassword(input.temporaryPassword);
     return this.prisma.$transaction(async (tx) => {
       const previous = await this.lockedUser(tx, id);
+      this.assertCanTouch(previous, request);
       const next = await tx.user.update({
         where: { id },
         data: { passwordHash, mustChangePassword: true },

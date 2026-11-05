@@ -8,13 +8,9 @@ import {
   pricingVariantSchema,
   pricingVariantsQuerySchema,
   rejectPriceChangesSchema,
-  type Permission,
 } from '@joyeria/shared';
-import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { ForbiddenError } from '../../lib/errors.ts';
-import { getAuth } from '../../plugins/auth.ts';
 import { PricingService } from './pricing.service.ts';
 
 const idParams = z.object({ id: z.uuid() });
@@ -36,21 +32,7 @@ const batchResult = z.object({
 export const pricingRoutes: FastifyPluginAsyncZod = async (app) => {
   const service = new PricingService(app.prisma);
 
-  /** Sesión válida y AL MENOS UNO de los permisos indicados. */
-  const requireAny =
-    (...allowed: Permission[]) =>
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      await app.authenticate(request, reply);
-      const { user } = getAuth(request);
-      if (!allowed.some((permission) => user.permissions.includes(permission))) {
-        request.log.warn(
-          { userId: user.id, required: allowed, url: request.url },
-          'security: acceso denegado por permisos',
-        );
-        throw new ForbiddenError();
-      }
-    };
-  const canView = requireAny(PERMISSIONS.PRICES_PROPOSE, PERMISSIONS.PRICES_APPROVE);
+  const canView = app.requireAnyPermission(PERMISSIONS.PRICES_PROPOSE, PERMISSIONS.PRICES_APPROVE);
 
   app.get(
     '/variants',
