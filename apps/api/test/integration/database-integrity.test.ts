@@ -105,4 +105,29 @@ describe('integridad de la base de datos', () => {
       prisma.productVariant.update({ where: { id: variant.id }, data: { minStock: -1 } }),
     ).rejects.toThrow();
   });
+
+  it('no permite saldos de inventario negativos (P-08)', async () => {
+    const variant = await createVariant('SKU-1');
+    await prisma.inventoryBalance.create({ data: { variantId: variant.id, quantity: 2 } });
+
+    // Cero es válido; por debajo de cero, la base de datos lo rechaza.
+    await expect(
+      prisma.inventoryBalance.update({ where: { variantId: variant.id }, data: { quantity: 0 } }),
+    ).resolves.toBeTruthy();
+    await expect(
+      prisma.inventoryBalance.update({ where: { variantId: variant.id }, data: { quantity: -1 } }),
+    ).rejects.toThrow(/inventory_balances_quantity_check/);
+    await expect(
+      prisma.$executeRaw`UPDATE inventory_balances SET quantity = quantity - 1 WHERE variant_id = ${variant.id}::uuid`,
+    ).rejects.toThrow(/inventory_balances_quantity_check/);
+
+    const other = await createVariant('SKU-2');
+    await expect(
+      prisma.inventoryBalance.create({ data: { variantId: other.id, quantity: -5 } }),
+    ).rejects.toThrow(/inventory_balances_quantity_check/);
+    const stored = await prisma.inventoryBalance.findUniqueOrThrow({
+      where: { variantId: variant.id },
+    });
+    expect(stored.quantity).toBe(0);
+  });
 });
