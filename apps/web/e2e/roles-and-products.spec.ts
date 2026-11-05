@@ -158,12 +158,13 @@ test.describe('productos e inventario desde la interfaz', () => {
     await page.getByRole('button', { name: 'Buscar' }).click();
     await expect(page.getByRole('article').filter({ hasText: 'E2E Anillo Editado' })).toBeVisible();
 
-    // El responsable de inventario no tiene inventory:adjust (P-01 pendiente): no ve el botón.
+    // El responsable de inventario solicita ajustes (inventory:adjust, ADR-017) y por eso también ve
+    // el botón del stock inicial de una pieza sin movimientos.
     await menu(page).getByRole('link', { name: 'Saldos y alertas' }).click();
     await page.getByLabel('Buscar por producto, SKU o código').fill('E2E Anillo Editado');
     await page.getByRole('button', { name: 'Buscar' }).click();
     await expect(page.getByRole('row', { name: /E2E Anillo Editado/ })).toContainText('Sin stock');
-    await expect(page.getByRole('button', { name: /Stock inicial de/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Stock inicial de/ })).toHaveCount(1);
 
     // El administrador sí carga el stock inicial
     await page.getByRole('button', { name: 'Salir' }).click();

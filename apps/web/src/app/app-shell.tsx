@@ -85,7 +85,12 @@ const GROUPS: Group[] = [
         icon: PackagePlus,
         permission: PERMISSIONS.INVENTORY_ADJUST,
       },
-      { label: 'Ajustes', icon: Wrench, permission: PERMISSIONS.INVENTORY_ADJUST },
+      {
+        label: 'Ajustes',
+        to: '/inventario/ajustes',
+        icon: Wrench,
+        permission: PERMISSIONS.INVENTORY_ADJUST,
+      },
       {
         label: 'Conteo físico',
         icon: ClipboardCheck,
