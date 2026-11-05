@@ -46,3 +46,6 @@ Thumbs.db
 
 # Claude Code: configuración local personal
 .claude/settings.local.json
+
+# Estado del despliegue local (PID y registro de la API)
+.local-deploy/
