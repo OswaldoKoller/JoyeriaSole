@@ -92,6 +92,8 @@ Error:
 | POST   | `/inventory/adjustments/:id/cancel`       | `inventory:adjust`              | Cancela un pendiente; solo quien lo solicitó                                           |
 | POST   | `/inventory/adjustments/:id/approve`      | `inventory:adjust-approve`      | Aprueba: movimientos `ADJUSTMENT`, saldos y auditoría atómicos                         |
 | POST   | `/inventory/adjustments/:id/reject`       | `inventory:adjust-approve`      | Rechaza con `notes` obligatorias; no toca el stock                                     |
+| POST   | `/inventory/exchanges`                    | `inventory:exchange`            | Cambio de pieza: entra la devuelta y sale la entregada, en una transacción; 201        |
+| GET    | `/inventory/exchanges/:referenceId`       | `inventory:read`                | Ambos movimientos y su auditoría (costos solo con `costs:read`)                        |
 | GET    | `/stock-entries`                          | `stock-entries:read`            | Lista paginada; filtros `status`, `supplierId` y `q` (número o documento)              |
 | GET    | `/stock-entries/:id`                      | `stock-entries:read`            | Detalle con ítems, costos por pieza y `blockers` (motivos que impiden confirmar)       |
 | POST   | `/stock-entries`                          | `stock-entries:manage`          | Crea un borrador (proveedor activo, documento y costos adicionales)                    |
@@ -104,11 +106,11 @@ Ejemplos ejecutables: [`requests.http`](../../requests.http) (extensión REST Cl
 
 ## Endpoints previstos para la Fase 1 (pendientes de implementar)
 
-| Módulo     | Rutas tentativas                                                          | Permisos                                   |
-| ---------- | ------------------------------------------------------------------------- | ------------------------------------------ |
-| Catálogo   | Atributos descriptivos por producto; edición de precios según P-25        | `catalog:*`, `prices:manage`, `costs:read` |
-| Inventario | Salidas por ventas y cambios (Fase 2); los ajustes ya están implementados | `inventory:*`                              |
-| Auditoría  | `/audit-logs`                                                             | `audit:read`                               |
+| Módulo     | Rutas tentativas                                                         | Permisos                                   |
+| ---------- | ------------------------------------------------------------------------ | ------------------------------------------ |
+| Catálogo   | Atributos descriptivos por producto; edición de precios según P-25       | `catalog:*`, `prices:manage`, `costs:read` |
+| Inventario | Salidas por ventas (Fase 2); ajustes y cambios de pieza ya implementados | `inventory:*`                              |
+| Auditoría  | `/audit-logs`                                                            | `audit:read`                               |
 
 ### Ingresos de mercadería
 
@@ -163,6 +165,41 @@ Cuerpo de `POST /inventory/adjustments`:
 Si una línea falla al aprobar, **no se aplica ninguna** y el ajuste sigue pendiente. Los campos
 `unitCost` y `valueImpact` (costo y valor en Bs, con signo) solo se envían con `costs:read`; para el resto
 son `null`. `meta` y los filtros siguen la convención de paginación (`page`, `pageSize` ≤ 100).
+
+### Cambios de pieza
+
+Un cambio ([ADR-019](../decisions/ADR-019-cambios-de-pieza.md), C9/Q-12) registra **dos movimientos en una sola
+transacción**: `EXCHANGE_IN` (entra la pieza devuelta, cantidad positiva) y `EXCHANGE_OUT` (sale la
+entregada, cantidad negativa), ambos con `referenceType = EXCHANGE` y el mismo `referenceId`. No existen
+devoluciones. No hay pantalla de registro en la Fase 1.
+
+Cuerpo de `POST /inventory/exchanges`:
+
+```json
+{
+  "returned": { "variantId": "<uuid>", "quantity": 1 },
+  "delivered": { "variantId": "<uuid>", "quantity": 1 },
+  "reason": "Talla equivocada",
+  "notes": "texto libre opcional"
+}
+```
+
+La respuesta (`{ data }`) trae `referenceId`, `reason`, `notes`, `userId`, `createdAt` y, por cada lado
+(`returned`, `delivered`), `movementId`, `movementType`, variante, SKU, `quantity` con signo,
+`balanceBefore`, `balanceAfter` y `unitCost` (costo vigente de la variante; solo con `costs:read`, si no
+`null`), más `audit` (`inventory.exchange`; `null` sin `inventory:exchange` ni `audit:read`).
+
+| Situación                                                           | Respuesta                                                      |
+| ------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Sin sesión / sin `inventory:exchange` (el Vendedor no lo tiene)     | `401` / `403`                                                  |
+| Motivo vacío, cantidad 0, negativa o no entera, `variantId` no UUID | `400`                                                          |
+| Misma variante en ambos lados, variante inactiva                    | `422`                                                          |
+| Salida que dejaría el saldo negativo                                | `422`; **tampoco** se aplica la entrada                        |
+| Variante inexistente / cambio inexistente en el GET                 | `404`                                                          |
+| Dos cambios simultáneos sobre la última unidad                      | Uno responde `201` y el otro `422`; nunca queda saldo negativo |
+
+Los movimientos se ven en `GET /inventory/:variantId/movements` y `GET /inventory/movements` con
+`type` `EXCHANGE_IN` / `EXCHANGE_OUT`. Auditoría: `inventory.exchange`.
 
 ### Conteo físico a ciegas
 

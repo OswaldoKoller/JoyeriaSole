@@ -97,7 +97,7 @@ La migración `20261010000000_product_variant_sku_sequence` agrega la secuencia 
 Definidas en la migración inicial (SQL), además de las de Prisma:
 
 - `CHECK` de no negatividad en precios, costos, stock mínimo y cantidades de ingresos/conteos.
-- `inventory_movements`: `quantity <> 0` y `balance_after = balance_before + quantity`.
+- `inventory_movements`: `quantity <> 0` y `balance_after = balance_before + quantity`. No hay CHECK de signo por tipo: que `EXCHANGE_IN` sea positivo y `EXCHANGE_OUT` negativo lo garantiza el servicio de inventario (migración `20261106030300` solo agrega esos dos valores a `movement_type`).
 - Conteo físico (migración `20261106030200`): operador obligatorio en captura/recuento; resultado de cada línea coherente (`difference = final_qty − expected_qty`, `balance_after = balance_before + difference`, movimiento ⇔ diferencia ≠ 0); lecturas con `delta <> 0` y variante XOR hallazgo; triggers que impiden borrar conteos, modificar conteos/líneas terminados y alterar o borrar lecturas.
 - `product_attribute_values`: exactamente un valor no nulo.
 - `categories`: una categoría no puede ser su propio padre.

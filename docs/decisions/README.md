@@ -24,6 +24,7 @@ Las decisiones de **negocio** pendientes están en [`docs/business/PENDIENTES.md
 | [014](ADR-014-conteos-con-movimientos.md)          | Conteos con movimientos concurrentes        | Aceptado parcialmente            |
 | [015](ADR-015-reparto-centavos-y-valor-cero.md)    | Reparto de centavos y valor cero            | Aceptado                         |
 | [017](ADR-017-ajustes-solicitud-aprobacion.md)     | Ajustes con solicitud y aprobación          | Aceptado                         |
+| [019](ADR-019-cambios-de-pieza.md)                 | Cambios de pieza como doble movimiento      | Aceptado                         |
 | [021](ADR-021-conteo-a-ciegas-segundo-recuento.md) | Conteo físico a ciegas con segundo recuento | Aceptado (enmienda de 009 y 014) |
 
 Plantilla: [`TEMPLATE.md`](TEMPLATE.md).
