@@ -23,6 +23,7 @@ import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { recordInitialPrice } from '../pricing/pricing.service.ts';
+import { toPhotoResponse } from './photos/photo-response.ts';
 
 const withDetails = {
   category: true,
@@ -32,6 +33,8 @@ const withDetails = {
     orderBy: { sortOrder: 'asc' },
   },
   attributeValues: { include: { attribute: true, option: true } },
+  // Solo metadatos: los bytes viven en product_photo_blobs y nunca se cargan en listados.
+  photos: { orderBy: [{ position: 'asc' }, { id: 'asc' }] },
 } satisfies Prisma.ProductInclude;
 type ProductWithDetails = Prisma.ProductGetPayload<{ include: typeof withDetails }>;
 
@@ -98,6 +101,7 @@ function toResponse(product: ProductWithDetails, showStock = false) {
         .filter((option) => option.isActive)
         .map((option) => ({ id: option.id, value: option.value })),
     })),
+    photos: product.photos.map(toPhotoResponse),
     variants: product.variants.map((variant) => ({
       id: variant.id,
       sku: variant.sku,

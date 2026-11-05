@@ -7,6 +7,7 @@
  *     contraseña DEMO_USER_PASSWORD (mínimo 10 caracteres, P-19).
  *   - 4 categorías y 20 productos (una variante cada uno, SKU correlativo, precio neto en Bs).
  *     Un producto queda sin precio y tres sin descripción, para ilustrar los indicadores de ficha.
+ *     Los dos primeros llevan una foto sintética pequeña (S3).
  *   - Stock variado mediante movimientos INITIAL_STOCK auditados: nunca editando saldos (ADR-007).
  *     Reparto: 5 sin stock, 5 bajo mínimo, 10 disponibles.
  *   - Tres ajustes de inventario de ejemplo (ADR-017): dos PENDIENTES (el stock no cambia) y uno
@@ -20,6 +21,7 @@
  *
  * Idempotente: si los datos DEMO ya existen, no los duplica.
  */
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import {
   PASSWORD_MIN_LENGTH,
@@ -35,6 +37,8 @@ import {
   type RoleCode,
 } from '@joyeria/shared';
 import { config as loadEnv } from 'dotenv';
+import sharp from 'sharp';
+import type { Prisma } from '../src/generated/prisma/client.ts';
 import { hashPassword } from '../src/lib/password.ts';
 import { createPrismaClient } from '../src/lib/prisma.ts';
 
@@ -160,6 +164,32 @@ async function seedSuppliers(adminId: string) {
   );
 }
 
+/** Foto sintética 240×240 (color liso con un círculo) guardada como WebP: pesa < 2 KB. */
+async function seedDemoPhoto(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  userId: string,
+  seed: number,
+) {
+  const color = seed === 1 ? '#b8860b' : '#708090';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><rect width="240" height="240" fill="${color}"/><circle cx="120" cy="120" r="60" fill="none" stroke="#fff" stroke-width="14"/></svg>`;
+  const bytes = await sharp(Buffer.from(svg)).webp({ quality: 80 }).toBuffer();
+  const photo = await tx.productPhoto.create({
+    data: {
+      productId,
+      contentType: 'image/webp',
+      width: 240,
+      height: 240,
+      sizeBytes: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      position: 0,
+      isCover: true,
+      createdById: userId,
+    },
+  });
+  await tx.productPhotoBlob.create({ data: { photoId: photo.id, bytes: new Uint8Array(bytes) } });
+}
+
 async function seedCatalogAndStock(adminId: string) {
   const already = await prisma.category.findFirst({ where: { name: 'DEMO Anillos' } });
   if (already) {
@@ -207,6 +237,8 @@ async function seedCatalogAndStock(adminId: string) {
           },
           include: { variants: true },
         });
+        // Los dos primeros productos llevan una foto sintética pequeña (S3): sin binarios en el repo.
+        if (index <= 2) await seedDemoPhoto(tx, product.id, adminId, index);
         const variant = product.variants[0];
         if (!variant || quantity === 0) return;
 

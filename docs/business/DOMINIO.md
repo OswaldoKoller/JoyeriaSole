@@ -80,6 +80,17 @@ gestiona el catálogo; los productos inactivos no se cuentan. No bloquean ingres
 variantes tienen movimientos, saldo distinto de cero, ítems de ingresos ni registros de conteo. En otro
 caso se debe dejar el stock en cero con un ajuste y **desactivar**.
 
+## Fotos de producto (S3, Q-09)
+
+Cada **producto** (no cada variante) puede tener hasta **5 fotos** JPG, PNG o WebP de hasta 5 MB; una es la
+**portada** (la primera que se sube lo es) y se muestra como miniatura en el listado. Quien tiene
+`catalog:manage` (Administrador y Responsable de inventario) las sube, cambia la portada, las reordena y las
+elimina; todos los que ven el catálogo, incluido el Vendedor, las ven. El sistema las reduce a unos 1200 px y
+las guarda dentro de la base de datos ([ADR-020](../decisions/ADR-020-fotos-de-producto.md)); al subir se
+descarta cualquier dato oculto de la imagen (ubicación, cámara). Eliminar físicamente un producto (B11)
+elimina también sus fotos. Al dar de alta una pieza nueva dentro de un ingreso se podrá adjuntar su foto (9.1)
+reutilizando el mismo componente.
+
 ## Inventario: movimientos, nunca ediciones
 
 ```

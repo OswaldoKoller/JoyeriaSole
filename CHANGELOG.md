@@ -7,6 +7,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y
 
 ### Agregado
 
+- **S3 · Fotos de producto** (Q-09 C y 9.1, [ADR-020](docs/decisions/ADR-020-fotos-de-producto.md)):
+  - Hasta 5 fotos por producto (JPG/PNG/WebP, 5 MB), con portada, orden y eliminación; las gestiona `catalog:manage` y las ven todos los roles con `catalog:read` (el Vendedor sin costos). Los bytes viven en PostgreSQL (`product_photo_blobs`) detrás de la interfaz `PhotoStorage`; `product_photos` guarda solo metadatos. Migración `product_photos`.
+  - Validación por contenido (firma de bytes) y re-codificación siempre a WebP de ≤ 1200 px con `sharp` (sin EXIF ni contenido incrustado); límites de multipart y 5 fotos por producto bajo bloqueo; auditoría de subida, portada, orden y baja.
+  - `GET /products/:id/photos/:photoId` con `ETag`/`304`, caché privada, `nosniff` y CSP restrictiva; los listados traen `photos` (metadatos), nunca bytes. Nuevo código de error `PAYLOAD_TOO_LARGE` (413).
+  - Web: galería en la ficha (subir o arrastrar, portada, orden, eliminar con confirmación), miniatura en el listado y componente reutilizable `PhotoUploader` para el alta rápida de piezas en ingresos.
+  - **Dependencias nuevas**: `@fastify/multipart` (recepción de archivos con límites) y `sharp` (decodificar y re-codificar imágenes; binarios precompilados para Windows y Alpine/musl).
+  - La eliminación física de un producto (B11) elimina también sus fotos.
 - **S2 · Catálogo completo** (decisiones del cliente del 2026-11-05: B1–B11, C1, Q-03, Q-10):
   - Atributos: uso sugerido (eje de variante / característica) para las 12 definiciones base, definiciones nuevas, alta/edición/desactivación de valores con código corto y asignación de atributos a categorías (obligatorio / eje sugerido). Migraciones `catalog_attribute_usage` (`suggested_use`, `is_system`) y `supplier_product_code_index`.
   - Ficha de producto: características descriptivas (texto, número, lista, sí/no), ejes de variante desde la creación, ayuda de nomenclatura (B4), precio de venta neto, stock mínimo por variante editable (B10) y categorías de dos niveles con activar/desactivar.

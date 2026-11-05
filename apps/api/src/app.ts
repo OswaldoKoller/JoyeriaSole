@@ -18,6 +18,7 @@ import { categoriesRoutes } from './modules/catalog/categories.routes.ts';
 import { attributesRoutes } from './modules/catalog/attributes.routes.ts';
 import { productsRoutes } from './modules/catalog/products.routes.ts';
 import { adjustmentsRoutes } from './modules/inventory/adjustments.routes.ts';
+import { productPhotosRoutes } from './modules/catalog/photos/photos.routes.ts';
 import { catalogVariantsRoutes } from './modules/catalog/variants.routes.ts';
 import { exchangesRoutes } from './modules/inventory/exchanges.routes.ts';
 import { inventoryRoutes } from './modules/inventory/inventory.routes.ts';
@@ -62,7 +63,7 @@ export async function buildApp(env: Env) {
     genReqId: () => randomUUID(),
     requestIdHeader: false,
     trustProxy: env.TRUST_PROXY ?? false,
-    bodyLimit: 1024 * 1024, // 1 MiB: la API solo recibe JSON. Archivos: PENDIENTE (P-14).
+    bodyLimit: 1024 * 1024, // 1 MiB: JSON. Las fotos (multipart, 5 MB) tienen sus propios límites: ADR-020.
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
@@ -91,6 +92,7 @@ export async function buildApp(env: Env) {
       await api.register(categoriesRoutes, { prefix: '/categories' });
       await api.register(attributesRoutes, { prefix: '/attributes' });
       await api.register(productsRoutes, { prefix: '/products' });
+      await api.register(productPhotosRoutes, { prefix: '/products' });
       await api.register(catalogVariantsRoutes, { prefix: '/catalog/variants' });
       await api.register(inventoryRoutes, { prefix: '/inventory' });
       await api.register(adjustmentsRoutes, { prefix: '/inventory/adjustments' });
