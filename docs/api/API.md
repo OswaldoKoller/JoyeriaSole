@@ -274,6 +274,11 @@ Ejemplos ejecutables: [`requests.http`](../../requests.http) (extensión REST Cl
 | Inventario        | Ajustes posteriores y salidas de stock; P-01 parcial                           | `inventory:*`                              |
 | Inventario físico | `/inventory-counts`, `/:id/start`, `/:id/items`, `/:id/review`, `/:id/approve` | `inventory-counts:*`                       |
 | Auditoría         | `/audit-logs`                                                                  | `audit:read`                               |
+| Módulo            | Rutas tentativas                                                               | Permisos                                   |
+| ----------        | -------------------------------------------------------------------------      | ------------------------------------------ |
+| Catálogo          | Atributos descriptivos por producto; edición de precios según P-25             | `catalog:*`, `prices:manage`, `costs:read` |
+| Inventario        | Salidas por ventas y cambios (Fase 2); los ajustes ya están implementados      | `inventory:*`                              |
+| Auditoría         | `/audit-logs`                                                                  | `audit:read`                               |
 
 ### Ingresos de mercadería
 
@@ -364,6 +369,51 @@ El precio lo fija el cliente a mano; no hay fórmula, redondeo ni sugerencia. To
 | Cancelar una solicitud ajena                                                                       | `403`                                             |
 
 `GET /pricing/variants` devuelve por variante `salePrice` (2 decimales), `stockQuantity` (solo con `inventory:read`), `pending` y `costs` (solo con `costs:read`, si no `null`): `purchaseUnitCost` y `purchaseQty`/`purchaseSubtotal` del último ingreso confirmado, `extraUnitCost`, `totalUnitCost` (= `cost_price`) y el ingreso de origen. Los cambios (`/pricing/changes`, `/pricing/variants/:id/history`) incluyen estado, origen, solicitante, decisor, fechas, `reason`, `decisionComment`, `batchId` y `costSnapshot` (costo total del momento; `null` sin `costs:read`). Auditoría: `price.requested`, `price.approved`, `price.rejected`, `price.cancelled` y `variant.price_changed` (precio anterior y nuevo).
+
+### Conteo físico a ciegas
+
+Conteo por categoría con lector de códigos y segundo recuento obligatorio si hay diferencias
+([ADR-021](../decisions/ADR-021-conteo-a-ciegas-segundo-recuento.md)). Todo cuelga de `/inventory/counts`.
+
+| Método | Ruta                                  | Permiso                    | Descripción                                                                                           |
+| ------ | ------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------- |
+| GET    | `/`                                   | `inventory-counts:read`    | Lista paginada (`status`: `all`, `open` o un estado); progreso, sin stock del sistema                 |
+| POST   | `/`                                   | `inventory-counts:manage`  | Crea un borrador `{ categoryId, notes? }` (CNT-000001); 409 si comparte variantes con otro conteo     |
+| GET    | `/:id`                                | `inventory-counts:read`    | Detalle: `view: "BLIND"` (captura/recuento) o `view: "REVIEW"` (revisión/aprobado)                    |
+| GET    | `/:id/scans`                          | `inventory-counts:read`    | Historial de lecturas (variante/hallazgo, delta, usuario, hora, si se deshizo)                        |
+| POST   | `/:id/start`                          | `inventory-counts:manage`  | Toma la foto del sistema y el cursor de movimientos; quien inicia queda como operador                 |
+| POST   | `/:id/take`                           | `inventory-counts:manage`  | Pasa a ser el operador (queda auditado)                                                               |
+| POST   | `/:id/scan`                           | `inventory-counts:manage`  | `{ code }` por SKU, código de barras o de proveedor: suma 1 pieza o registra un hallazgo              |
+| PUT    | `/:id/items/:variantId`               | `inventory-counts:manage`  | `{ quantity }` fija la cantidad contada de la ronda en curso                                          |
+| POST   | `/:id/undo`                           | `inventory-counts:manage`  | Deshace la última lectura vigente de la ronda                                                         |
+| PATCH  | `/:id/findings/:findingId`            | `inventory-counts:manage`  | `{ note }` nota del operador sobre un hallazgo                                                        |
+| POST   | `/:id/close`                          | `inventory-counts:manage`  | Cierra la ronda: primer conteo → `RECOUNT` (si hay diferencias) o `IN_REVIEW`; recuento → `IN_REVIEW` |
+| POST   | `/:id/approve`                        | `inventory-counts:approve` | Aprueba: concilia y genera los `COUNT_ADJUSTMENT`, saldos y auditoría atómicos                        |
+| POST   | `/:id/cancel`                         | `inventory-counts:manage`  | `{ reason? }` cancela un conteo no terminado; no mueve stock                                          |
+| POST   | `/:id/findings/:findingId/regularize` | `inventory-counts:approve` | `{ note }` marca un hallazgo como regularizado (en revisión o ya aprobado)                            |
+
+**A ciegas.** En `DRAFT`, `IN_PROGRESS`, `RECOUNT` y `CANCELLED` el detalle es `view: "BLIND"`: cada
+pieza trae solo identificación (`sku`, `barcode`, `productName`, `variantLabel`) y `quantity` (lo contado
+en la ronda); **no existen** campos de stock del sistema, esperado ni diferencias, para ningún rol. Solo
+`IN_REVIEW` y `APPROVED` devuelven `view: "REVIEW"` con `systemQty` (foto), `expectedQty` (lo que había al
+contar), `countedQty`, `recountQty`, `finalQty`, `reconciledMovements`, `difference`, `currentQty`,
+`resultingQty` y los hallazgos; `unitCost`/`valueImpact` solo con `costs:read`.
+
+| Situación                                                                      | Respuesta                                                       |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| Sin sesión / sin permiso (el Vendedor no tiene ninguno)                        | `401` / `403`                                                   |
+| Quien solo captura intenta aprobar o regularizar                               | `403`                                                           |
+| Capturar, deshacer o cerrar sin ser el operador                                | `403` (indica quién captura); `POST /:id/take` lo toma          |
+| Código vacío, cantidad negativa o ids inválidos                                | `400`                                                           |
+| Categoría o conteo inexistente                                                 | `404`                                                           |
+| Variantes ya incluidas en otro conteo no terminado                             | `409` (nombra el conteo en conflicto)                           |
+| Categoría sin variantes; estado que no admite la acción; aprobar sin recuento  | `422`                                                           |
+| Pieza fuera de la lista de recuento; código de proveedor que identifica varias | `422`                                                           |
+| Doble aprobación / dos aprobaciones simultáneas                                | Una responde `200` y la otra `422`; no duplica movimientos      |
+| Saldo que quedaría negativo al conciliar                                       | `422`; no se aplica ninguna línea y el conteo sigue en revisión |
+
+El escaneo `POST /:id/scan` responde `{ scan, item, finding, piecesCounted, scannedVariants }`:
+`item` es la pieza contada (o `null` si fue un hallazgo) y `finding` el hallazgo (o `null`).
 
 ## Cómo agregar un endpoint
 

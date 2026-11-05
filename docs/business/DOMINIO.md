@@ -132,18 +132,35 @@ Proveedor → Llegada → Documento de recepción → Verificación física → 
 - **Historial de precios** en entidad propia (`price_changes`, inmutable): precio anterior y nuevo, estado, origen (solicitud, cambio directo, precio inicial), quién solicitó y decidió, fechas, comentario y costo total del momento (solo con `costs:read`). El precio inicial al crear una pieza lo fija solo quien puede aprobar precios.
 - Todo cambio de costo/precio queda en auditoría (anterior → nuevo).
 
-## Flujo de inventario físico
+## Flujo de inventario físico (conteo a ciegas, ADR-021)
 
 ```
-Crear inventario (DRAFT) → Iniciar (IN_PROGRESS: snapshot del stock del sistema)
-  → Conteo (cantidades contadas, quién, cuándo) → Revisión (IN_REVIEW: diferencias)
-  → Aprobación autorizada (APPROVED) → movimientos COUNT_ADJUSTMENT por cada diferencia
+Crear conteo por categoría (DRAFT) → Iniciar (IN_PROGRESS: foto del sistema + cursor de movimientos)
+  → Captura a ciegas con lector → Cerrar conteo
+       ├─ sin diferencias → IN_REVIEW
+       └─ con diferencias → RECOUNT (segundo recuento obligatorio, a ciegas, solo esas variantes) → IN_REVIEW
+  → Aprobar (APPROVED) → un movimiento COUNT_ADJUSTMENT por variante con diferencia
+  → o Cancelar (CANCELLED) en cualquier momento: no mueve stock
 ```
 
-- No hay ajustes arbitrarios: cada ajuste registra **quién, cuándo, qué variante, cantidad anterior,
-  cantidad nueva, diferencia, motivo y observación** (el movimiento guarda `balance_before`,
-  `balance_after`, `quantity`, `reason`, `notes`, `user_id`, `created_at`).
-- El responsable de almacén puede aprobar sus propios conteos físicos (P-01 parcial). Durante el conteo siguen permitidos los movimientos; la aprobación concilia los ocurridos desde el snapshot (P-13). El alcance del conteo sigue pendiente.
+- **Alcance:** por categoría o subcategoría; una categoría padre incluye a sus hijas. No hay conteo
+  «total» (para todo, se elige la categoría raíz). Incluye las variantes **activas** y las **inactivas con
+  saldo > 0**. Varios conteos a la vez solo si no comparten variantes (Q-13 B).
+- **A ciegas:** durante la captura y el recuento nadie —ni el Administrador— ve la cantidad del sistema ni
+  las diferencias; solo la revisión del aprobador. El valor del **recuento prevalece**. Las variantes sin
+  lecturas cuentan como 0.
+- **Un solo operador** por conteo, con lector de códigos (SKU, código de barras o código de proveedor).
+  Cada lectura se guarda al instante: si caduca la sesión o se cierra el navegador se reanuda sin pérdida.
+- **Hallazgos:** un código inexistente o de otra categoría no afecta el stock; queda registrado y el
+  aprobador lo marca como regularizado (con nota) cuando se resuelva manualmente.
+- **Conciliación (P-13):** no se bloquean movimientos. Al aprobar se calcula, por variante,
+  `esperado = saldo vigente − movimientos posteriores al momento de contar` y
+  `diferencia = conteo final − esperado`: un ingreso confirmado durante el conteo no es una diferencia.
+- **Aprobación:** el Responsable de inventario o el Administrador (`inventory-counts:approve`, P-01 / E6).
+  Un solo paso atómico, sin saldo negativo, con auditoría; doble aprobación imposible.
+- Cada ajuste registra **quién, cuándo, qué variante, cantidad anterior, cantidad nueva, diferencia y
+  motivo** (`Conteo CNT-000001`); costo y valor de las diferencias solo con `costs:read`.
+- Número correlativo automático `CNT-000001` (P-11).
 
 ## Ajustes manuales (Q-01 B, ADR-017)
 

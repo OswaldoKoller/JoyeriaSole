@@ -15,6 +15,8 @@
  *   - 2 proveedores ficticios: uno nacional (Bs) y uno del exterior (China, USD).
  *   - Un ingreso de importación CONFIRMADO en USD (aduanización y comisiones) y un borrador, sobre
  *     piezas ya disponibles (no alteran los totales de disponibles / bajo mínimo / sin stock).
+ *   - Dos conteos físicos de ejemplo (ADR-021): uno APROBADO sin diferencias (DEMO Pulseras, no genera
+ *     movimientos) y uno EN CAPTURA a ciegas (DEMO Collares, con algunas lecturas). Ninguno altera el stock.
  *
  * Idempotente: si los datos DEMO ya existen, no los duplica.
  */
@@ -650,6 +652,154 @@ async function seedPriceChanges(adminId: string, managerId: string) {
   console.log('✔ Cambios de precio DEMO: 2 aprobados, 1 rechazado y 2 pendientes');
 }
 
+/**
+ * Conteos físicos de ejemplo (ADR-021). Se escriben por inserción directa, como el stock inicial DEMO;
+ * el flujo real pasa por la API. Ninguno genera movimientos de stock: el aprobado no tuvo diferencias
+ * y el otro sigue en captura. Dejan DEMO Pulseras libre de conteos activos y DEMO Collares ocupada.
+ */
+async function seedCounts(managerId: string, adminId: string) {
+  if (await prisma.inventoryCount.findFirst({ where: { notes: { startsWith: 'DEMO' } } })) {
+    console.log('↷ Los conteos DEMO ya existen (no se duplican)');
+    return;
+  }
+  const snapshot = async (categoryName: string) => {
+    const category = await prisma.category.findFirst({ where: { name: categoryName } });
+    if (!category) throw new Error(`Falta la categoría «${categoryName}»: seed-demo incompleto`);
+    const variants = await prisma.productVariant.findMany({
+      where: { product: { categoryId: category.id } },
+      include: { inventory: true },
+      orderBy: { sku: 'asc' },
+    });
+    const cursors = await prisma.inventoryMovement.groupBy({
+      by: ['variantId'],
+      where: { variantId: { in: variants.map((variant) => variant.id) } },
+      _max: { id: true },
+    });
+    const cursorOf = new Map(cursors.map((row) => [row.variantId, row._max.id ?? 0n]));
+    return {
+      category,
+      lines: variants.map((variant) => ({
+        variant,
+        quantity: variant.inventory?.quantity ?? 0,
+        cursor: cursorOf.get(variant.id) ?? 0n,
+      })),
+    };
+  };
+
+  // 1) Aprobado sin diferencias: lo contado coincide con el sistema, no hay movimientos.
+  const closed = await snapshot('DEMO Pulseras');
+  const when = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+  const approved = await prisma.inventoryCount.create({
+    data: {
+      status: 'APPROVED',
+      categoryId: closed.category.id,
+      scope: closed.category.name,
+      notes: 'DEMO: conteo de pulseras sin diferencias',
+      operatorId: managerId,
+      createdById: managerId,
+      approvedById: adminId,
+      startedAt: when,
+      firstClosedAt: when,
+      reviewAt: when,
+      approvedAt: when,
+    },
+  });
+  await prisma.inventoryCountItem.createMany({
+    data: closed.lines.map((line) => ({
+      inventoryCountId: approved.id,
+      variantId: line.variant.id,
+      systemQty: line.quantity,
+      snapshotCursor: line.cursor,
+      countedQty: line.quantity,
+      countedCursor: line.cursor,
+      countedById: managerId,
+      countedAt: when,
+      expectedQty: line.quantity,
+      finalQty: line.quantity,
+      reconciledMovements: 0,
+      difference: 0,
+      balanceBefore: line.quantity,
+      balanceAfter: line.quantity,
+      unitCost: line.variant.costPrice,
+    })),
+  });
+  await prisma.auditLog.create({
+    data: {
+      action: 'inventory_count.approved',
+      entityType: 'InventoryCount',
+      entityId: approved.id,
+      userId: adminId,
+      after: { status: 'APPROVED', adjustments: [] },
+      metadata: { source: 'seed-demo' },
+    },
+  });
+
+  // 2) En captura: foto tomada y algunas lecturas del operador (la API no muestra el sistema).
+  const open = await snapshot('DEMO Collares');
+  const started = new Date(Date.now() - 60 * 60 * 1000);
+  const capturing = await prisma.inventoryCount.create({
+    data: {
+      status: 'IN_PROGRESS',
+      categoryId: open.category.id,
+      scope: open.category.name,
+      notes: 'DEMO: conteo de collares en captura',
+      operatorId: managerId,
+      createdById: managerId,
+      startedAt: started,
+    },
+  });
+  await prisma.inventoryCountItem.createMany({
+    data: open.lines.map((line) => ({
+      inventoryCountId: capturing.id,
+      variantId: line.variant.id,
+      systemQty: line.quantity,
+      snapshotCursor: line.cursor,
+    })),
+  });
+  for (const line of open.lines.slice(0, 2)) {
+    const counted = Math.min(2, line.quantity);
+    if (counted === 0) continue;
+    await prisma.inventoryCountItem.update({
+      where: {
+        inventoryCountId_variantId: { inventoryCountId: capturing.id, variantId: line.variant.id },
+      },
+      data: {
+        countedQty: counted,
+        countedCursor: line.cursor,
+        countedById: managerId,
+        countedAt: started,
+      },
+    });
+    for (let piece = 1; piece <= counted; piece += 1) {
+      await prisma.inventoryCountScan.create({
+        data: {
+          inventoryCountId: capturing.id,
+          round: 1,
+          variantId: line.variant.id,
+          code: line.variant.sku,
+          source: 'SCAN',
+          delta: 1,
+          quantityAfter: piece,
+          movementCursor: line.cursor,
+          userId: managerId,
+          createdAt: started,
+        },
+      });
+    }
+  }
+  await prisma.auditLog.create({
+    data: {
+      action: 'inventory_count.started',
+      entityType: 'InventoryCount',
+      entityId: capturing.id,
+      userId: managerId,
+      after: { status: 'IN_PROGRESS', variants: open.lines.length },
+      metadata: { source: 'seed-demo' },
+    },
+  });
+  console.log('✔ 2 conteos DEMO (1 aprobado sin diferencias, 1 en captura)');
+}
+
 try {
   const ids = await seedUsers();
   const adminId = ids.get(ROLES.ADMIN);
@@ -660,6 +810,7 @@ try {
   await seedSuppliers(adminId);
   await seedImportEntries(managerId);
   await seedPriceChanges(adminId, managerId);
+  await seedCounts(managerId, adminId);
 } finally {
   await prisma.$disconnect();
 }
