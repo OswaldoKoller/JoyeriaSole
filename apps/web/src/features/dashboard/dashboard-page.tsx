@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { Skeleton } from '../../components/ui/skeleton.tsx';
 import { useCurrentUser, useHasPermission } from '../auth/use-auth.ts';
 import { AttentionTable } from './attention-table.tsx';
+import { CatalogHealthNotice } from './catalog-health-notice.tsx';
 import { StatCard } from './stat-card.tsx';
 import { StockDonut } from './stock-donut.tsx';
 import { useAttentionItems, useStockSummary } from './use-dashboard.ts';
@@ -51,6 +52,8 @@ export function DashboardPage() {
         </h1>
         <p className="text-sm text-stone-500 first-letter:capitalize">{today.format(new Date())}</p>
       </header>
+
+      <CatalogHealthNotice />
 
       {!user ? (
         <DashboardSkeleton />

@@ -13,6 +13,8 @@ export const PERMISSIONS = {
 
   CATALOG_READ: 'catalog:read',
   CATALOG_MANAGE: 'catalog:manage',
+  /** Eliminar físicamente una ficha sin movimientos ni referencias (B11). Solo Administrador. */
+  CATALOG_DELETE: 'catalog:delete',
   /** Ver costos de compra. Separado de catalog:read porque puede ser información sensible. */
   COSTS_READ: 'costs:read',
   /** Cambiar costo o precio de venta. Toda modificación queda en auditoría. */
@@ -50,6 +52,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'roles:manage': 'Administrar roles y sus permisos',
   'catalog:read': 'Ver catálogo (categorías, atributos, productos, variantes)',
   'catalog:manage': 'Crear y editar catálogo',
+  'catalog:delete': 'Eliminar fichas de producto sin movimientos',
   'costs:read': 'Ver costos de compra',
   'prices:manage': 'Modificar costos y precios de venta',
   'suppliers:read': 'Ver proveedores',

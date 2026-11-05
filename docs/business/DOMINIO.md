@@ -44,6 +44,41 @@ Diferencias por tipo de producto, sin columnas vacías:
 | Aretes          | dimensiones, material, piedra  |
 | Polo            | talla, color, género           |
 
+## Catálogo: atributos, códigos, etiquetas y ficha incompleta (S2)
+
+**Atributos (B2).** Las 12 definiciones base tienen un **uso sugerido**: _eje de variante_ (Material, Color,
+Talla, Tamaño, Longitud: generan SKU y stock propios) o _característica descriptiva_ (Tono, Dimensiones,
+Acabado, Piedra, Tipo de cierre, Género, Colección). Es una guía de la pantalla: cualquier atributo de
+lista puede usarse como eje. Quien tiene `catalog:manage` crea definiciones nuevas, crea/edita/desactiva
+valores (con código corto opcional) y asigna atributos a categorías (obligatorio / eje sugerido); las
+definiciones base no se borran ni se desactivan. Los valores de las listas los entrega el cliente.
+
+**Categorías (P-04, B1).** Dos niveles. Las crean, editan y desactivan Administrador y Responsable.
+
+**Nombre del producto (B4).** `<Tipo de pieza> <rasgo principal> <modelo>`, sin repetir lo que ya está en
+atributos o en la variante («Anillo corazón con circonia», «Cadena cubana»).
+
+**Stock mínimo (B10).** Por variante; 0 = alerta desactivada. Lo modifica quien tiene `catalog:manage`.
+**Precio de venta:** neto (antes de impuestos); 0 está permitido pero la pieza «no tiene precio» (D9).
+
+**Códigos (Q-10).** SKU automático correlativo. La variante guarda como código de barras el **código del
+proveedor** si existe y es único; si ya pertenece a otra pieza **no se guarda**, se avisa y la pieza se
+identifica por su SKU (el código se conserva en `supplier_products` si se conoce el proveedor). La
+búsqueda unificada acepta SKU, código de barras o código del proveedor. Sin número de serie ni lotes (Q-03).
+
+**Etiquetas (Q-10 A, B7).** Todas las piezas: solo Code 128 del SKU + el SKU legible (ni precio ni nombre).
+Tamaño configurable por navegador (50 × 25 mm por defecto); impresión desde el navegador, una etiqueta por
+página (`@page`); PDF a través de «Guardar como PDF» del navegador.
+
+**Ficha incompleta (C1).** Un producto está **incompleto** si no tiene descripción **y** ningún valor de
+característica descriptiva. Es independiente de **«Sin precio»**: alguna variante _activa_ con precio 0.
+Ambas son insignias en el listado y la ficha, tienen filtro y se cuentan (sin costos) en el Inicio de quien
+gestiona el catálogo; los productos inactivos no se cuentan. No bloquean ingresos ni stock.
+
+**Eliminación física (B11).** Solo el Administrador (`catalog:delete`) y solo si ni el producto ni sus
+variantes tienen movimientos, saldo distinto de cero, ítems de ingresos ni registros de conteo. En otro
+caso se debe dejar el stock en cero con un ajuste y **desactivar**.
+
 ## Inventario: movimientos, nunca ediciones
 
 ```

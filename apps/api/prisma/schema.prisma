@@ -161,18 +161,33 @@ enum AttributeDataType {
   @@map("attribute_data_type")
 }
 
+/// Uso sugerido de un atributo en la ficha (B2): la UI ofrece primero los de cada tipo; la persona
+/// puede usar cualquier atributo de lista como eje de variante. No restringe a la API.
+enum AttributeUsage {
+  /// Genera variantes (SKU y stock propios): material, color, talla, tamaño, longitud.
+  VARIANT_AXIS
+  /// Dato informativo de la ficha del producto (característica).
+  DESCRIPTIVE
+
+  @@map("attribute_usage")
+}
+
 /// Definición de atributo: material, talla, color, longitud, piedra...
 model Attribute {
-  id        String            @id @default(uuid(7)) @db.Uuid
-  code      String            @unique @db.VarChar(60)
-  name      String            @db.VarChar(100)
-  dataType  AttributeDataType @map("data_type")
+  id           String            @id @default(uuid(7)) @db.Uuid
+  code         String            @unique @db.VarChar(60)
+  name         String            @db.VarChar(100)
+  dataType     AttributeDataType @map("data_type")
   /// Unidad para atributos numéricos/medidas (cm, mm, g).
-  unit      String?           @db.VarChar(20)
-  isActive  Boolean           @default(true) @map("is_active")
-  sortOrder Int               @default(0) @map("sort_order")
-  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  unit         String?           @db.VarChar(20)
+  /// Uso sugerido: eje de variante o característica descriptiva (B2).
+  suggestedUse AttributeUsage    @default(DESCRIPTIVE) @map("suggested_use")
+  /// Definiciones base del sistema (seed): se editan pero no se desactivan ni se borran.
+  isSystem     Boolean           @default(false) @map("is_system")
+  isActive     Boolean           @default(true) @map("is_active")
+  sortOrder    Int               @default(0) @map("sort_order")
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   options            AttributeOption[]
   categories         CategoryAttribute[]
@@ -386,6 +401,7 @@ model SupplierProduct {
   @@id([supplierId, variantId])
   @@unique([supplierId, supplierCode])
   @@index([variantId])
+  @@index([supplierCode])
   @@map("supplier_products")
 }
 

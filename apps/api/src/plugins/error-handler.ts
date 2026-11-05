@@ -50,6 +50,13 @@ export const errorHandlerPlugin = fp(
             details: { fields: error.meta?.target },
           });
         }
+        if (error.code === 'P2003') {
+          // Clave foránea: otro registro depende de este (p. ej. eliminar algo con historial).
+          return send(422, {
+            code: ERROR_CODES.BUSINESS_RULE_VIOLATION,
+            message: 'No se puede completar la operación: hay registros que dependen de este.',
+          });
+        }
         if (error.code === 'P2025') {
           return send(404, { code: ERROR_CODES.NOT_FOUND, message: 'Recurso no encontrado' });
         }

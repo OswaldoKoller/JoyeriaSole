@@ -51,6 +51,17 @@ describe('permisos por defecto de los roles', () => {
     expect(has('SELLER', PERMISSIONS.COSTS_READ)).toBe(false);
   });
 
+  it('eliminar fichas del catálogo (B11) es solo del Administrador', () => {
+    expect(has('ADMIN', PERMISSIONS.CATALOG_DELETE)).toBe(true);
+    expect(has('INVENTORY_MANAGER', PERMISSIONS.CATALOG_DELETE)).toBe(false);
+    expect(has('SELLER', PERMISSIONS.CATALOG_DELETE)).toBe(false);
+  });
+
+  it('categorías, atributos y stock mínimo los gestiona el Responsable (B1, B10)', () => {
+    expect(has('INVENTORY_MANAGER', PERMISSIONS.CATALOG_MANAGE)).toBe(true);
+    expect(has('SELLER', PERMISSIONS.CATALOG_MANAGE)).toBe(false);
+  });
+
   it('el Responsable de inventario ve costos pero no administra usuarios', () => {
     expect(has('INVENTORY_MANAGER', PERMISSIONS.COSTS_READ)).toBe(true);
     expect(has('INVENTORY_MANAGER', PERMISSIONS.CATALOG_MANAGE)).toBe(true);

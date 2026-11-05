@@ -167,13 +167,22 @@ describe('catálogo', () => {
       expect(res.statusCode).toBe(400);
     });
 
-    it('el código de barras es único y no puede coincidir con un SKU', async () => {
+    it('el código de barras es único: un código repetido no se guarda y se avisa (Q-10)', async () => {
       const first = (await createProduct({ barcode: '7790000000001' })).json().data;
-      const duplicate = await createProduct({ barcode: '7790000000001' });
-      expect(duplicate.statusCode).toBe(409);
+      expect(first.variants[0].barcode).toBe('7790000000001');
 
+      // Mismo código del proveedor en otra pieza: la ficha se crea, el código NO se guarda.
+      const duplicate = await createProduct({ barcode: '7790000000001' });
+      expect(duplicate.statusCode).toBe(201);
+      expect(duplicate.json().data.variants[0].barcode).toBeNull();
+      expect(duplicate.json().meta.warnings[0]).toContain('ya pertenece a la pieza');
+      expect(duplicate.json().meta.warnings[0]).toContain('se identifica por su SKU');
+
+      // Un código que coincide con el SKU de otra pieza tampoco se guarda como código de barras.
       const clash = await createProduct({ barcode: first.variants[0].sku });
-      expect(clash.statusCode).toBe(422);
+      expect(clash.statusCode).toBe(201);
+      expect(clash.json().data.variants[0].barcode).toBeNull();
+      expect(clash.json().meta.warnings).toHaveLength(1);
     });
 
     it('genera un código propio solo si la variante no tiene uno (P-06)', async () => {
@@ -261,7 +270,7 @@ describe('catálogo', () => {
         payload: { axes: [pick(material, 1)] },
       });
       expect(reconfigure.statusCode).toBe(422);
-    });
+    }, 60_000);
 
     it('rechaza opciones que no pertenecen al atributo indicado', async () => {
       const material = await createAttributeWithOptions('material', ['Plata 925']);

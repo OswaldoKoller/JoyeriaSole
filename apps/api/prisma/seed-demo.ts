@@ -5,7 +5,8 @@
  * Crea:
  *   - Un usuario por rol: Administrador, Responsable de inventario y Vendedor, todos con la
  *     contraseña DEMO_USER_PASSWORD (mínimo 10 caracteres, P-19).
- *   - 4 categorías y 20 productos (una variante cada uno, SKU correlativo, precio en Bs).
+ *   - 4 categorías y 20 productos (una variante cada uno, SKU correlativo, precio neto en Bs).
+ *     Un producto queda sin precio y tres sin descripción, para ilustrar los indicadores de ficha.
  *   - Stock variado mediante movimientos INITIAL_STOCK auditados: nunca editando saldos (ADR-007).
  *     Reparto: 5 sin stock, 5 bajo mínimo, 10 disponibles.
  *   - Tres ajustes de inventario de ejemplo (ADR-017): dos PENDIENTES (el stock no cambia) y uno
@@ -115,7 +116,11 @@ async function seedCatalogAndStock(adminId: string) {
       // Reparto determinista: 1 de cada 4 sin stock, 1 de cada 4 bajo mínimo, el resto disponible.
       const minStock = 2 + (index % 3);
       const quantity = index % 4 === 0 ? 0 : index % 4 === 1 ? minStock : minStock + 3 + index;
-      const salePrice = (80 + index * 17.5).toFixed(2);
+      // Para ilustrar los indicadores de ficha (C1, D9): el producto 4 queda sin precio y los
+      // productos 6, 12 y 18 sin descripción ni características («Ficha incompleta»).
+      const salePrice = index === 4 ? '0' : (80 + index * 17.5).toFixed(2);
+      const description =
+        index % 6 === 0 ? null : 'Producto ficticio para demostración y pruebas automáticas.';
 
       await prisma.$transaction(async (tx) => {
         const [counter] = await tx.$queryRaw<{ value: bigint }[]>`
@@ -125,7 +130,7 @@ async function seedCatalogAndStock(adminId: string) {
           data: {
             categoryId: category.id,
             name: `DEMO ${categoryName.slice(0, -1)} ${piece}`,
-            description: 'Producto ficticio para demostración y pruebas automáticas.',
+            description,
             variants: {
               create: {
                 sku: `SKU-${counter.value.toString().padStart(6, '0')}`,

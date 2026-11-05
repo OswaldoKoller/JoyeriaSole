@@ -50,6 +50,16 @@ Se conservan aserciones y plazos de las pruebas.
 - `createTestUser(prisma, { permissions })` — usuario con un rol ad-hoc con exactamente esos permisos.
 - `seedAdjustmentReasons(prisma)` — siembra el catálogo de motivos de ajuste (`resetDatabase` lo vacía) y devuelve `code → id`.
 
+## Catálogo (S2)
+
+- `catalog-complete.test.ts`: atributos y valores, categorías de dos niveles, características y ejes al crear,
+  códigos repetidos (Q-10), búsqueda unificada, ficha incompleta/sin precio, eliminación física (B11) por cada causa.
+- Web (Vitest): `code128.test.ts` (codificación y ancho), `label-settings.test.ts` (tamaños, localStorage y CSS
+  `@page`), `label.test.tsx`, `labels-page.test.tsx`, `product-badges.test.tsx`, `attribute-values.test.ts`.
+- E2E `s2-catalog-complete.spec.ts`: el Responsable crea un producto con atributos y variantes, imprime la vista
+  previa de etiquetas (estilo `@page` y SVG), el Administrador elimina una ficha sin movimientos y el Vendedor
+  solo consulta. La vista de impresión se verifica con `page.emulateMedia({ media: 'print' })`.
+
 ## Qué debe probarse en la Fase 1 (obligatorio)
 
 - Cada endpoint: 401 sin sesión, 403 sin permiso, 400 con datos inválidos, caso feliz.
