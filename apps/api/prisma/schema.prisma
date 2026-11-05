@@ -341,24 +341,49 @@ model VariantAttributeValue {
 // PROVEEDORES
 // -----------------------------------------------------------------------------
 
+enum SupplierType {
+  NATIONAL
+  FOREIGN
+
+  @@map("supplier_type")
+}
+
+/// Moneda habitual de compra de un proveedor (solo informativa; la moneda del ingreso la define S5).
+enum SupplierCurrency {
+  BOB
+  USD
+
+  @@map("supplier_currency")
+}
+
 model Supplier {
-  id          String   @id @default(uuid(7)) @db.Uuid
-  name        String   @db.VarChar(200)
+  id              String           @id @default(uuid(7)) @db.Uuid
+  name            String           @db.VarChar(200)
+  /// Nacional o del exterior (C8).
+  type            SupplierType     @default(NATIONAL)
+  /// País del proveedor (texto libre, opcional).
+  country         String?          @db.VarChar(80)
   /// NIT u otro identificador tributario.
-  taxId       String?  @unique @map("tax_id") @db.VarChar(30)
-  contactName String?  @map("contact_name") @db.VarChar(120)
-  phone       String?  @db.VarChar(40)
-  email       String?  @db.VarChar(254)
-  address     String?  @db.VarChar(300)
-  notes       String?
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  taxId           String?          @unique @map("tax_id") @db.VarChar(30)
+  contactName     String?          @map("contact_name") @db.VarChar(120)
+  phone           String?          @db.VarChar(40)
+  whatsapp        String?          @db.VarChar(40)
+  email           String?          @db.VarChar(254)
+  address         String?          @db.VarChar(300)
+  /// Moneda habitual de compra; valor sugerido al registrar un ingreso.
+  defaultCurrency SupplierCurrency @default(BOB) @map("default_currency")
+  /// Condiciones de pago (texto libre).
+  paymentTerms    String?          @map("payment_terms") @db.VarChar(300)
+  notes           String?
+  isActive        Boolean          @default(true) @map("is_active")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   products     SupplierProduct[]
   stockEntries StockEntry[]
 
   @@index([name])
+  @@index([type])
   @@map("suppliers")
 }
 

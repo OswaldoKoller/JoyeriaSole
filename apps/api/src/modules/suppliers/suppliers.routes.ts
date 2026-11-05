@@ -2,6 +2,7 @@ import {
   PERMISSIONS,
   createSupplierSchema,
   supplierSchema,
+  supplierTypeSchema,
   updateSupplierSchema,
 } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -14,6 +15,7 @@ const listQuery = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
   q: z.string().trim().max(100).default(''),
   status: z.enum(['all', 'active', 'inactive']).default('all'),
+  type: z.union([z.literal('all'), supplierTypeSchema]).default('all'),
 });
 const itemResponse = z.object({ data: supplierSchema });
 

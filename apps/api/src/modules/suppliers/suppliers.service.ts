@@ -1,4 +1,4 @@
-import type { CreateSupplierInput, UpdateSupplierInput } from '@joyeria/shared';
+import type { CreateSupplierInput, SupplierType, UpdateSupplierInput } from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import type { Supplier as SupplierRecord } from '../../generated/prisma/client.ts';
 import { NotFoundError } from '../../lib/errors.ts';
@@ -9,11 +9,16 @@ function toResponse(supplier: SupplierRecord) {
   return {
     id: supplier.id,
     name: supplier.name,
+    type: supplier.type,
+    country: supplier.country,
     taxId: supplier.taxId,
     contactName: supplier.contactName,
     phone: supplier.phone,
+    whatsapp: supplier.whatsapp,
     email: supplier.email,
     address: supplier.address,
+    defaultCurrency: supplier.defaultCurrency,
+    paymentTerms: supplier.paymentTerms,
     notes: supplier.notes,
     isActive: supplier.isActive,
     createdAt: supplier.createdAt.toISOString(),
@@ -24,13 +29,22 @@ function toResponse(supplier: SupplierRecord) {
 export class SuppliersService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async list(input: { page: number; pageSize: number; q: string; status: string }) {
+  async list(input: {
+    page: number;
+    pageSize: number;
+    q: string;
+    status: string;
+    type: 'all' | SupplierType;
+  }) {
     const where = {
       ...(input.status !== 'all' && { isActive: input.status === 'active' }),
+      ...(input.type !== 'all' && { type: input.type }),
       ...(input.q && {
         OR: [
           { name: { contains: input.q, mode: 'insensitive' as const } },
           { taxId: { contains: input.q, mode: 'insensitive' as const } },
+          { country: { contains: input.q, mode: 'insensitive' as const } },
+          { contactName: { contains: input.q, mode: 'insensitive' as const } },
         ],
       }),
     };
