@@ -213,7 +213,7 @@ test('importación: ingreso en USD con aduanización, comisiones y pieza nueva',
   const card = page.getByRole('article').filter({ hasText: NEW_PIECE });
   await expect(card).toContainText('Ficha incompleta');
   await expect(card).toContainText(NEW_PIECE_CODE); // el código del proveedor quedó como código de barras
-  await expect(card).toContainText('Sin precio definido');
+  await expect(card).toContainText('Sin precio');
   await card.getByRole('button', { name: /^Ver historial de costos de SKU-/ }).click();
   const history = card.getByRole('region', { name: /^Historial de costos de SKU-/ });
   await expect(history).toContainText(SUPPLIER);
