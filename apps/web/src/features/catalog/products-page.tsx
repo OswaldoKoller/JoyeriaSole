@@ -1,111 +1,88 @@
 import { PERMISSIONS, type Product } from '@joyeria/shared';
 import { useState, type SyntheticEvent } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
+import { ApiError } from '../../lib/api-client.ts';
 import { useHasPermission } from '../auth/use-auth.ts';
-import { BarcodePreview } from './barcode-preview.tsx';
+import { ProductCard } from './product-card.tsx';
 import { ProductForm } from './product-form.tsx';
-import { ConfigureAxesForm, CreateVariantForm } from './variant-forms.tsx';
-import {
-  useAssignBarcode,
-  useGenerateBarcode,
-  useProducts,
-  useUpdateProduct,
-  useUpdateVariantStatus,
-} from './use-products.ts';
+import { categoryPath, useCategories } from './use-categories.ts';
+import { lookupVariant, useProducts } from './use-products.ts';
 
-const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
+const MATCH_LABEL = {
+  SKU: 'el SKU',
+  BARCODE: 'el código de barras',
+  SUPPLIER_CODE: 'el código del proveedor',
+} as const;
 
-/** P-22: con stock no se desactiva. Texto que acompaña al botón deshabilitado. */
-function stockBlockMessage(subject: 'el producto' | 'la variante', pieces: number) {
-  return `No se puede desactivar ${subject}: tiene ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'} en stock. Registre primero un ajuste de salida hasta dejarlo en cero.`;
-}
-
-type Variant = Product['variants'][number];
-
-function variantBlocked(variant: Variant) {
-  return variant.status === 'ACTIVE' && (variant.stockQuantity ?? 0) > 0;
-}
-
-function productStock(product: Product) {
-  return product.variants.reduce((sum, variant) => sum + (variant.stockQuantity ?? 0), 0);
-}
-
-function productBlocked(product: Product) {
-  return product.status !== 'INACTIVE' && productStock(product) > 0;
-}
+type QualityFilter = 'all' | 'incomplete' | 'withoutPrice';
 
 export function ProductsPage() {
   const canManage = useHasPermission(PERMISSIONS.CATALOG_MANAGE);
   const canReadInventory = useHasPermission(PERMISSIONS.INVENTORY_READ);
+  const [params, setParams] = useSearchParams();
   const [page, setPage] = useState(1);
-  const [draftSearch, setDraftSearch] = useState('');
-  const [search, setSearch] = useState('');
+  const [draftSearch, setDraftSearch] = useState(params.get('q') ?? '');
+  const [search, setSearch] = useState(params.get('q') ?? '');
+  const [categoryId, setCategoryId] = useState('');
+  const [quality, setQuality] = useState<QualityFilter>(
+    params.get('incomplete') === '1'
+      ? 'incomplete'
+      : params.get('withoutPrice') === '1'
+        ? 'withoutPrice'
+        : 'all',
+  );
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
-  const [barcodeFor, setBarcodeFor] = useState<string | null>(null);
-  const [axesFor, setAxesFor] = useState<string | null>(null);
-  const [variantFor, setVariantFor] = useState<string | null>(null);
-  const [barcodeDraft, setBarcodeDraft] = useState('');
   const [error, setError] = useState('');
-  const list = useProducts(page, search);
-  const assign = useAssignBarcode();
-  const generate = useGenerateBarcode();
-  const updateProduct = useUpdateProduct();
-  const updateVariant = useUpdateVariantStatus();
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [found, setFound] = useState('');
+  const categories = useCategories();
+  const list = useProducts({
+    page,
+    q: search,
+    categoryId,
+    incomplete: quality === 'incomplete',
+    withoutPrice: quality === 'withoutPrice',
+  });
   const products = list.data?.data ?? [];
   const total = list.data?.meta.total ?? 0;
 
-  function submitSearch(event: SyntheticEvent<HTMLFormElement>) {
+  /**
+   * Búsqueda unificada: primero se prueba el texto como código exacto (SKU, código de barras o
+   * del proveedor; el lector escribe el código y pulsa Enter) y, si no existe, se busca por texto.
+   */
+  async function submitSearch(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
+    const term = draftSearch.trim();
     setPage(1);
-    setSearch(draftSearch.trim());
+    setFound('');
+    if (term) {
+      try {
+        const { data } = await lookupVariant(term);
+        setFound(
+          `Encontrada por ${MATCH_LABEL[data.matchedBy]}: ${data.productName}${data.label && data.label !== 'Única' ? ` · ${data.label}` : ''} (${data.sku}).`,
+        );
+        setSearch(data.sku);
+        return;
+      } catch (cause) {
+        // 404: no es un código exacto, se busca por texto. 409: código de varios proveedores.
+        if (cause instanceof ApiError && cause.status === 409) setFound(cause.message);
+      }
+    }
+    setSearch(term);
   }
 
-  async function assignCode(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!barcodeFor) return;
-    setError('');
-    try {
-      await assign.mutateAsync({ variantId: barcodeFor, input: { barcode: barcodeDraft.trim() } });
-      setBarcodeFor(null);
-      setBarcodeDraft('');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo registrar el código');
-    }
-  }
-
-  async function generateCode(variantId: string) {
-    setError('');
-    try {
-      await generate.mutateAsync(variantId);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo generar el código');
-    }
-  }
-
-  async function toggleProduct(product: Product) {
-    const status = product.status === 'INACTIVE' ? 'ACTIVE' : 'INACTIVE';
-    setError('');
-    try {
-      await updateProduct.mutateAsync({ id: product.id, input: { status } });
-    } catch (cause) {
-      // Incluye el mensaje de la API cuando hay stock (STOCK_BLOCKS_DEACTIVATION).
-      setError(cause instanceof Error ? cause.message : 'No se pudo cambiar el estado');
-    }
-  }
-
-  async function toggleVariant(variantId: string, current: 'ACTIVE' | 'INACTIVE') {
-    setError('');
-    try {
-      await updateVariant.mutateAsync({
-        variantId,
-        input: { status: current === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' },
-      });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo cambiar el estado');
-    }
+  function changeQuality(value: QualityFilter) {
+    setQuality(value);
+    setPage(1);
+    const next = new URLSearchParams(params);
+    next.delete('incomplete');
+    next.delete('withoutPrice');
+    if (value === 'incomplete') next.set('incomplete', '1');
+    if (value === 'withoutPrice') next.set('withoutPrice', '1');
+    setParams(next, { replace: true });
   }
 
   return (
@@ -117,21 +94,30 @@ export function ProductsPage() {
             Fichas, códigos y disponibilidad por variante. Consulta los movimientos en Inventario.
           </p>
         </div>
-        {canManage && (
-          <Button
-            onClick={() => {
-              setCreating(true);
-              setEditing(null);
-            }}
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to="/catalogo/etiquetas"
+            className="inline-flex min-h-10 items-center rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
           >
-            Nuevo producto
-          </Button>
-        )}
+            Etiquetas
+          </Link>
+          {canManage && (
+            <Button
+              onClick={() => {
+                setCreating(true);
+                setEditing(null);
+              }}
+            >
+              Nuevo producto
+            </Button>
+          )}
+        </div>
       </div>
       {creating && canManage && (
         <ProductForm
-          onClose={() => {
+          onClose={(created) => {
             setCreating(false);
+            if (created && created.length > 0) setWarnings(created);
           }}
         />
       )}
@@ -149,8 +135,27 @@ export function ProductsPage() {
           {error}
         </p>
       )}
+      {warnings.length > 0 && (
+        <div role="status" className="space-y-1 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          {warnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+          <button
+            type="button"
+            className="min-h-10 underline"
+            onClick={() => {
+              setWarnings([]);
+            }}
+          >
+            Entendido
+          </button>
+        </div>
+      )}
       <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-xs">
-        <form onSubmit={submitSearch} className="flex flex-wrap items-end gap-3">
+        <form
+          onSubmit={(event) => void submitSearch(event)}
+          className="flex flex-wrap items-end gap-3"
+        >
           <div className="min-w-52 flex-1">
             <Input
               label="Buscar por nombre, SKU o código de barras"
@@ -158,6 +163,7 @@ export function ProductsPage() {
               onChange={(event) => {
                 setDraftSearch(event.target.value);
               }}
+              aria-describedby="product-search-hint"
               maxLength={100}
             />
           </div>
@@ -165,6 +171,55 @@ export function ProductsPage() {
             Buscar
           </Button>
         </form>
+        <p id="product-search-hint" className="mt-1 text-xs text-stone-600">
+          También encuentra el código del proveedor. Un lector de códigos escribe el código y pulsa
+          Enter.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <div className="space-y-1">
+            <label htmlFor="filter-category" className="block text-sm font-medium text-stone-700">
+              Filtrar por rubro
+            </label>
+            <select
+              id="filter-category"
+              value={categoryId}
+              onChange={(event) => {
+                setCategoryId(event.target.value);
+                setPage(1);
+              }}
+              className="block min-h-10 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Todos</option>
+              {(categories.data?.data ?? []).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {categoryPath(item, categories.data?.data ?? [])}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="filter-quality" className="block text-sm font-medium text-stone-700">
+              Estado de la ficha
+            </label>
+            <select
+              id="filter-quality"
+              value={quality}
+              onChange={(event) => {
+                changeQuality(event.target.value as QualityFilter);
+              }}
+              className="block min-h-10 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="all">Todas</option>
+              <option value="incomplete">Fichas incompletas</option>
+              <option value="withoutPrice">Sin precio</option>
+            </select>
+          </div>
+        </div>
+        {found && (
+          <p role="status" className="mt-3 rounded-lg bg-brand-50 p-3 text-sm text-stone-800">
+            {found}
+          </p>
+        )}
         {list.isPending && (
           <p role="status" className="py-6 text-sm">
             Cargando productos…
@@ -184,206 +239,18 @@ export function ProductsPage() {
         {list.isSuccess && products.length > 0 && (
           <div className="mt-4 space-y-4">
             {products.map((product) => (
-              <article key={product.id} className="rounded-lg border border-stone-200 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <h2 className="font-semibold">
-                      {product.name}
-                      {product.status !== 'ACTIVE' && (
-                        <span className="ml-2 rounded-full bg-stone-200 px-2 py-0.5 text-xs font-medium text-stone-700">
-                          {product.status === 'INACTIVE' ? 'Inactivo' : 'Borrador'}
-                        </span>
-                      )}
-                    </h2>
-                    <p className="text-sm text-stone-600">
-                      {product.categoryName}
-                      {product.model ? ` · ${product.model}` : ''}
-                    </p>
-                  </div>
-                  {canManage && (
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setEditing(product);
-                          setCreating(false);
-                        }}
-                      >
-                        Editar {product.name}
-                      </Button>
-                      <Button
-                        variant={product.status === 'INACTIVE' ? 'secondary' : 'danger'}
-                        disabled={updateProduct.isPending || productBlocked(product)}
-                        aria-describedby={
-                          productBlocked(product) ? `block-${product.id}` : undefined
-                        }
-                        onClick={() => void toggleProduct(product)}
-                      >
-                        {product.status === 'INACTIVE' ? 'Activar' : 'Desactivar'} {product.name}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                {canManage && productBlocked(product) && (
-                  <p id={`block-${product.id}`} className="mt-2 text-sm text-amber-800">
-                    {stockBlockMessage('el producto', productStock(product))}
-                  </p>
-                )}
-                {product.description && (
-                  <p className="mt-2 text-sm text-stone-600">{product.description}</p>
-                )}
-                {canManage && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {product.axes.length === 0 ? (
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setAxesFor(product.id);
-                          setVariantFor(null);
-                        }}
-                      >
-                        Configurar variantes de {product.name}
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setVariantFor(product.id);
-                          setAxesFor(null);
-                        }}
-                      >
-                        Nueva variante de {product.name}
-                      </Button>
-                    )}
-                  </div>
-                )}
-                {axesFor === product.id && (
-                  <ConfigureAxesForm
-                    product={product}
-                    onClose={() => {
-                      setAxesFor(null);
-                    }}
-                  />
-                )}
-                {variantFor === product.id && (
-                  <CreateVariantForm
-                    product={product}
-                    onClose={() => {
-                      setVariantFor(null);
-                    }}
-                  />
-                )}
-                <div className="mt-3 space-y-3">
-                  {product.variants.map((variant) => (
-                    <div key={variant.id} className="rounded-lg bg-stone-50 p-3 text-sm">
-                      <p>
-                        <strong>SKU:</strong> {variant.sku}
-                        {variant.label && variant.label !== 'Única' ? ` · ${variant.label}` : ''}
-                      </p>
-                      {canReadInventory && variant.stockQuantity !== undefined && (
-                        <p>
-                          <strong>Stock:</strong> {variant.stockQuantity} piezas
-                          {variant.stockLevel === 'OUT'
-                            ? ' · Sin stock'
-                            : variant.stockLevel === 'LOW'
-                              ? ' · Bajo mínimo'
-                              : ''}{' '}
-                          <Link
-                            to={`/inventario?sku=${encodeURIComponent(variant.sku)}`}
-                            className="inline-block py-1 text-brand-700 underline"
-                          >
-                            Ver en inventario
-                          </Link>
-                        </p>
-                      )}
-                      <p>
-                        <strong>Precio:</strong>{' '}
-                        {Number(variant.salePrice) > 0
-                          ? currency.format(Number(variant.salePrice))
-                          : 'Sin precio definido'}
-                      </p>
-                      <p>
-                        <strong>Código de barras:</strong> {variant.barcode ?? 'Sin código'}
-                      </p>
-                      {variant.barcode?.startsWith('SOLE-') && (
-                        <BarcodePreview value={variant.barcode} />
-                      )}
-                      {variant.status === 'INACTIVE' && (
-                        <p className="font-medium text-stone-700">Variante inactiva</p>
-                      )}
-                      {canManage && (
-                        <div className="mt-3">
-                          <Button
-                            variant="secondary"
-                            disabled={updateVariant.isPending || variantBlocked(variant)}
-                            aria-describedby={
-                              variantBlocked(variant) ? `block-${variant.id}` : undefined
-                            }
-                            onClick={() => void toggleVariant(variant.id, variant.status)}
-                          >
-                            {variant.status === 'ACTIVE' ? 'Desactivar' : 'Activar'} variante{' '}
-                            {variant.sku}
-                          </Button>
-                          {variantBlocked(variant) && (
-                            <p id={`block-${variant.id}`} className="mt-1 text-amber-800">
-                              {stockBlockMessage('la variante', variant.stockQuantity ?? 0)}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      {!variant.barcode && canManage && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button
-                            variant="secondary"
-                            disabled={generate.isPending}
-                            onClick={() => void generateCode(variant.id)}
-                          >
-                            Generar código propio
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            onClick={() => {
-                              setBarcodeFor(variant.id);
-                              setBarcodeDraft('');
-                            }}
-                          >
-                            Registrar código del proveedor
-                          </Button>
-                        </div>
-                      )}
-                      {barcodeFor === variant.id && (
-                        <form
-                          onSubmit={(event) => void assignCode(event)}
-                          className="mt-3 flex flex-wrap items-end gap-2"
-                        >
-                          <div className="min-w-52 flex-1">
-                            <Input
-                              label="Código de barras del proveedor"
-                              value={barcodeDraft}
-                              onChange={(event) => {
-                                setBarcodeDraft(event.target.value);
-                              }}
-                              maxLength={64}
-                              required
-                            />
-                          </div>
-                          <Button type="submit" disabled={assign.isPending}>
-                            Guardar código
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            onClick={() => {
-                              setBarcodeFor(null);
-                            }}
-                          >
-                            Cancelar
-                          </Button>
-                        </form>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </article>
+              <ProductCard
+                key={product.id}
+                product={product}
+                canManage={canManage}
+                canReadInventory={canReadInventory}
+                onEdit={(selected) => {
+                  setEditing(selected);
+                  setCreating(false);
+                }}
+                onError={setError}
+                onWarnings={setWarnings}
+              />
             ))}
           </div>
         )}
