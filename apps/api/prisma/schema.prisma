@@ -45,6 +45,8 @@ model User {
   inventoryCountsCreated  InventoryCount[]     @relation("InventoryCountCreatedBy")
   inventoryCountsApproved InventoryCount[]     @relation("InventoryCountApprovedBy")
   countedItems            InventoryCountItem[]
+  priceChangesRequested   PriceChange[]        @relation("PriceChangeRequestedBy")
+  priceChangesDecided     PriceChange[]        @relation("PriceChangeDecidedBy")
 
   @@map("users")
 }
@@ -318,10 +320,72 @@ model ProductVariant {
   supplierProducts SupplierProduct[]
   stockEntryItems  StockEntryItem[]
   countItems       InventoryCountItem[]
+  priceChanges     PriceChange[]
 
   @@index([productId])
   @@index([status])
   @@map("product_variants")
+}
+
+// -----------------------------------------------------------------------------
+// PRECIOS DE VENTA (ADR-018)
+//   El precio de cada variante lo fija el cliente a mano. Todo cambio pasa por `price_changes`:
+//   el Responsable solicita (PENDING) y el Administrador aprueba/rechaza, o cambia directamente.
+// -----------------------------------------------------------------------------
+
+enum PriceChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@map("price_change_status")
+}
+
+enum PriceChangeOrigin {
+  /// Solicitado por quien tiene `prices:propose` y decidido por un Administrador.
+  REQUEST
+  /// Cambio directo del Administrador: queda aprobado por él mismo.
+  ADMIN_DIRECT
+  /// Precio fijado al crear la pieza o variante.
+  INITIAL
+
+  @@map("price_change_origin")
+}
+
+/// Historial de precios de venta por variante. Inmutable una vez resuelto (trigger en base de datos).
+model PriceChange {
+  id              String            @id @default(uuid(7)) @db.Uuid
+  variantId       String            @map("variant_id") @db.Uuid
+  /// Precio vigente cuando se registró el cambio; se revalida al aprobar.
+  previousPrice   Decimal           @map("previous_price") @db.Decimal(12, 2)
+  newPrice        Decimal           @map("new_price") @db.Decimal(12, 2)
+  status          PriceChangeStatus @default(PENDING)
+  origin          PriceChangeOrigin
+  requestedById   String            @map("requested_by_id") @db.Uuid
+  /// Quien aprobó, rechazó o canceló (en ADMIN_DIRECT e INITIAL es el mismo solicitante).
+  decidedById     String?           @map("decided_by_id") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  decidedAt       DateTime?         @map("decided_at") @db.Timestamptz(3)
+  /// Motivo indicado por quien registra el cambio (opcional).
+  reason          String?           @db.VarChar(500)
+  /// Comentario de la decisión; obligatorio al rechazar.
+  decisionComment String?           @map("decision_comment") @db.VarChar(500)
+  /// Costo total unitario de la variante al registrar el cambio (solo se muestra con `costs:read`).
+  costSnapshot    Decimal           @map("cost_snapshot") @db.Decimal(12, 4)
+  /// Agrupa los cambios resueltos en una misma operación en masa.
+  batchId         String?           @map("batch_id") @db.Uuid
+
+  variant     ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  requestedBy User           @relation("PriceChangeRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  decidedBy   User?          @relation("PriceChangeDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+
+  @@index([variantId, createdAt])
+  @@index([status, createdAt])
+  @@index([requestedById])
+  @@index([decidedById])
+  @@index([batchId])
+  @@map("price_changes")
 }
 
 /// Valores de los ejes de variante (solo atributos OPTION).
