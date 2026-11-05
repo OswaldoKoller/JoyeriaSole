@@ -399,6 +399,138 @@ async function seedImportEntries(managerId: string) {
   console.log('✔ Ingreso de importación DEMO confirmado en USD y un borrador');
 }
 
+/**
+ * Cambios de precio DEMO (S7, ADR-018): un cambio aprobado de una solicitud, un cambio directo del
+ * Administrador, una solicitud rechazada y dos pendientes, sobre piezas que ningún E2E usa para
+ * precios. No tocan stock: los totales del dashboard no cambian. Quedan en auditoría.
+ */
+async function seedPriceChanges(adminId: string, managerId: string) {
+  if (await prisma.priceChange.findFirst({ where: { reason: { startsWith: 'DEMO' } } })) {
+    console.log('↷ Los cambios de precio DEMO ya existen (no se duplican)');
+    return;
+  }
+  const names = [
+    'DEMO Arete Estrella',
+    'DEMO Arete Gota Cristal',
+    'DEMO Pulsera Tenis',
+    'DEMO Collare Corazón',
+    'DEMO Collare Perla Simple',
+  ];
+  const variants = await prisma.productVariant.findMany({
+    where: { product: { name: { in: names } } },
+    include: { product: true },
+  });
+  const byName = (name: string) => variants.find((variant) => variant.product.name === name);
+  const [approved, direct, rejected, pendingA, pendingB] = names.map(byName);
+  if (!approved || !direct || !rejected || !pendingA || !pendingB) {
+    console.log('↷ Faltan piezas DEMO: se omiten los cambios de precio DEMO');
+    return;
+  }
+
+  const bump = (price: { toFixed: (digits: number) => string }, amount: number) =>
+    (Number(price.toFixed(2)) + amount).toFixed(2);
+
+  await prisma.$transaction(async (tx) => {
+    const now = new Date();
+    const audit = (action: string, entityId: string, userId: string, after: object) =>
+      tx.auditLog.create({
+        data: {
+          action,
+          entityType: 'PriceChange',
+          entityId,
+          userId,
+          after,
+          metadata: { source: 'seed-demo' },
+        },
+      });
+
+    // 1) Solicitado por el Responsable y aprobado por el Administrador.
+    const approvedPrice = bump(approved.salePrice, 12);
+    const first = await tx.priceChange.create({
+      data: {
+        variantId: approved.id,
+        previousPrice: approved.salePrice,
+        newPrice: approvedPrice,
+        status: 'APPROVED',
+        origin: 'REQUEST',
+        requestedById: managerId,
+        decidedById: adminId,
+        decidedAt: now,
+        reason: 'DEMO Ajuste de temporada',
+        costSnapshot: approved.costPrice,
+      },
+    });
+    await tx.productVariant.update({
+      where: { id: approved.id },
+      data: { salePrice: approvedPrice },
+    });
+    await audit('price.approved', first.id, adminId, {
+      status: 'APPROVED',
+      newPrice: approvedPrice,
+    });
+
+    // 2) Cambio directo del Administrador.
+    const directPrice = bump(direct.salePrice, -8);
+    const second = await tx.priceChange.create({
+      data: {
+        variantId: direct.id,
+        previousPrice: direct.salePrice,
+        newPrice: directPrice,
+        status: 'APPROVED',
+        origin: 'ADMIN_DIRECT',
+        requestedById: adminId,
+        decidedById: adminId,
+        decidedAt: now,
+        reason: 'DEMO Promoción del mes',
+        costSnapshot: direct.costPrice,
+      },
+    });
+    await tx.productVariant.update({ where: { id: direct.id }, data: { salePrice: directPrice } });
+    await audit('variant.price_changed', second.id, adminId, {
+      origin: 'ADMIN_DIRECT',
+      newPrice: directPrice,
+    });
+
+    // 3) Solicitud rechazada con comentario.
+    const third = await tx.priceChange.create({
+      data: {
+        variantId: rejected.id,
+        previousPrice: rejected.salePrice,
+        newPrice: bump(rejected.salePrice, 60),
+        status: 'REJECTED',
+        origin: 'REQUEST',
+        requestedById: managerId,
+        decidedById: adminId,
+        decidedAt: now,
+        reason: 'DEMO Subir precio',
+        decisionComment: 'DEMO Aumento demasiado alto para la temporada',
+        costSnapshot: rejected.costPrice,
+      },
+    });
+    await audit('price.rejected', third.id, adminId, { status: 'REJECTED' });
+
+    // 4) y 5) Pendientes de aprobación.
+    for (const [variant, amount] of [
+      [pendingA, 25],
+      [pendingB, 15],
+    ] as const) {
+      const pending = await tx.priceChange.create({
+        data: {
+          variantId: variant.id,
+          previousPrice: variant.salePrice,
+          newPrice: bump(variant.salePrice, amount),
+          origin: 'REQUEST',
+          requestedById: managerId,
+          reason: 'DEMO Pendiente de aprobación',
+          costSnapshot: variant.costPrice,
+        },
+      });
+      await audit('price.requested', pending.id, managerId, { status: 'PENDING' });
+    }
+  });
+  console.log('✔ Cambios de precio DEMO: 2 aprobados, 1 rechazado y 2 pendientes');
+}
+
 try {
   const ids = await seedUsers();
   const adminId = ids.get(ROLES.ADMIN);
@@ -408,6 +540,7 @@ try {
   const managerId = ids.get(ROLES.INVENTORY_MANAGER);
   if (!managerId) throw new Error('No se creó el responsable de inventario DEMO');
   await seedImportEntries(managerId);
+  await seedPriceChanges(adminId, managerId);
 } finally {
   await prisma.$disconnect();
 }

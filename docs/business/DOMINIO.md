@@ -90,10 +90,11 @@ Proveedor → Llegada → Documento de recepción → Verificación física → 
 ## Costos y precios
 
 - Costo total unitario = costo de compra en Bs (precio × tipo de cambio si fue en dólares) + costos adicionales prorrateados por valor (P-07, ADR-016).
-- Precio de venta: se guarda **explícitamente** por variante.
+- Precio de venta: lo **fija el cliente a mano** por variante (un solo precio, **neto**, en Bs; sin listas de precios). Precio 0 = «Sin precio»: válido, pero la pieza no será vendible en la Fase 2 hasta tener precio (D9).
 - Las compras pueden ser en dólares (P-10 reabierto, Q-07); costos, stock y precios de venta siempre en bolivianos.
-- Precio base **(costo de compra + transporte + embolsado + valores extras) × 2**. El cliente puede modificar el precio y definir un cálculo propio por categoría (P-03); falta especificar redondeo.
-- Los cambios de precio requieren aprobación (P-25). El aprobador y la entrada en vigencia siguen pendientes; la fórmula no se aplica automáticamente antes de definir ese flujo.
+- **No hay fórmula, multiplicador, redondeo ni sugerencia de precio** (P-03 sustituida por Q-04/Q-05). Para decidir el precio el sistema muestra, solo con `costs:read`: precio de compra unitario y subtotal del último ingreso, costos adicionales por pieza y **costo total unitario**; y la **ganancia** del precio vigente y del nuevo: **Ganancia en Bs** y **% sobre el costo total** (costo 0 → «—»). Una ganancia negativa se advierte, no se bloquea.
+- **Aprobación de precios (P-25 cerrada, [ADR-018](../decisions/ADR-018-aprobacion-e-historial-de-precios.md)):** el Responsable de inventario **solicita** (uno o varios) y solo el Administrador **aprueba o rechaza** (uno a uno o en masa; el rechazo exige comentario). El Administrador también puede **cambiar directamente**, aunque sea quien lo modifica: queda aprobado por él mismo. Vigencia inmediata, sin umbrales. Una variante admite una sola solicitud pendiente; el solicitante puede cancelarla.
+- **Historial de precios** en entidad propia (`price_changes`, inmutable): precio anterior y nuevo, estado, origen (solicitud, cambio directo, precio inicial), quién solicitó y decidió, fechas, comentario y costo total del momento (solo con `costs:read`). El precio inicial al crear una pieza lo fija solo quien puede aprobar precios.
 - Todo cambio de costo/precio queda en auditoría (anterior → nuevo).
 
 ## Flujo de inventario físico

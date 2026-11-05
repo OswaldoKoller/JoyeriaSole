@@ -3,6 +3,7 @@
 - **Estado:** Aceptado (decisión del cliente del 2026-10-11)
 - **Fecha:** 2026-10-11
 - **Complementa:** [ADR-008](ADR-008-stock-entries-costs.md), cuyo método de costeo estaba pendiente.
+- **Nota (2026-11-06):** la mención de un «precio base de P-03» (`costo × 2`, multiplicador) quedó **sustituida** por [ADR-018](ADR-018-aprobacion-e-historial-de-precios.md): el cliente fija el precio de cada ítem a mano y su cambio se aprueba allí. Confirmar un ingreso sigue sin modificar el precio de venta.
 
 ## Contexto
 

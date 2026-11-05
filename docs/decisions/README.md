@@ -24,5 +24,6 @@ Las decisiones de **negocio** pendientes están en [`docs/business/PENDIENTES.md
 | [014](ADR-014-conteos-con-movimientos.md)                    | Conteos con movimientos concurrentes       | Aceptado parcialmente          |
 | [015](ADR-015-reparto-centavos-y-valor-cero.md)              | Reparto de centavos y valor cero           | Aceptado                       |
 | [016](ADR-016-compras-en-dolares-y-costos-de-importacion.md) | Compras en dólares y costos de importación | Aceptado                       |
+| [018](ADR-018-aprobacion-e-historial-de-precios.md)          | Aprobación e historial de precios          | Aceptado                       |
 
 Plantilla: [`TEMPLATE.md`](TEMPLATE.md).

@@ -55,6 +55,7 @@ Se conservan aserciones y plazos de las pruebas.
 - **Inventario**: todo cambio de stock genera movimiento; saldo = suma de movimientos; concurrencia
   (dos operaciones simultáneas sobre la misma variante no pierden actualizaciones).
 - **Ingresos**: crear/editar borrador no cambia stock; confirmar sí, una sola vez; cancelar confirmado falla.
+- **Precios (ADR-018)**: unitarias de `computeProfit` (Decimal exacto, costo 0, pérdida, redondeo); integración con 401/403/400 en cada endpoint, el Vendedor con 403 y sin costos en ninguna respuesta, el Responsable que no aprueba, aprobación y rechazo en masa **atómicos**, conflicto por precio anterior desactualizado (409), `ADMIN_DIRECT`, precio inicial `INITIAL`, historial inmutable por trigger, rechazo con comentario obligatorio, auditoría y que ningún otro endpoint cambie `sale_price`; componentes (ganancia en vivo, vistas por rol); E2E `pricing.spec.ts` (solicitud, aprobación en masa, catálogo y Vendedor sin costos; cambio directo; historial).
 - **Inventario físico**: snapshot correcto; aprobación genera ajustes exactos por diferencia.
 - Auditoría escrita en la misma transacción (si la operación falla, no queda auditoría huérfana).
 

@@ -31,6 +31,7 @@ categories ─┐ (parent_id → árbol: categoría / subcategoría)
                                                 ├─< inventory_movements
                                                 ├─< supplier_products >── suppliers
                                                 ├─< stock_entry_items >── stock_entries ── suppliers
+                                                ├─< price_changes >── users (solicitante, decisor)
                                                 └─< inventory_count_items >── inventory_counts
 ```
 
@@ -75,6 +76,14 @@ La migración `20261010000000_product_variant_sku_sequence` agrega la secuencia 
 | `stock_entry_cost_types` | Catálogo de tipos de costo adicional (`code`, `name` únicos, `is_active`, `is_system`, `sort_order`). El seed (y la migración) crean Transporte, Embolsado, Aduanización, Comisiones y Otro; el Administrador agrega más.                                                                                                                                                                                                                              |
 | `stock_entry_costs`      | Lista abierta de costos adicionales de un ingreso: tipo, `amount` en Bs (`CHECK` > 0) y nota opcional. Se reparten por valor de compra (ADR-015).                                                                                                                                                                                                                                                                                                      |
 
+### Precios de venta
+
+| Tabla           | Propósito                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `price_changes` | **Historial inmutable** de precios de venta por variante (ADR-018): `previous_price`/`new_price` (`Decimal(12,2)`), `status` (`PENDING`/`APPROVED`/`REJECTED`/`CANCELLED`), `origin` (`REQUEST`/`ADMIN_DIRECT`/`INITIAL`), `requested_by_id`, `decided_by_id`, fechas, `reason`, `decision_comment`, `cost_snapshot` (`Decimal(12,4)`, costo total del momento) y `batch_id` (lote de la decisión). |
+
+Migración `20261106020300_price_changes`. Reglas en la base: `CHECK` de precios >= 0 y distintos; estado coherente con la decisión (PENDING sin decidir, el resto con quién y cuándo); `ADMIN_DIRECT` e `INITIAL` nacen `APPROVED` por el mismo usuario; solo el solicitante cancela; `REJECTED` exige comentario; índice único parcial **una `PENDING` por variante**; y un trigger que impide `DELETE` y cualquier `UPDATE` de un cambio resuelto (de una pendiente solo permite resolverla: estado, decisor, fecha, comentario y lote). `product_variants.sale_price` solo cambia dentro de la transacción que registra el cambio en `price_changes` y su auditoría.
+
 ### Inventario
 
 | Tabla                   | Propósito                                                                                                                   |
@@ -98,6 +107,7 @@ Definidas en la migración inicial (SQL), además de las de Prisma:
 - `inventory_movements`: `quantity <> 0` y `balance_after = balance_before + quantity`.
 - `product_attribute_values`: exactamente un valor no nulo.
 - `categories`: una categoría no puede ser su propio padre.
+- **Trigger de inmutabilidad** en `price_changes` (migración `20261106020300`): un cambio de precio resuelto no se modifica ni se borra.
 - **Triggers append-only** en `inventory_movements` y `audit_logs`: impiden `UPDATE`/`DELETE`.
   (En `audit_logs` solo se permite que `user_id` pase a NULL si se elimina el usuario.)
 - Stock negativo **no** restringido a propósito (P-08).
