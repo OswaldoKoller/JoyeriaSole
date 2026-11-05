@@ -221,6 +221,7 @@ describe('categoryOptions', () => {
     description: null,
     isActive,
     sortOrder: 0,
+    attributes: [],
   });
 
   it('muestra la ruta completa, ordenada, sin categorías inactivas', () => {
