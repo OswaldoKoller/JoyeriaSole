@@ -1,12 +1,16 @@
 import {
   PERMISSIONS,
   assignBarcodeSchema,
+  catalogHealthSchema,
   configureAxesSchema,
   createProductSchema,
   createVariantSchema,
+  productListQuerySchema,
   productSchema,
   updateProductSchema,
+  updateVariantSchema,
   updateVariantStatusSchema,
+  warningsMetaSchema,
 } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -14,22 +18,20 @@ import { ProductsService } from './products.service.ts';
 import { getAuth } from '../../plugins/auth.ts';
 
 const idParams = z.object({ id: z.uuid() });
-const listQuery = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(25),
-  q: z.string().trim().max(100).default(''),
-  status: z.enum(['all', 'DRAFT', 'ACTIVE', 'INACTIVE']).default('all'),
-});
 const item = z.object({ data: productSchema });
+const itemWithWarnings = z.object({ data: productSchema, meta: warningsMetaSchema });
 
 export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
   const service = new ProductsService(app.prisma);
+  const canSeeStock = (request: Parameters<typeof getAuth>[0]) =>
+    getAuth(request).user.permissions.includes(PERMISSIONS.INVENTORY_READ);
+
   app.get(
     '/',
     {
       preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: {
-        querystring: listQuery,
+        querystring: productListQuerySchema,
         response: {
           200: z.object({
             data: z.array(productSchema),
@@ -38,11 +40,15 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
         },
       },
     },
-    async (request) =>
-      service.list(
-        request.query,
-        getAuth(request).user.permissions.includes(PERMISSIONS.INVENTORY_READ),
-      ),
+    async (request) => service.list(request.query, canSeeStock(request)),
+  );
+  app.get(
+    '/health',
+    {
+      preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
+      schema: { response: { 200: z.object({ data: catalogHealthSchema }) } },
+    },
+    async () => ({ data: await service.health() }),
   );
   app.get(
     '/lookup',
@@ -53,12 +59,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: item },
       },
     },
-    async (request) => ({
-      data: await service.lookup(
-        request.query.code,
-        getAuth(request).user.permissions.includes(PERMISSIONS.INVENTORY_READ),
-      ),
-    }),
+    async (request) => ({ data: await service.lookup(request.query.code, canSeeStock(request)) }),
   );
   app.get(
     '/:id',
@@ -66,21 +67,18 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
       preHandler: app.requirePermission(PERMISSIONS.CATALOG_READ),
       schema: { params: idParams, response: { 200: item } },
     },
-    async (request) => ({
-      data: await service.get(
-        request.params.id,
-        getAuth(request).user.permissions.includes(PERMISSIONS.INVENTORY_READ),
-      ),
-    }),
+    async (request) => ({ data: await service.get(request.params.id, canSeeStock(request)) }),
   );
   app.post(
     '/',
     {
       preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
-      schema: { body: createProductSchema, response: { 201: item } },
+      schema: { body: createProductSchema, response: { 201: itemWithWarnings } },
     },
-    async (request, reply) =>
-      reply.status(201).send({ data: await service.create(request.body, request) }),
+    async (request, reply) => {
+      const { product, warnings } = await service.create(request.body, request);
+      return reply.status(201).send({ data: product, meta: { warnings } });
+    },
   );
   app.patch(
     '/:id',
@@ -89,6 +87,28 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
       schema: { params: idParams, body: updateProductSchema, response: { 200: item } },
     },
     async (request) => ({ data: await service.update(request.params.id, request.body, request) }),
+  );
+  // B11: eliminación física, solo Administrador y solo sin historial.
+  app.delete(
+    '/:id',
+    {
+      preHandler: app.requirePermission(PERMISSIONS.CATALOG_DELETE),
+      schema: {
+        params: idParams,
+        response: { 200: z.object({ data: z.object({ id: z.uuid() }) }) },
+      },
+    },
+    async (request) => ({ data: await service.remove(request.params.id, request) }),
+  );
+  app.patch(
+    '/variants/:id',
+    {
+      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      schema: { params: idParams, body: updateVariantSchema, response: { 200: item } },
+    },
+    async (request) => ({
+      data: await service.updateVariant(request.params.id, request.body, request),
+    }),
   );
   app.patch(
     '/variants/:id/status',
@@ -104,11 +124,16 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
     '/variants/:id/barcode',
     {
       preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
-      schema: { params: idParams, body: assignBarcodeSchema, response: { 200: item } },
+      schema: { params: idParams, body: assignBarcodeSchema, response: { 200: itemWithWarnings } },
     },
-    async (request) => ({
-      data: await service.assignBarcode(request.params.id, request.body, request),
-    }),
+    async (request) => {
+      const { product, warnings } = await service.assignBarcode(
+        request.params.id,
+        request.body,
+        request,
+      );
+      return { data: product, meta: { warnings } };
+    },
   );
   app.post(
     '/variants/:id/barcode/generate',
@@ -132,11 +157,15 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
     '/:id/variants',
     {
       preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
-      schema: { params: idParams, body: createVariantSchema, response: { 201: item } },
+      schema: { params: idParams, body: createVariantSchema, response: { 201: itemWithWarnings } },
     },
-    async (request, reply) =>
-      reply.status(201).send({
-        data: await service.addVariant(request.params.id, request.body, request),
-      }),
+    async (request, reply) => {
+      const { product, warnings } = await service.addVariant(
+        request.params.id,
+        request.body,
+        request,
+      );
+      return reply.status(201).send({ data: product, meta: { warnings } });
+    },
   );
 };

@@ -2,6 +2,7 @@ import {
   PERMISSIONS,
   categorySchema,
   createCategorySchema,
+  setCategoryAttributesSchema,
   updateCategorySchema,
 } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -45,5 +46,15 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
       schema: { params, body: updateCategorySchema, response: { 200: item } },
     },
     async (request) => ({ data: await service.update(request.params.id, request.body, request) }),
+  );
+  app.put(
+    '/:id/attributes',
+    {
+      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      schema: { params, body: setCategoryAttributesSchema, response: { 200: item } },
+    },
+    async (request) => ({
+      data: await service.setAttributes(request.params.id, request.body, request),
+    }),
   );
 };
