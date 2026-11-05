@@ -23,6 +23,12 @@ describe('matriz de permisos de ajustes de inventario', () => {
     expect(has('SELLER', PERMISSIONS.INVENTORY_ADJUST)).toBe(false);
   });
 
+  it('el stock inicial (cambia stock sin aprobación) es solo del Administrador', () => {
+    expect(has('ADMIN', PERMISSIONS.INVENTORY_INITIAL_STOCK)).toBe(true);
+    expect(has('INVENTORY_MANAGER', PERMISSIONS.INVENTORY_INITIAL_STOCK)).toBe(false);
+    expect(has('SELLER', PERMISSIONS.INVENTORY_INITIAL_STOCK)).toBe(false);
+  });
+
   it('conteos físicos: el Administrador y el Responsable capturan y aprueban; el Vendedor no (E6, Q-15)', () => {
     for (const role of ['ADMIN', 'INVENTORY_MANAGER'] as const) {
       expect(has(role, PERMISSIONS.INVENTORY_COUNTS_READ)).toBe(true);

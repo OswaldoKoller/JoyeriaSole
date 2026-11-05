@@ -953,6 +953,7 @@ describe('conteo físico a ciegas con segundo recuento', () => {
         PERMISSIONS.STOCK_ENTRIES_READ,
         PERMISSIONS.STOCK_ENTRIES_MANAGE,
         PERMISSIONS.STOCK_ENTRIES_CONFIRM,
+        PERMISSIONS.COSTS_READ,
       ]);
       const supplier = await app.prisma.supplier.create({ data: { name: 'Proveedor' } });
       const draft = await app.inject({

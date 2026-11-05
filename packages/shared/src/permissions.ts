@@ -31,8 +31,10 @@ export const PERMISSIONS = {
   STOCK_ENTRIES_CONFIRM: 'stock-entries:confirm',
 
   INVENTORY_READ: 'inventory:read',
-  /** Solicitar ajustes manuales (y cargar el stock inicial). El stock NO cambia hasta que se aprueba. */
+  /** Solicitar ajustes manuales. El stock NO cambia hasta que se aprueba. */
   INVENTORY_ADJUST: 'inventory:adjust',
+  /** Cargar el stock inicial de una pieza (cambia el stock sin aprobación previa). Solo ADMIN. */
+  INVENTORY_INITIAL_STOCK: 'inventory:initial-stock',
   /** Aprobar o rechazar ajustes: es lo único que mueve stock en un ajuste (ADR-017). Solo ADMIN. */
   INVENTORY_ADJUST_APPROVE: 'inventory:adjust-approve',
 
@@ -67,7 +69,8 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'stock-entries:manage': 'Registrar y editar ingresos en borrador',
   'stock-entries:confirm': 'Confirmar ingresos (actualiza stock)',
   'inventory:read': 'Ver stock y movimientos',
-  'inventory:adjust': 'Solicitar ajustes de inventario y cargar stock inicial',
+  'inventory:adjust': 'Solicitar ajustes de inventario',
+  'inventory:initial-stock': 'Cargar el stock inicial de una pieza (modifica el stock)',
   'inventory:adjust-approve': 'Aprobar o rechazar ajustes de inventario (modifica el stock)',
   'inventory-counts:read': 'Ver conteos físicos',
   'inventory-counts:manage': 'Crear conteos físicos y capturar piezas',

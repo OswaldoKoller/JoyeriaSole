@@ -590,6 +590,9 @@ export class ProductsService {
           ...(input.model !== undefined && { model: input.model || null }),
           ...(input.description !== undefined && { description: input.description || null }),
           ...(input.status !== undefined && { status: input.status }),
+          ...(input.profileIncomplete !== undefined && {
+            profileIncomplete: input.profileIncomplete,
+          }),
         },
         include: withDetails,
       });

@@ -4,7 +4,11 @@ import type { App } from '../../src/app.ts';
 import { buildTestApp, login } from '../helpers/app.ts';
 import { createTestUser, resetDatabase } from '../helpers/db.ts';
 
-const STOCK_ADMIN: Permission[] = [PERMISSIONS.INVENTORY_READ, PERMISSIONS.INVENTORY_ADJUST];
+const STOCK_ADMIN: Permission[] = [
+  PERMISSIONS.INVENTORY_READ,
+  PERMISSIONS.INVENTORY_ADJUST,
+  PERMISSIONS.INVENTORY_INITIAL_STOCK,
+];
 
 describe('inventario: saldos, alertas y stock inicial', () => {
   let app: App;

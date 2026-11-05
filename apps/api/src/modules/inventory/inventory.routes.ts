@@ -62,7 +62,7 @@ export const inventoryRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/:variantId/initial',
     {
-      preHandler: app.requirePermission(PERMISSIONS.INVENTORY_ADJUST),
+      preHandler: app.requirePermission(PERMISSIONS.INVENTORY_INITIAL_STOCK),
       schema: {
         params,
         body: initialStockSchema,

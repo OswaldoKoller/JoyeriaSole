@@ -99,7 +99,7 @@ const GROUPS: Group[] = [
         to: '/inventario',
         query: 'accion=inicial',
         icon: PackagePlus,
-        permission: PERMISSIONS.INVENTORY_ADJUST,
+        permission: PERMISSIONS.INVENTORY_INITIAL_STOCK,
       },
       {
         label: 'Ajustes',

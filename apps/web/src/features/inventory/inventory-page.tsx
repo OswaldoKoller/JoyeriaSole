@@ -18,6 +18,7 @@ export function InventoryPage() {
   const requestedSku = searchParams.get('sku') ?? '';
   const initialOnly = searchParams.get('accion') === 'inicial';
   const canAdjust = useHasPermission(PERMISSIONS.INVENTORY_ADJUST);
+  const canInitialize = useHasPermission(PERMISSIONS.INVENTORY_INITIAL_STOCK);
   const [page, setPage] = useState(1);
   const [draftSearch, setDraftSearch] = useState(requestedSku);
   const [search, setSearch] = useState(requestedSku);
@@ -168,7 +169,7 @@ export function InventoryPage() {
                           Ajustar a cero
                         </Link>
                       )}
-                      {canAdjust && item.canInitialize && (
+                      {canInitialize && item.canInitialize && (
                         <Button
                           variant="secondary"
                           onClick={() => {
