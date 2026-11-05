@@ -31,6 +31,8 @@ export const PERMISSIONS = {
   INVENTORY_ADJUST: 'inventory:adjust',
   /** Aprobar o rechazar ajustes: es lo único que mueve stock en un ajuste (ADR-017). Solo ADMIN. */
   INVENTORY_ADJUST_APPROVE: 'inventory:adjust-approve',
+  /** Registrar un cambio de pieza (entra la devuelta, sale la entregada). Mueve stock (ADR-019). */
+  INVENTORY_EXCHANGE: 'inventory:exchange',
 
   INVENTORY_COUNTS_READ: 'inventory-counts:read',
   INVENTORY_COUNTS_MANAGE: 'inventory-counts:manage',
@@ -60,6 +62,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'inventory:read': 'Ver stock y movimientos',
   'inventory:adjust': 'Solicitar ajustes de inventario y cargar stock inicial',
   'inventory:adjust-approve': 'Aprobar o rechazar ajustes de inventario (modifica el stock)',
+  'inventory:exchange': 'Registrar cambios de pieza (modifica el stock de dos variantes)',
   'inventory-counts:read': 'Ver conteos físicos',
   'inventory-counts:manage': 'Crear conteos físicos y capturar piezas',
   'inventory-counts:approve': 'Aprobar conteos físicos (ajusta el stock) y regularizar hallazgos',
@@ -107,6 +110,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
       PERMISSIONS.INVENTORY_READ,
       // Solicita ajustes; aprobarlos es solo del Administrador (Q-01 B, ADR-017).
       PERMISSIONS.INVENTORY_ADJUST,
+      // Registra cambios de pieza (ADR-019). El Vendedor NO: quién los registra en el punto de venta
+      // futuro está pendiente (P-30).
+      PERMISSIONS.INVENTORY_EXCHANGE,
       PERMISSIONS.INVENTORY_COUNTS_READ,
       PERMISSIONS.INVENTORY_COUNTS_MANAGE,
       PERMISSIONS.INVENTORY_COUNTS_APPROVE,
