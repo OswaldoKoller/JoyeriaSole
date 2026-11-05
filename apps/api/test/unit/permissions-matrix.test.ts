@@ -44,6 +44,12 @@ describe('matriz de permisos de ajustes de inventario', () => {
     }
   });
 
+  it('cambios de pieza: el Administrador y el Responsable los registran; el Vendedor no (ADR-019, P-30)', () => {
+    expect(has('ADMIN', PERMISSIONS.INVENTORY_EXCHANGE)).toBe(true);
+    expect(has('INVENTORY_MANAGER', PERMISSIONS.INVENTORY_EXCHANGE)).toBe(true);
+    expect(has('SELLER', PERMISSIONS.INVENTORY_EXCHANGE)).toBe(false);
+  });
+
   it('el Vendedor solo consulta catálogo e inventario', () => {
     expect(DEFAULT_ROLE_PERMISSIONS.SELLER.permissions).toEqual([
       PERMISSIONS.CATALOG_READ,

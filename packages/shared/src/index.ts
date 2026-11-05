@@ -20,3 +20,4 @@ export * from './schemas/adjustments.ts';
 export * from './schemas/inventory-counts.ts';
 export * from './schemas/stock-entry-cost-types.ts';
 export * from './schemas/pricing.ts';
+export * from './schemas/exchanges.ts';

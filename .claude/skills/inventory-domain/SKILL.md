@@ -50,7 +50,7 @@ Si la tarea toca uno de estos puntos: **detenerse, explicar las alternativas de 
 ## Tipos de movimiento
 
 `INITIAL_STOCK`, `STOCK_ENTRY`, `ADJUSTMENT`, `COUNT_ADJUSTMENT`, `LOSS` (Fase 1).
-`SALE`, `CUSTOMER_RETURN`, `EXCHANGE`: reservados para ventas, **no usar** en Fase 1.
+`EXCHANGE_IN` / `EXCHANGE_OUT`: cambios de pieza, un solo `applyStockChanges` con dos líneas (ADR-019); no hay devoluciones. `SALE`, `CUSTOMER_RETURN`, `EXCHANGE`: reservados, **no usar** en Fase 1.
 
 ## Consultas de control
 

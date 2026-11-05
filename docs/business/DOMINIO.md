@@ -97,8 +97,22 @@ Pérdida             −1   → 13      (* tipos reservados para la fase de vent
 - El saldo (`inventory_balances`) se actualiza **en la misma transacción** que el movimiento.
 - El stock no puede ser negativo (P-08 aprobado) y se controla por piezas enteras (P-09 aprobado).
 
-Tipos de movimiento: `INITIAL_STOCK`, `STOCK_ENTRY`, `ADJUSTMENT`, `COUNT_ADJUSTMENT`, `LOSS`; y
-reservados: `SALE`, `CUSTOMER_RETURN`, `EXCHANGE`.
+Tipos de movimiento: `INITIAL_STOCK`, `STOCK_ENTRY`, `ADJUSTMENT`, `COUNT_ADJUSTMENT`, `LOSS`,
+`EXCHANGE_IN` y `EXCHANGE_OUT` (cambios de pieza); y reservados sin uso: `SALE`, `CUSTOMER_RETURN`, `EXCHANGE`.
+
+### Cambios de pieza (C9, Q-12 A, 12.1 A; [ADR-019](../decisions/ADR-019-cambios-de-pieza.md))
+
+- **No hay devoluciones, solo cambios**: el cliente trae una pieza y se le entrega otra en su lugar.
+- Un cambio es **una operación con dos movimientos atómicos**: entra la pieza devuelta
+  (`EXCHANGE_IN`, vuelve al stock **vendible**, 12.1 A) y sale la entregada (`EXCHANGE_OUT`). Si la
+  salida dejara el saldo negativo, no se aplica ninguno.
+- Las dos piezas deben ser variantes distintas y activas, con cantidades enteras mayores que cero
+  (pueden diferir: un anillo por dos aretes). El motivo es obligatorio.
+- Los dos movimientos comparten `reference_type = 'EXCHANGE'` y un `reference_id` común, y llevan el
+  costo vigente de cada variante (informativo): **un cambio no recalcula costos**.
+- En la Fase 1 solo existe la base y la API (`inventory:exchange`: Administrador y Responsable); no hay
+  pantallas de registro ni punto de venta. Quién registra cambios en el futuro punto de venta es la
+  decisión pendiente P-30.
 
 ## Flujo de ingreso de mercadería
 

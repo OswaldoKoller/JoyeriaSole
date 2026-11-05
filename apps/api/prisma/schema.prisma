@@ -636,7 +636,12 @@ enum MovementType {
   /// Reservados para la fase de ventas (no se usan en Fase 1).
   SALE
   CUSTOMER_RETURN
+  /// Reservado y sin uso: los cambios de pieza usan EXCHANGE_IN / EXCHANGE_OUT (ADR-019).
   EXCHANGE
+  /// Cambio de pieza (ADR-019): la pieza devuelta por el cliente vuelve al stock vendible (+).
+  EXCHANGE_IN
+  /// Cambio de pieza (ADR-019): la pieza entregada en su lugar sale del stock (−).
+  EXCHANGE_OUT
 
   @@map("movement_type")
 }

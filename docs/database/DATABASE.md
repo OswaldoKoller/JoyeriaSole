@@ -118,6 +118,7 @@ Definidas en la migración inicial (SQL), además de las de Prisma:
 - `CHECK` de no negatividad en precios, costos, stock mínimo y cantidades de ingresos/conteos.
 - `CHECK (quantity >= 0)` en `inventory_balances` (`inventory_balances_quantity_check`, migración `20261106010000`): no existe stock negativo (P-08). Si un bug lo intentara, PostgreSQL revierte la transacción completa y la API responde un 500 genérico.
 - `inventory_movements`: `quantity <> 0` y `balance_after = balance_before + quantity`.
+- `inventory_movements`: `quantity <> 0` y `balance_after = balance_before + quantity`. No hay CHECK de signo por tipo: que `EXCHANGE_IN` sea positivo y `EXCHANGE_OUT` negativo lo garantiza el servicio de inventario (migración `20261106030300` solo agrega esos dos valores a `movement_type`).
 - Conteo físico (migración `20261106030200`): operador obligatorio en captura/recuento; resultado de cada línea coherente (`difference = final_qty − expected_qty`, `balance_after = balance_before + difference`, movimiento ⇔ diferencia ≠ 0); lecturas con `delta <> 0` y variante XOR hallazgo; triggers que impiden borrar conteos, modificar conteos/líneas terminados y alterar o borrar lecturas.
 - `product_attribute_values`: exactamente un valor no nulo.
 - `categories`: una categoría no puede ser su propio padre.

@@ -1,3 +1,4 @@
+import { movementTypeLabel } from '@joyeria/shared';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
@@ -8,14 +9,6 @@ const dateTime = new Intl.DateTimeFormat('es-BO', {
   dateStyle: 'short',
   timeStyle: 'short',
 });
-
-const typeLabels: Record<string, string> = {
-  INITIAL_STOCK: 'Stock inicial',
-  STOCK_ENTRY: 'Ingreso',
-  ADJUSTMENT: 'Ajuste',
-  COUNT_ADJUSTMENT: 'Conteo',
-  LOSS: 'Pérdida',
-};
 
 export function MovementsPage() {
   const [page, setPage] = useState(1);
@@ -76,7 +69,7 @@ export function MovementsPage() {
                       </div>
                     </td>
                     <td data-label="Tipo" className="py-3 pr-4">
-                      {typeLabels[movement.type] ?? movement.type}
+                      {movementTypeLabel(movement.type)}
                     </td>
                     <td data-label="Cambio" className="py-3 pr-4">
                       {movement.quantity > 0 ? '+' : ''}
