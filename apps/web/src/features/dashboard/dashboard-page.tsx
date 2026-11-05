@@ -3,6 +3,7 @@ import { Boxes, PackageCheck, PackageX, TriangleAlert } from 'lucide-react';
 import { Link } from 'react-router';
 import { Skeleton } from '../../components/ui/skeleton.tsx';
 import { useCurrentUser, useHasPermission } from '../auth/use-auth.ts';
+import { PendingApprovals } from '../approvals/pending-approvals.tsx';
 import { AttentionTable } from './attention-table.tsx';
 import { CatalogHealthNotice } from './catalog-health-notice.tsx';
 import { StatCard } from './stat-card.tsx';
@@ -53,6 +54,7 @@ export function DashboardPage() {
         <p className="text-sm text-stone-500 first-letter:capitalize">{today.format(new Date())}</p>
       </header>
 
+      <PendingApprovals />
       <CatalogHealthNotice />
 
       {!user ? (

@@ -1,6 +1,6 @@
 import { PERMISSIONS, countLabel, type InventoryCountSummary } from '@joyeria/shared';
 import { useMemo, useState, type SyntheticEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { ApiError } from '../../lib/api-client.ts';
 import { useCategories } from '../catalog/use-categories.ts';
@@ -116,7 +116,10 @@ function NewCountForm() {
 export function CountsPage() {
   const canManage = useHasPermission(PERMISSIONS.INVENTORY_COUNTS_MANAGE);
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState('all');
+  const [searchParams] = useSearchParams();
+  const [status, setStatus] = useState(
+    searchParams.get('estado') === 'IN_REVIEW' ? 'IN_REVIEW' : 'all',
+  );
   const list = useInventoryCounts({ page, status });
   const rows = list.data?.data ?? [];
   const total = list.data?.meta.total ?? 0;

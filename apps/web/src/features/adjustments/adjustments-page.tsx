@@ -1,6 +1,6 @@
 import { PERMISSIONS, adjustmentLabel, type AdjustmentSummary } from '@joyeria/shared';
 import { useState, type SyntheticEvent } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
@@ -67,7 +67,10 @@ export function AdjustmentsPage() {
   const canApprove = useHasPermission(PERMISSIONS.INVENTORY_ADJUST_APPROVE);
   const canSeeCosts = useHasPermission(PERMISSIONS.COSTS_READ);
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState('all');
+  const [searchParams] = useSearchParams();
+  const [status, setStatus] = useState(
+    searchParams.get('estado') === 'PENDING' ? 'PENDING' : 'all',
+  );
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [skuDraft, setSkuDraft] = useState('');

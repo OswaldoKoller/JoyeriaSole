@@ -16,7 +16,9 @@ type Tab = 'precios' | 'pendientes' | 'historial';
 export function PricingPage() {
   const canApprove = useHasPermission(PERMISSIONS.PRICES_APPROVE);
   const [params] = useSearchParams();
-  const [tab, setTab] = useState<Tab>('precios');
+  const [tab, setTab] = useState<Tab>(
+    params.get('tab') === 'pendientes' ? 'pendientes' : 'precios',
+  );
   const pendingCount = usePendingCount(canApprove);
   const tabs: { id: Tab; label: string }[] = [
     { id: 'precios', label: 'Precios' },
