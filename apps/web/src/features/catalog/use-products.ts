@@ -5,6 +5,7 @@ import type {
   CreateVariantInput,
   Product,
   UpdateProductInput,
+  UpdateVariantStatusInput,
 } from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
@@ -38,6 +39,15 @@ export function useUpdateProduct() {
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateProductInput }) =>
       api.patch<{ data: Product }>(`/products/${id}`, input),
+    onSuccess: refresh,
+  });
+}
+
+export function useUpdateVariantStatus() {
+  const refresh = useRefreshProducts();
+  return useMutation({
+    mutationFn: ({ variantId, input }: { variantId: string; input: UpdateVariantStatusInput }) =>
+      api.patch<{ data: Product }>(`/products/variants/${variantId}/status`, input),
     onSuccess: refresh,
   });
 }

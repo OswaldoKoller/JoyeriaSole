@@ -66,14 +66,19 @@ export const updateProductSchema = z
     name: z.string().trim().min(1).max(200).optional(),
     description: z.string().trim().max(2000).nullable().optional(),
     model: z.string().trim().max(100).nullable().optional(),
+    /** Desactivar se bloquea si alguna variante tiene stock (P-22). */
+    status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Indique al menos un cambio');
+
+export const updateVariantStatusSchema = z.object({ status: z.enum(['ACTIVE', 'INACTIVE']) });
 
 export const assignBarcodeSchema = z.object({ barcode: z.string().trim().min(1).max(64) });
 
 export type Product = z.infer<typeof productSchema>;
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+export type UpdateVariantStatusInput = z.infer<typeof updateVariantStatusSchema>;
 export type AssignBarcodeInput = z.infer<typeof assignBarcodeSchema>;
 export type ConfigureAxesInput = z.infer<typeof configureAxesSchema>;
 export type CreateVariantInput = z.infer<typeof createVariantSchema>;

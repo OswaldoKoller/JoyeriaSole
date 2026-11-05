@@ -4,8 +4,9 @@ import type {
   CreateProductInput,
   CreateVariantInput,
   UpdateProductInput,
+  UpdateVariantStatusInput,
 } from '@joyeria/shared';
-import { PERMISSIONS } from '@joyeria/shared';
+import { ERROR_CODES, PERMISSIONS } from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import type { Prisma } from '../../generated/prisma/client.ts';
 import {
@@ -66,6 +67,43 @@ function toResponse(product: ProductWithDetails, showStock = false) {
         })()),
     })),
   };
+}
+
+/**
+ * P-22: un producto o una variante con stock no se desactiva. Bloquea (FOR UPDATE, en orden fijo
+ * para no interbloquear con la confirmación de ingresos) los saldos de las variantes indicadas y
+ * lanza BusinessRuleError con código estable si alguno es mayor que cero.
+ */
+async function assertNoStock(
+  tx: Prisma.TransactionClient,
+  scope: { productId: string } | { variantId: string },
+) {
+  const rows =
+    'productId' in scope
+      ? await tx.$queryRaw<{ sku: string; quantity: number }[]>`
+          SELECT v.sku, b.quantity
+          FROM inventory_balances b
+          JOIN product_variants v ON v.id = b.variant_id
+          WHERE v.product_id = ${scope.productId}::uuid
+          ORDER BY b.variant_id
+          FOR UPDATE OF b`
+      : await tx.$queryRaw<{ sku: string; quantity: number }[]>`
+          SELECT v.sku, b.quantity
+          FROM inventory_balances b
+          JOIN product_variants v ON v.id = b.variant_id
+          WHERE b.variant_id = ${scope.variantId}::uuid
+          ORDER BY b.variant_id
+          FOR UPDATE OF b`;
+  const withStock = rows.filter((row) => row.quantity > 0);
+  if (withStock.length === 0) return;
+  const pieces = withStock.reduce((sum, row) => sum + row.quantity, 0);
+  const subject = 'productId' in scope ? 'el producto' : 'la variante';
+  throw new BusinessRuleError(
+    `No se puede desactivar ${subject}: tiene ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'} en stock. ` +
+      'Registre primero un ajuste de salida hasta dejarlo en cero.',
+    { variants: withStock.map((row) => ({ sku: row.sku, quantity: row.quantity })) },
+    ERROR_CODES.STOCK_BLOCKS_DEACTIVATION,
+  );
 }
 
 export class ProductsService {
@@ -209,15 +247,66 @@ export class ProductsService {
     return this.prisma.$transaction(async (tx) => {
       const previous = await tx.product.findUnique({ where: { id }, include: withDetails });
       if (!previous) throw new NotFoundError('Producto no encontrado');
+      const deactivating = input.status === 'INACTIVE' && previous.status !== 'INACTIVE';
+      if (deactivating) await assertNoStock(tx, { productId: id });
       const updated = await tx.product.update({ where: { id }, data: input, include: withDetails });
       const before = toResponse(previous);
       const after = toResponse(updated);
       await recordAudit(
         tx,
-        { action: 'product.updated', entityType: 'Product', entityId: id, before, after },
+        {
+          action:
+            previous.status !== updated.status
+              ? updated.status === 'INACTIVE'
+                ? 'product.deactivated'
+                : 'product.activated'
+              : 'product.updated',
+          entityType: 'Product',
+          entityId: id,
+          before,
+          after,
+        },
         request,
       );
       return after;
+    });
+  }
+
+  /** Activa o desactiva una variante. Desactivar se bloquea con stock disponible (P-22). */
+  async updateVariantStatus(
+    variantId: string,
+    input: UpdateVariantStatusInput,
+    request: FastifyRequest,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM product_variants WHERE id = ${variantId}::uuid FOR UPDATE`;
+      const previous = await tx.productVariant.findUnique({ where: { id: variantId } });
+      if (!previous) throw new NotFoundError('Variante no encontrada');
+      if (input.status === 'INACTIVE' && previous.status !== 'INACTIVE') {
+        await assertNoStock(tx, { variantId });
+      }
+      if (previous.status !== input.status) {
+        await tx.productVariant.update({
+          where: { id: variantId },
+          data: { status: input.status },
+        });
+        await recordAudit(
+          tx,
+          {
+            action: input.status === 'INACTIVE' ? 'variant.deactivated' : 'variant.activated',
+            entityType: 'ProductVariant',
+            entityId: variantId,
+            before: { status: previous.status },
+            after: { status: input.status },
+          },
+          request,
+        );
+      }
+      const product = await tx.product.findUniqueOrThrow({
+        where: { id: previous.productId },
+        include: withDetails,
+      });
+      return toResponse(product);
     });
   }
 

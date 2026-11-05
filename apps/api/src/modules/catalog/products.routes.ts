@@ -6,6 +6,7 @@ import {
   createVariantSchema,
   productSchema,
   updateProductSchema,
+  updateVariantStatusSchema,
 } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -88,6 +89,16 @@ export const productsRoutes: FastifyPluginAsyncZod = async (app) => {
       schema: { params: idParams, body: updateProductSchema, response: { 200: item } },
     },
     async (request) => ({ data: await service.update(request.params.id, request.body, request) }),
+  );
+  app.patch(
+    '/variants/:id/status',
+    {
+      preHandler: app.requirePermission(PERMISSIONS.CATALOG_MANAGE),
+      schema: { params: idParams, body: updateVariantStatusSchema, response: { 200: item } },
+    },
+    async (request) => ({
+      data: await service.updateVariantStatus(request.params.id, request.body, request),
+    }),
   );
   app.patch(
     '/variants/:id/barcode',

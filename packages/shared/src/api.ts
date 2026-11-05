@@ -12,6 +12,10 @@ export const ERROR_CODES = {
   NOT_FOUND: 'NOT_FOUND', // 404
   CONFLICT: 'CONFLICT', // 409 — duplicados (SKU, código de barras...), estado inconsistente
   BUSINESS_RULE_VIOLATION: 'BUSINESS_RULE_VIOLATION', // 422 — regla de negocio incumplida
+  /** 403 — la clave es temporal: solo se permite cambiarla (o cerrar sesión) hasta hacerlo (F2). */
+  PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',
+  /** 422 — no se desactiva un producto o variante con stock disponible (P-22). */
+  STOCK_BLOCKS_DEACTIVATION: 'STOCK_BLOCKS_DEACTIVATION',
   RATE_LIMITED: 'RATE_LIMITED', // 429
   INTERNAL_ERROR: 'INTERNAL_ERROR', // 500 — nunca expone detalles internos
 } as const;

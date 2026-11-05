@@ -7,9 +7,34 @@ import { useHasPermission } from '../auth/use-auth.ts';
 import { BarcodePreview } from './barcode-preview.tsx';
 import { ProductForm } from './product-form.tsx';
 import { ConfigureAxesForm, CreateVariantForm } from './variant-forms.tsx';
-import { useAssignBarcode, useGenerateBarcode, useProducts } from './use-products.ts';
+import {
+  useAssignBarcode,
+  useGenerateBarcode,
+  useProducts,
+  useUpdateProduct,
+  useUpdateVariantStatus,
+} from './use-products.ts';
 
 const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
+
+/** P-22: con stock no se desactiva. Texto que acompaña al botón deshabilitado. */
+function stockBlockMessage(subject: 'el producto' | 'la variante', pieces: number) {
+  return `No se puede desactivar ${subject}: tiene ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'} en stock. Registre primero un ajuste de salida hasta dejarlo en cero.`;
+}
+
+type Variant = Product['variants'][number];
+
+function variantBlocked(variant: Variant) {
+  return variant.status === 'ACTIVE' && (variant.stockQuantity ?? 0) > 0;
+}
+
+function productStock(product: Product) {
+  return product.variants.reduce((sum, variant) => sum + (variant.stockQuantity ?? 0), 0);
+}
+
+function productBlocked(product: Product) {
+  return product.status !== 'INACTIVE' && productStock(product) > 0;
+}
 
 export function ProductsPage() {
   const canManage = useHasPermission(PERMISSIONS.CATALOG_MANAGE);
@@ -27,6 +52,8 @@ export function ProductsPage() {
   const list = useProducts(page, search);
   const assign = useAssignBarcode();
   const generate = useGenerateBarcode();
+  const updateProduct = useUpdateProduct();
+  const updateVariant = useUpdateVariantStatus();
   const products = list.data?.data ?? [];
   const total = list.data?.meta.total ?? 0;
 
@@ -55,6 +82,29 @@ export function ProductsPage() {
       await generate.mutateAsync(variantId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No se pudo generar el código');
+    }
+  }
+
+  async function toggleProduct(product: Product) {
+    const status = product.status === 'INACTIVE' ? 'ACTIVE' : 'INACTIVE';
+    setError('');
+    try {
+      await updateProduct.mutateAsync({ id: product.id, input: { status } });
+    } catch (cause) {
+      // Incluye el mensaje de la API cuando hay stock (STOCK_BLOCKS_DEACTIVATION).
+      setError(cause instanceof Error ? cause.message : 'No se pudo cambiar el estado');
+    }
+  }
+
+  async function toggleVariant(variantId: string, current: 'ACTIVE' | 'INACTIVE') {
+    setError('');
+    try {
+      await updateVariant.mutateAsync({
+        variantId,
+        input: { status: current === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' },
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No se pudo cambiar el estado');
     }
   }
 
@@ -137,24 +187,48 @@ export function ProductsPage() {
               <article key={product.id} className="rounded-lg border border-stone-200 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <h2 className="font-semibold">{product.name}</h2>
+                    <h2 className="font-semibold">
+                      {product.name}
+                      {product.status !== 'ACTIVE' && (
+                        <span className="ml-2 rounded-full bg-stone-200 px-2 py-0.5 text-xs font-medium text-stone-700">
+                          {product.status === 'INACTIVE' ? 'Inactivo' : 'Borrador'}
+                        </span>
+                      )}
+                    </h2>
                     <p className="text-sm text-stone-600">
                       {product.categoryName}
                       {product.model ? ` · ${product.model}` : ''}
                     </p>
                   </div>
                   {canManage && (
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setEditing(product);
-                        setCreating(false);
-                      }}
-                    >
-                      Editar {product.name}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setEditing(product);
+                          setCreating(false);
+                        }}
+                      >
+                        Editar {product.name}
+                      </Button>
+                      <Button
+                        variant={product.status === 'INACTIVE' ? 'secondary' : 'danger'}
+                        disabled={updateProduct.isPending || productBlocked(product)}
+                        aria-describedby={
+                          productBlocked(product) ? `block-${product.id}` : undefined
+                        }
+                        onClick={() => void toggleProduct(product)}
+                      >
+                        {product.status === 'INACTIVE' ? 'Activar' : 'Desactivar'} {product.name}
+                      </Button>
+                    </div>
                   )}
                 </div>
+                {canManage && productBlocked(product) && (
+                  <p id={`block-${product.id}`} className="mt-2 text-sm text-amber-800">
+                    {stockBlockMessage('el producto', productStock(product))}
+                  </p>
+                )}
                 {product.description && (
                   <p className="mt-2 text-sm text-stone-600">{product.description}</p>
                 )}
@@ -233,6 +307,29 @@ export function ProductsPage() {
                       </p>
                       {variant.barcode?.startsWith('SOLE-') && (
                         <BarcodePreview value={variant.barcode} />
+                      )}
+                      {variant.status === 'INACTIVE' && (
+                        <p className="font-medium text-stone-700">Variante inactiva</p>
+                      )}
+                      {canManage && (
+                        <div className="mt-3">
+                          <Button
+                            variant="secondary"
+                            disabled={updateVariant.isPending || variantBlocked(variant)}
+                            aria-describedby={
+                              variantBlocked(variant) ? `block-${variant.id}` : undefined
+                            }
+                            onClick={() => void toggleVariant(variant.id, variant.status)}
+                          >
+                            {variant.status === 'ACTIVE' ? 'Desactivar' : 'Activar'} variante{' '}
+                            {variant.sku}
+                          </Button>
+                          {variantBlocked(variant) && (
+                            <p id={`block-${variant.id}`} className="mt-1 text-amber-800">
+                              {stockBlockMessage('la variante', variant.stockQuantity ?? 0)}
+                            </p>
+                          )}
+                        </div>
                       )}
                       {!variant.barcode && canManage && (
                         <div className="mt-3 flex flex-wrap gap-2">
