@@ -18,6 +18,7 @@ import { categoriesRoutes } from './modules/catalog/categories.routes.ts';
 import { attributesRoutes } from './modules/catalog/attributes.routes.ts';
 import { productsRoutes } from './modules/catalog/products.routes.ts';
 import { adjustmentsRoutes } from './modules/inventory/adjustments.routes.ts';
+import { exchangesRoutes } from './modules/inventory/exchanges.routes.ts';
 import { inventoryRoutes } from './modules/inventory/inventory.routes.ts';
 import { inventoryCountsRoutes } from './modules/inventory-counts/inventory-counts.routes.ts';
 import { stockEntriesRoutes } from './modules/stock-entries/stock-entries.routes.ts';
@@ -87,6 +88,7 @@ export async function buildApp(env: Env) {
       await api.register(productsRoutes, { prefix: '/products' });
       await api.register(inventoryRoutes, { prefix: '/inventory' });
       await api.register(adjustmentsRoutes, { prefix: '/inventory/adjustments' });
+      await api.register(exchangesRoutes, { prefix: '/inventory/exchanges' });
       await api.register(inventoryCountsRoutes, { prefix: '/inventory/counts' });
       await api.register(stockEntriesRoutes, { prefix: '/stock-entries' });
     },
