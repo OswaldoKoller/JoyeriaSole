@@ -257,4 +257,34 @@ describe('inventario: saldos, alertas y stock inicial', () => {
     expect(await ids('?initialOnly=false')).toEqual([withStock.id, pending.id].sort());
     expect(await ids('')).toEqual([withStock.id, pending.id].sort());
   });
+  it('pagina y filtra en la base de datos: total exacto, búsqueda literal y niveles', async () => {
+    const low = await createVariant({ minStock: 3 });
+    const ok = await createVariant({ minStock: 1 });
+    const none = await createVariant();
+    await initial(low.id, 2);
+    await initial(ok.id, 9);
+    const get = async (query: string) => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/inventory${query}`,
+        headers: { cookie },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      return res.json<{
+        data: { variantId: string; level: string }[];
+        meta: { total: number };
+      }>();
+    };
+    const page1 = await get('?page=1&pageSize=1');
+    expect(page1.data).toHaveLength(1);
+    expect(page1.meta.total).toBe(3);
+    expect((await get('?page=3&pageSize=1')).data).toHaveLength(1);
+    expect((await get('?page=4&pageSize=1')).data).toHaveLength(0);
+    expect((await get('?level=OUT')).data.map((i) => i.variantId)).toEqual([none.id]);
+    expect((await get('?level=LOW')).data.map((i) => i.variantId)).toEqual([low.id]);
+    expect((await get('?level=OK')).data.map((i) => i.variantId)).toEqual([ok.id]);
+    // Los comodines de LIKE se tratan como texto literal.
+    expect((await get('?q=%25')).meta.total).toBe(0);
+    expect((await get('?q=_')).meta.total).toBe(0);
+  });
 });

@@ -1,5 +1,6 @@
 import type { InitialStockInput, InventoryItem } from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
+import { Prisma } from '../../generated/prisma/client.ts';
 import { BusinessRuleError, NotFoundError } from '../../lib/errors.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
@@ -8,6 +9,11 @@ import { recordAudit } from '../audit/audit.service.ts';
 export class InventoryService {
   constructor(private readonly prisma: PrismaClient) {}
 
+  /**
+   * Saldos y alertas. El filtro, el orden y la paginación se hacen en la base de datos (con ~2000
+   * piezas, cargar todo y paginar en memoria tardaba ~2 s por consulta y el Inicio hace varias).
+   * SQL con plantilla etiquetada: nada se concatena.
+   */
   async list(input: {
     page: number;
     pageSize: number;
@@ -15,53 +21,72 @@ export class InventoryService {
     level: string;
     initialOnly: boolean;
   }) {
-    const variants = await this.prisma.productVariant.findMany({
-      where: {
-        status: 'ACTIVE',
-        product: { status: 'ACTIVE' },
-        ...(input.q && {
-          OR: [
-            { sku: { contains: input.q, mode: 'insensitive' as const } },
-            { barcode: { contains: input.q, mode: 'insensitive' as const } },
-            { product: { name: { contains: input.q, mode: 'insensitive' as const } } },
-          ],
-        }),
-      },
-      include: { product: true, inventory: true, _count: { select: { movements: true } } },
-      orderBy: [{ product: { name: 'asc' } }, { sku: 'asc' }],
+    const like = `%${input.q.replace(/[\\%_]/g, '\\$&')}%`;
+    const search = input.q
+      ? Prisma.sql`AND (v.sku ILIKE ${like} OR v.barcode ILIKE ${like} OR p.name ILIKE ${like})`
+      : Prisma.empty;
+    const quantity = Prisma.sql`COALESCE(b.quantity, 0)`;
+    const level =
+      input.level === 'OUT'
+        ? Prisma.sql`AND ${quantity} = 0`
+        : input.level === 'LOW'
+          ? Prisma.sql`AND v.min_stock > 0 AND ${quantity} <= v.min_stock`
+          : input.level === 'OK'
+            ? Prisma.sql`AND ${quantity} > 0 AND NOT (v.min_stock > 0 AND ${quantity} <= v.min_stock)`
+            : Prisma.empty;
+    const noMovements = Prisma.sql`NOT EXISTS (SELECT 1 FROM inventory_movements m WHERE m.variant_id = v.id)`;
+    const initial = input.initialOnly
+      ? Prisma.sql`AND ${quantity} = 0 AND ${noMovements}`
+      : Prisma.empty;
+    const from = Prisma.sql`
+      FROM product_variants v
+      JOIN products p ON p.id = v.product_id
+      LEFT JOIN inventory_balances b ON b.variant_id = v.id
+      WHERE v.status = 'ACTIVE' AND p.status = 'ACTIVE' ${search} ${level} ${initial}`;
+    const offset = (input.page - 1) * input.pageSize;
+    const [rows, counted] = await this.prisma.$transaction([
+      this.prisma.$queryRaw<
+        {
+          id: string;
+          product_name: string;
+          label: string | null;
+          sku: string;
+          barcode: string | null;
+          quantity: number;
+          min_stock: number;
+          can_initialize: boolean;
+        }[]
+      >(Prisma.sql`
+        SELECT v.id, p.name AS product_name, v.label, v.sku, v.barcode,
+               ${quantity}::int AS quantity, v.min_stock,
+               (${quantity} = 0 AND ${noMovements}) AS can_initialize
+        ${from}
+        ORDER BY p.name ASC, v.sku ASC
+        LIMIT ${input.pageSize} OFFSET ${offset}`),
+      this.prisma.$queryRaw<{ total: number }[]>(Prisma.sql`SELECT COUNT(*)::int AS total ${from}`),
+    ]);
+    const data = rows.map((row) => {
+      const itemLevel: InventoryItem['level'] =
+        row.quantity === 0
+          ? 'OUT'
+          : row.min_stock > 0 && row.quantity <= row.min_stock
+            ? 'LOW'
+            : 'OK';
+      return {
+        variantId: row.id,
+        productName: row.product_name,
+        variantLabel: row.label,
+        sku: row.sku,
+        barcode: row.barcode,
+        quantity: row.quantity,
+        minStock: row.min_stock,
+        canInitialize: row.can_initialize,
+        level: itemLevel,
+      };
     });
-    const items = variants
-      .map((variant) => {
-        const quantity = variant.inventory?.quantity ?? 0;
-        const level: InventoryItem['level'] =
-          quantity === 0
-            ? 'OUT'
-            : variant.minStock > 0 && quantity <= variant.minStock
-              ? 'LOW'
-              : 'OK';
-        return {
-          variantId: variant.id,
-          productName: variant.product.name,
-          variantLabel: variant.label,
-          sku: variant.sku,
-          barcode: variant.barcode,
-          quantity,
-          minStock: variant.minStock,
-          canInitialize: quantity === 0 && variant._count.movements === 0,
-          level,
-        };
-      })
-      .filter(
-        (item) =>
-          input.level === 'all' ||
-          (input.level === 'LOW'
-            ? item.minStock > 0 && item.quantity <= item.minStock
-            : item.level === input.level),
-      )
-      .filter((item) => !input.initialOnly || item.canInitialize);
     return {
-      data: items.slice((input.page - 1) * input.pageSize, input.page * input.pageSize),
-      meta: { page: input.page, pageSize: input.pageSize, total: items.length },
+      data,
+      meta: { page: input.page, pageSize: input.pageSize, total: counted[0]?.total ?? 0 },
     };
   }
 
