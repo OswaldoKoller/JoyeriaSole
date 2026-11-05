@@ -59,6 +59,21 @@ Se conservan aserciones y plazos de las pruebas.
   previa de etiquetas (estilo `@page` y SVG), el Administrador elimina una ficha sin movimientos y el Vendedor
   solo consulta. La vista de impresión se verifica con `page.emulateMedia({ media: 'print' })`.
 
+## Fotos de producto (S3)
+
+- Unitarias `image-processing.test.ts`: firma de bytes (JPEG/PNG/WebP; SVG, HTML, GIF, EXE y RIFF/WAVE
+  rechazados), reducción a 1200 px, sin ampliar, re-codificación a WebP sin EXIF ni contenido añadido
+  (políglota), archivo dañado y tope de píxeles.
+- Integración `product-photos.test.ts`: 401/403/400/404, subida y reducción, formatos, archivo no imagen
+  renombrado, imagen dañada, 413 por tamaño, un archivo por petición, 6.ª foto (422) y subidas concurrentes,
+  lectura con ETag/304/cabeceras seguras (el Vendedor la ve), listados sin bytes, portada única (también en la
+  base), reorden con conjunto exacto, borrado con reasignación de portada, auditoría y borrado físico del
+  producto con sus fotos. Helpers: `test/helpers/images.ts` (`makeImage`, `multipartPayload`).
+- Web (Vitest) `photos.test.tsx` y `photo-files.test.ts`: miniatura con texto alternativo, subida multipart,
+  validación previa, errores de la API, límite de 5, galería con y sin permiso y confirmación al eliminar.
+- E2E `s3-product-photos.spec.ts`: el Responsable sube (archivo falso rechazado por contenido), marca portada,
+  reordena, elimina con confirmación y llega al límite de 5; el Vendedor solo ve y la API le niega la subida.
+
 ## Qué debe probarse en la Fase 1 (obligatorio)
 
 - Cada endpoint: 401 sin sesión, 403 sin permiso, 400 con datos inválidos, caso feliz.

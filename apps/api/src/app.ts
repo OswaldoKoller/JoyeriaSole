@@ -56,7 +56,7 @@ export async function buildApp(env: Env) {
     genReqId: () => randomUUID(),
     requestIdHeader: false,
     trustProxy: env.TRUST_PROXY ?? false,
-    bodyLimit: 1024 * 1024, // 1 MiB: la API solo recibe JSON. Archivos: PENDIENTE (P-14).
+    bodyLimit: 1024 * 1024, // 1 MiB: JSON. Las fotos (multipart, 5 MB) tienen sus propios límites: ADR-020.
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);

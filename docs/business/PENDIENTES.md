@@ -69,12 +69,12 @@ Las filas siguientes conservan el planteamiento original de cada pregunta y su p
 
 ## Infraestructura
 
-| ID   | Decisión                                                                                   | Estado | Lo preparado hoy                                                         | Alternativas                            |
-| ---- | ------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------ | --------------------------------------- |
-| P-14 | **Archivos**: fotos de productos, escaneo de documentos de recepción.                      | 🟡     | Sin almacenamiento de archivos (la API solo acepta JSON de hasta 1 MiB). | a) No por ahora · b) Cloudflare R2 / S3 |
-| P-16 | **Identidad visual** (logo, colores).                                                      | 🟡     | Paleta dorada provisional en `apps/web/src/index.css`.                   | —                                       |
-| P-18 | **Proveedor de hosting**, dominio y presupuesto mensual.                                   | 🟡     | Recomendación en `docs/deployment/DEPLOYMENT.md`.                        | Render · Railway · VPS                  |
-| P-26 | **RPO/RTO** aceptables (cuántos datos se pueden perder y cuánto tiempo puede estar caído). | 🟡     | Propuesta en `docs/deployment/BACKUPS.md`.                               | —                                       |
+| ID   | Decisión                                                                                                                        | Estado | Lo preparado hoy                                                                                         | Alternativas                                   |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| P-14 | **Archivos**: fotos de productos (resuelto en S3: PostgreSQL, ADR-020); escaneo de documentos de recepción (sigue sin decidir). | 🟡     | Fotos implementadas (hasta 5 por producto, ADR-020). Los documentos escaneados no tienen almacenamiento. | a) No por ahora · b) Reutilizar `PhotoStorage` |
+| P-16 | **Identidad visual** (logo, colores).                                                                                           | 🟡     | Paleta dorada provisional en `apps/web/src/index.css`.                                                   | —                                              |
+| P-18 | **Proveedor de hosting**, dominio y presupuesto mensual.                                                                        | 🟡     | Recomendación en `docs/deployment/DEPLOYMENT.md`.                                                        | Render · Railway · VPS                         |
+| P-26 | **RPO/RTO** aceptables (cuántos datos se pueden perder y cuánto tiempo puede estar caído).                                      | 🟡     | Propuesta en `docs/deployment/BACKUPS.md`.                                                               | —                                              |
 
 ## Decisiones nuevas descubiertas en S2 (catálogo completo)
 
