@@ -6,7 +6,8 @@
 //   - Modelos en PascalCase → tablas en snake_case plural (@@map).
 //   - Campos en camelCase → columnas en snake_case (@map).
 //   - IDs UUID v7 (ordenables por tiempo) salvo tablas de alto volumen append-only (BigInt).
-//   - Dinero en Decimal (nunca Float). Moneda única: bolivianos (P-10 aprobado).
+//   - Dinero en Decimal (nunca Float). El sistema opera en bolivianos; los ingresos pueden comprarse
+//     en dólares con tipo de cambio por ingreso (ADR-016).
 //   - Cantidades de stock en Int (unidades). Ver PENDIENTE P-09.
 // =============================================================================
 
@@ -51,6 +52,8 @@ model User {
   countedItems             InventoryCountItem[]
   adjustmentsRequested     InventoryAdjustment[]   @relation("InventoryAdjustmentRequestedBy")
   adjustmentsResolved      InventoryAdjustment[]   @relation("InventoryAdjustmentResolvedBy")
+  priceChangesRequested   PriceChange[]        @relation("PriceChangeRequestedBy")
+  priceChangesDecided     PriceChange[]        @relation("PriceChangeDecidedBy")
 
   @@map("users")
 }
@@ -252,15 +255,17 @@ enum ProductStatus {
 }
 
 model Product {
-  id          String        @id @default(uuid(7)) @db.Uuid
-  categoryId  String        @map("category_id") @db.Uuid
-  name        String        @db.VarChar(200)
-  description String?
+  id                String        @id @default(uuid(7)) @db.Uuid
+  categoryId        String        @map("category_id") @db.Uuid
+  name              String        @db.VarChar(200)
+  description       String?
   /// Modelo / referencia comercial del producto.
-  model       String?       @db.VarChar(100)
-  status      ProductStatus @default(ACTIVE)
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  model             String?       @db.VarChar(100)
+  status            ProductStatus @default(ACTIVE)
+  /// Ficha creada desde un ingreso con datos mínimos (C1): falta completarla. No bloquea la pieza.
+  profileIncomplete Boolean       @default(false) @map("profile_incomplete")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   category        Category                @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   variants        ProductVariant[]
@@ -341,10 +346,72 @@ model ProductVariant {
   countScans       InventoryCountScan[]
   countFindings    InventoryCountFinding[]
   adjustmentItems  InventoryAdjustmentItem[]
+  priceChanges     PriceChange[]
 
   @@index([productId])
   @@index([status])
   @@map("product_variants")
+}
+
+// -----------------------------------------------------------------------------
+// PRECIOS DE VENTA (ADR-018)
+//   El precio de cada variante lo fija el cliente a mano. Todo cambio pasa por `price_changes`:
+//   el Responsable solicita (PENDING) y el Administrador aprueba/rechaza, o cambia directamente.
+// -----------------------------------------------------------------------------
+
+enum PriceChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@map("price_change_status")
+}
+
+enum PriceChangeOrigin {
+  /// Solicitado por quien tiene `prices:propose` y decidido por un Administrador.
+  REQUEST
+  /// Cambio directo del Administrador: queda aprobado por él mismo.
+  ADMIN_DIRECT
+  /// Precio fijado al crear la pieza o variante.
+  INITIAL
+
+  @@map("price_change_origin")
+}
+
+/// Historial de precios de venta por variante. Inmutable una vez resuelto (trigger en base de datos).
+model PriceChange {
+  id              String            @id @default(uuid(7)) @db.Uuid
+  variantId       String            @map("variant_id") @db.Uuid
+  /// Precio vigente cuando se registró el cambio; se revalida al aprobar.
+  previousPrice   Decimal           @map("previous_price") @db.Decimal(12, 2)
+  newPrice        Decimal           @map("new_price") @db.Decimal(12, 2)
+  status          PriceChangeStatus @default(PENDING)
+  origin          PriceChangeOrigin
+  requestedById   String            @map("requested_by_id") @db.Uuid
+  /// Quien aprobó, rechazó o canceló (en ADMIN_DIRECT e INITIAL es el mismo solicitante).
+  decidedById     String?           @map("decided_by_id") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  decidedAt       DateTime?         @map("decided_at") @db.Timestamptz(3)
+  /// Motivo indicado por quien registra el cambio (opcional).
+  reason          String?           @db.VarChar(500)
+  /// Comentario de la decisión; obligatorio al rechazar.
+  decisionComment String?           @map("decision_comment") @db.VarChar(500)
+  /// Costo total unitario de la variante al registrar el cambio (solo se muestra con `costs:read`).
+  costSnapshot    Decimal           @map("cost_snapshot") @db.Decimal(12, 4)
+  /// Agrupa los cambios resueltos en una misma operación en masa.
+  batchId         String?           @map("batch_id") @db.Uuid
+
+  variant     ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  requestedBy User           @relation("PriceChangeRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  decidedBy   User?          @relation("PriceChangeDecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+
+  @@index([variantId, createdAt])
+  @@index([status, createdAt])
+  @@index([requestedById])
+  @@index([decidedById])
+  @@index([batchId])
+  @@map("price_changes")
 }
 
 /// Valores de los ejes de variante (solo atributos OPTION).
@@ -367,24 +434,49 @@ model VariantAttributeValue {
 // PROVEEDORES
 // -----------------------------------------------------------------------------
 
+enum SupplierType {
+  NATIONAL
+  FOREIGN
+
+  @@map("supplier_type")
+}
+
+/// Moneda habitual de compra de un proveedor (solo informativa; la moneda del ingreso la define S5).
+enum SupplierCurrency {
+  BOB
+  USD
+
+  @@map("supplier_currency")
+}
+
 model Supplier {
-  id          String   @id @default(uuid(7)) @db.Uuid
-  name        String   @db.VarChar(200)
+  id              String           @id @default(uuid(7)) @db.Uuid
+  name            String           @db.VarChar(200)
+  /// Nacional o del exterior (C8).
+  type            SupplierType     @default(NATIONAL)
+  /// País del proveedor (texto libre, opcional).
+  country         String?          @db.VarChar(80)
   /// NIT u otro identificador tributario.
-  taxId       String?  @unique @map("tax_id") @db.VarChar(30)
-  contactName String?  @map("contact_name") @db.VarChar(120)
-  phone       String?  @db.VarChar(40)
-  email       String?  @db.VarChar(254)
-  address     String?  @db.VarChar(300)
-  notes       String?
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  taxId           String?          @unique @map("tax_id") @db.VarChar(30)
+  contactName     String?          @map("contact_name") @db.VarChar(120)
+  phone           String?          @db.VarChar(40)
+  whatsapp        String?          @db.VarChar(40)
+  email           String?          @db.VarChar(254)
+  address         String?          @db.VarChar(300)
+  /// Moneda habitual de compra; valor sugerido al registrar un ingreso.
+  defaultCurrency SupplierCurrency @default(BOB) @map("default_currency")
+  /// Condiciones de pago (texto libre).
+  paymentTerms    String?          @map("payment_terms") @db.VarChar(300)
+  notes           String?
+  isActive        Boolean          @default(true) @map("is_active")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   products     SupplierProduct[]
   stockEntries StockEntry[]
 
   @@index([name])
+  @@index([type])
   @@map("suppliers")
 }
 
@@ -419,22 +511,31 @@ enum StockEntryStatus {
   @@map("stock_entry_status")
 }
 
+/// Moneda de compra de un ingreso (Q-07): solo bolivianos o dólares. Costos, stock y precios se llevan en Bs.
+enum StockEntryCurrency {
+  BOB
+  USD
+
+  @@map("stock_entry_currency")
+}
+
 model StockEntry {
   id             String           @id @default(uuid(7)) @db.Uuid
   /// Número correlativo interno legible (ING-000123). Formato: PENDIENTE (P-11).
   number         Int              @unique @default(autoincrement())
   supplierId     String           @map("supplier_id") @db.Uuid
   status         StockEntryStatus @default(DRAFT)
-  /// Tipo de documento de respaldo (factura, nota de remisión...). Catálogo: PENDIENTE (P-12).
+  /// Tipo de documento de respaldo (factura, nota de remisión...). Texto libre (P-12).
   documentType   String?          @map("document_type") @db.VarChar(40)
+  /// Puede repetirse entre ingresos: cada entrega parcial es un ingreso propio (C5).
   documentNumber String?          @map("document_number") @db.VarChar(60)
   documentDate   DateTime?        @map("document_date") @db.Date
   receivedAt     DateTime         @default(now()) @map("received_at") @db.Timestamptz(3)
 
-  /// Costos adicionales del ingreso completo. Método de prorrateo: PENDIENTE (P-07).
-  freightCost   Decimal @default(0) @map("freight_cost") @db.Decimal(12, 2)
-  packagingCost Decimal @default(0) @map("packaging_cost") @db.Decimal(12, 2)
-  otherCosts    Decimal @default(0) @map("other_costs") @db.Decimal(12, 2)
+  /// Moneda en que se digitan los precios de compra de los ítems (ADR-016).
+  currency     StockEntryCurrency @default(BOB)
+  /// Bs por cada USD, manual, de este ingreso; queda fijo al confirmar. Solo si currency = USD.
+  exchangeRate Decimal?           @map("exchange_rate") @db.Decimal(8, 4)
 
   notes         String?
   createdById   String    @map("created_by_id") @db.Uuid
@@ -448,26 +549,69 @@ model StockEntry {
   createdBy   User             @relation("StockEntryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   confirmedBy User?            @relation("StockEntryConfirmedBy", fields: [confirmedById], references: [id], onDelete: Restrict)
   items       StockEntryItem[]
+  costs       StockEntryCost[]
 
-  @@index([supplierId])
+  @@index([supplierId, documentNumber])
   @@index([status])
   @@index([receivedAt])
   @@map("stock_entries")
 }
 
+/// Catálogo de tipos de costo adicional de un ingreso (Q-08). Los del sistema los siembra el seed.
+model StockEntryCostType {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  code      String   @unique @db.VarChar(50)
+  name      String   @unique @db.VarChar(100)
+  isActive  Boolean  @default(true) @map("is_active")
+  /// Tipos sembrados por el sistema: no se pueden renombrar ni desactivar.
+  isSystem  Boolean  @default(false) @map("is_system")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  costs StockEntryCost[]
+
+  @@map("stock_entry_cost_types")
+}
+
+/// Línea de costo adicional de un ingreso (lista abierta, ADR-016). Monto en bolivianos.
+model StockEntryCost {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  stockEntryId String   @map("stock_entry_id") @db.Uuid
+  costTypeId   String   @map("cost_type_id") @db.Uuid
+  /// Monto en Bs (> 0, CHECK en base de datos). Se reparte por valor de compra (ADR-015).
+  amount       Decimal  @db.Decimal(12, 2)
+  note         String?  @db.VarChar(300)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  stockEntry StockEntry         @relation(fields: [stockEntryId], references: [id], onDelete: Cascade)
+  costType   StockEntryCostType @relation(fields: [costTypeId], references: [id], onDelete: Restrict)
+
+  @@index([stockEntryId])
+  @@index([costTypeId])
+  @@map("stock_entry_costs")
+}
+
 model StockEntryItem {
-  id            String   @id @default(uuid(7)) @db.Uuid
-  stockEntryId  String   @map("stock_entry_id") @db.Uuid
-  variantId     String   @map("variant_id") @db.Uuid
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  stockEntryId       String   @map("stock_entry_id") @db.Uuid
+  variantId          String   @map("variant_id") @db.Uuid
   /// Cantidad según el documento del proveedor (puede no existir).
-  expectedQty   Int?     @map("expected_qty")
+  expectedQty        Int?     @map("expected_qty")
   /// Cantidad verificada físicamente. Es la que ingresa al stock al confirmar.
-  receivedQty   Int      @map("received_qty")
-  /// Costo unitario de compra.
-  unitCost      Decimal  @map("unit_cost") @db.Decimal(12, 4)
-  /// Costo adicional unitario prorrateado (se fija al confirmar).
-  unitExtraCost Decimal? @map("unit_extra_cost") @db.Decimal(12, 4)
-  notes         String?
+  receivedQty        Int      @map("received_qty")
+  /// Justificación de la diferencia entre cantidad esperada y recibida (C2). Obligatoria para confirmar.
+  differenceReason   String?  @map("difference_reason") @db.VarChar(500)
+  /// Precio de compra unitario tal como se digitó, en la moneda del ingreso (ADR-016).
+  unitPrice          Decimal  @map("unit_price") @db.Decimal(12, 4)
+  /// Costo unitario de compra en Bs (= unitPrice × tipo de cambio, redondeado a 4 decimales).
+  unitCost           Decimal  @map("unit_cost") @db.Decimal(12, 4)
+  /// Costo adicional unitario prorrateado en Bs (se fija al confirmar).
+  unitExtraCost      Decimal? @map("unit_extra_cost") @db.Decimal(12, 4)
+  /// Parte de los costos adicionales asignada al ítem, en Bs (se fija al confirmar; ADR-015).
+  extraCostAllocated Decimal? @map("extra_cost_allocated") @db.Decimal(12, 2)
+  /// Costo total del ítem en Bs = cantidad × costo de compra + costos adicionales asignados (se fija al confirmar).
+  totalCost          Decimal? @map("total_cost") @db.Decimal(14, 4)
+  notes              String?
 
   stockEntry StockEntry     @relation(fields: [stockEntryId], references: [id], onDelete: Cascade)
   variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)

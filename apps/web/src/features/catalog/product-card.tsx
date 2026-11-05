@@ -54,6 +54,15 @@ export function ProductCard({
     }
   }
 
+  async function markComplete() {
+    onError('');
+    try {
+      await updateProduct.mutateAsync({ id: product.id, input: { profileIncomplete: false } });
+    } catch (cause) {
+      onError(cause instanceof Error ? cause.message : 'No se pudo actualizar la ficha');
+    }
+  }
+
   async function remove() {
     onError('');
     try {
@@ -77,6 +86,16 @@ export function ProductCard({
             {product.categoryName}
             {product.model ? ` · ${product.model}` : ''}
           </p>
+          {canManage && product.profileIncomplete && product.status !== 'INACTIVE' && (
+            <button
+              type="button"
+              className="min-h-8 text-xs text-brand-700 underline"
+              disabled={updateProduct.isPending}
+              onClick={() => void markComplete()}
+            >
+              Marcar ficha de {product.name} como completa
+            </button>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Link

@@ -76,7 +76,7 @@ test.describe('Responsable de inventario', () => {
     await expect(page.getByText('<Tipo de pieza> <rasgo principal> <modelo>')).toBeVisible();
     await page.getByLabel('Categoría', { exact: true }).selectOption({ label: 'DEMO Anillos' });
     await page.getByLabel('Nombre del producto').fill('E2E Anillo corazón con circonia');
-    await expect(page.getByLabel('Precio de venta (neto)')).toHaveCount(0); // sin prices:manage
+    await expect(page.getByLabel('Precio de venta inicial')).toHaveCount(0); // sin prices:approve
     await page.getByLabel('Variante por Material').check();
     await page
       .getByLabel('Valor de Material (primera variante)')

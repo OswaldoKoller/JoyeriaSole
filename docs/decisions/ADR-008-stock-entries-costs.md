@@ -1,6 +1,7 @@
 # ADR-008: Ingresos de mercadería y costos
 
 - **Estado:** Aceptado (método de prorrateo y de costeo PENDIENTE P-07)
+- **Nota (2026-11-06):** la regla «costo × 2» sigue sin implementarse y fue **descartada**; la aprobación e historial de precios (P-25) están en [ADR-018](ADR-018-aprobacion-e-historial-de-precios.md).
 - **Fecha:** 2026-10-06
 
 ## Decisión

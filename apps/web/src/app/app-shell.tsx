@@ -12,6 +12,7 @@ import {
   FolderTree,
   Gem,
   LayoutDashboard,
+  ListPlus,
   LogOut,
   Menu,
   Package,
@@ -35,6 +36,8 @@ type Item = {
   /** Parámetro de búsqueda que distingue entradas que comparten ruta (p. ej. ?accion=inicial). */
   query?: string;
   permission?: Permission;
+  /** Visible con AL MENOS UNO de estos permisos (alternativa a `permission`). */
+  anyOf?: Permission[];
   end?: boolean;
 };
 type Group = { label: string; items: Item[] };
@@ -49,6 +52,12 @@ const GROUPS: Group[] = [
     label: 'Catálogo',
     items: [
       { label: 'Productos', to: '/productos', icon: Package, permission: PERMISSIONS.CATALOG_READ },
+      {
+        label: 'Precios',
+        to: '/precios',
+        icon: Tag,
+        anyOf: [PERMISSIONS.PRICES_PROPOSE, PERMISSIONS.PRICES_APPROVE],
+      },
       {
         label: 'Categorías',
         to: '/categorias',
@@ -119,6 +128,12 @@ const GROUPS: Group[] = [
         to: '/ingresos',
         icon: FilePlus2,
         permission: PERMISSIONS.STOCK_ENTRIES_READ,
+      },
+      {
+        label: 'Tipos de costo',
+        to: '/configuracion/tipos-de-costo',
+        icon: ListPlus,
+        permission: PERMISSIONS.SETTINGS_MANAGE,
       },
     ],
   },
@@ -257,7 +272,9 @@ export function AppShell() {
         >
           {GROUPS.map((group) => {
             const visible = group.items.filter(
-              (item) => !item.permission || permissions.includes(item.permission),
+              (item) =>
+                (!item.permission || permissions.includes(item.permission)) &&
+                (!item.anyOf || item.anyOf.some((permission) => permissions.includes(permission))),
             );
             if (visible.length === 0) return null;
             return (

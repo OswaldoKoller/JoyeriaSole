@@ -1,17 +1,10 @@
+import type { StockEntryCurrency } from '@joyeria/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type SyntheticEvent } from 'react';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
-import type { Line, Preview } from './lines.ts';
+import type { Line } from './lines.ts';
 import { searchVariants, useVariantSearch, variantSearchKey } from './use-stock-entries.ts';
-
-const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
-const unitCurrency = new Intl.NumberFormat('es-BO', {
-  style: 'currency',
-  currency: 'BOB',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
 
 interface VariantPickerProps {
   existing: ReadonlySet<string>;
@@ -111,25 +104,37 @@ function VariantPicker({ existing, onAdd }: VariantPickerProps) {
 
 interface ItemsProps {
   lines: Line[];
+  currency: StockEntryCurrency;
   editable: boolean;
   /** Mientras se guarda, los campos se bloquean para no perder lo que se escriba en ese instante. */
   saving?: boolean;
-  preview: Preview | null;
   errors: Record<string, string>;
   onChange: (lines: Line[]) => void;
 }
 
+const money = (value: string, currency: StockEntryCurrency) =>
+  value === ''
+    ? '—'
+    : new Intl.NumberFormat('es-BO', {
+        style: 'currency',
+        currency: currency === 'USD' ? 'USD' : 'BOB',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 4,
+      }).format(Number(value));
+
+/** Ítems del borrador: cantidades, precio de compra en la moneda del ingreso y diferencias (C2). */
 export function StockEntryItems({
   lines,
+  currency,
   editable,
   saving = false,
-  preview,
   errors,
   onChange,
 }: ItemsProps) {
   const update = (variantId: string, patch: Partial<Line>) => {
     onChange(lines.map((line) => (line.variantId === variantId ? { ...line, ...patch } : line)));
   };
+  const priceLabel = `Precio de compra (${currency === 'USD' ? 'USD' : 'Bs'})`;
 
   return (
     <section
@@ -146,7 +151,15 @@ export function StockEntryItems({
             onAdd={(variant) => {
               onChange([
                 ...lines,
-                { ...variant, expectedQty: '', receivedQty: '1', unitCost: '0', notes: '' },
+                {
+                  ...variant,
+                  profileIncomplete: false,
+                  expectedQty: '',
+                  receivedQty: '1',
+                  unitPrice: '0',
+                  differenceReason: '',
+                  notes: '',
+                },
               ]);
             }}
           />
@@ -163,9 +176,7 @@ export function StockEntryItems({
                   <th className="py-2 pr-3">Esperada</th>
                   <th className="py-2 pr-3">Recibida</th>
                   <th className="py-2 pr-3">Diferencia</th>
-                  <th className="py-2 pr-3">Costo de compra</th>
-                  <th className="py-2 pr-3">Adicional por pieza</th>
-                  <th className="py-2 pr-3">Costo total por pieza</th>
+                  <th className="py-2 pr-3">{priceLabel}</th>
                   {editable && <th className="py-2">Quitar</th>}
                 </tr>
               </thead>
@@ -177,17 +188,52 @@ export function StockEntryItems({
                     expected !== null && Number.isFinite(received) && Number.isFinite(expected)
                       ? received - expected
                       : null;
-                  const costs = preview?.perVariant.get(line.variantId);
+                  const reasonId = `reason-${line.variantId}`;
                   return (
                     <tr key={line.variantId} className="border-b border-stone-100 align-top">
                       <td className="py-3 pr-3">
                         <span className="block font-medium">{line.productName}</span>
-                        <span className="block text-xs text-stone-500">
+                        <span className="block text-xs font-normal text-stone-500">
                           {line.variantLabel && line.variantLabel !== 'Única'
                             ? `${line.variantLabel} · `
                             : ''}
                           <span className="font-mono">{line.sku}</span>
                         </span>
+                        {line.profileIncomplete && (
+                          <span className="mt-1 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                            Ficha incompleta
+                          </span>
+                        )}
+                        {difference !== null && difference !== 0 && (
+                          <span className="mt-2 block text-left font-normal">
+                            {editable ? (
+                              <>
+                                <label
+                                  htmlFor={reasonId}
+                                  className="block text-xs font-medium text-amber-800"
+                                >
+                                  Justificación de la diferencia de {line.sku}
+                                </label>
+                                <input
+                                  id={reasonId}
+                                  value={line.differenceReason}
+                                  onChange={(event) => {
+                                    update(line.variantId, {
+                                      differenceReason: event.target.value,
+                                    });
+                                  }}
+                                  maxLength={500}
+                                  placeholder="Obligatoria para confirmar"
+                                  className="mt-1 block min-h-10 w-full rounded-lg border border-stone-300 px-2 py-1 text-sm"
+                                />
+                              </>
+                            ) : (
+                              <span className="block text-xs text-stone-600">
+                                Justificación: {line.differenceReason || '—'}
+                              </span>
+                            )}
+                          </span>
+                        )}
                         {errors[line.variantId] && (
                           <span role="alert" className="mt-1 block text-xs text-red-700">
                             {errors[line.variantId]}
@@ -233,26 +279,20 @@ export function StockEntryItems({
                           </span>
                         )}
                       </td>
-                      <td data-label="Costo de compra" className="py-3 pr-3">
+                      <td data-label={priceLabel} className="py-3 pr-3">
                         {editable ? (
                           <input
-                            aria-label={`Costo unitario de ${line.sku}`}
-                            value={line.unitCost}
+                            aria-label={`Precio de compra de ${line.sku}`}
+                            value={line.unitPrice}
                             onChange={(event) => {
-                              update(line.variantId, { unitCost: event.target.value });
+                              update(line.variantId, { unitPrice: event.target.value });
                             }}
                             inputMode="decimal"
                             className="min-h-10 w-28 rounded-lg border border-stone-300 px-2 py-1 text-sm"
                           />
                         ) : (
-                          unitCurrency.format(Number(line.unitCost))
+                          money(line.unitPrice, currency)
                         )}
-                      </td>
-                      <td data-label="Adicional por pieza" className="py-3 pr-3">
-                        {costs ? unitCurrency.format(Number(costs.unitExtra)) : '—'}
-                      </td>
-                      <td data-label="Costo total por pieza" className="py-3 pr-3 font-medium">
-                        {costs ? unitCurrency.format(Number(costs.unitTotal)) : '—'}
                       </td>
                       {editable && (
                         <td className="py-2">
@@ -273,26 +313,6 @@ export function StockEntryItems({
               </tbody>
             </table>
           </div>
-        )}
-
-        {preview && (
-          <dl
-            aria-label="Totales del ingreso"
-            className="ml-auto grid max-w-sm grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm"
-          >
-            <dt className="text-stone-600">Valor de compra</dt>
-            <dd className="text-right tabular-nums">
-              {currency.format(Number(preview.purchaseTotal))}
-            </dd>
-            <dt className="text-stone-600">Costos adicionales</dt>
-            <dd className="text-right tabular-nums">
-              {currency.format(Number(preview.extrasTotal))}
-            </dd>
-            <dt className="border-t border-stone-200 pt-1 font-semibold">Total del ingreso</dt>
-            <dd className="border-t border-stone-200 pt-1 text-right font-semibold tabular-nums">
-              {currency.format(Number(preview.grandTotal))}
-            </dd>
-          </dl>
         )}
       </fieldset>
     </section>

@@ -26,6 +26,7 @@ const ROUTES = [
   ['Nuevo ingreso', '/ingresos/nuevo'],
   ['Ajustes', '/inventario/ajustes'],
   ['Nuevo ajuste', '/inventario/ajustes/nuevo'],
+  ['Tipos de costo', '/configuracion/tipos-de-costo'],
 ] as const;
 
 /** Controles visibles de la página que quedan fuera de la pantalla o recortados por un ancestro. */
@@ -77,12 +78,22 @@ async function prepareData(page: Page) {
     ?.variants[0]?.id;
   expect(supplierId && variantId).toBeTruthy();
   const entry = await page.request.post('/api/v1/stock-entries', {
-    data: { supplierId, freightCost: '3', documentNumber: 'RESP-DOC-001' },
+    data: { supplierId, documentNumber: 'RESP-DOC-001' },
   });
   expect(entry.status()).toBe(201);
   const entryId = ((await entry.json()) as { data: { id: string } }).data.id;
   const withItems = await page.request.put(`/api/v1/stock-entries/${entryId}/items`, {
-    data: { items: [{ variantId, expectedQty: 12, receivedQty: 10, unitCost: '10' }] },
+    data: {
+      items: [
+        {
+          variantId,
+          expectedQty: 12,
+          receivedQty: 10,
+          unitPrice: '10',
+          differenceReason: 'Faltaron 2 piezas en la caja',
+        },
+      ],
+    },
   });
   expect(withItems.status()).toBe(200);
   entryRoute = `/ingresos/${entryId}`;

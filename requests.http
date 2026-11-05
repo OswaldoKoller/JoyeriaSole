@@ -32,3 +32,41 @@ Content-Type: application/json
   "name": "Proveedor de ejemplo",
   "taxId": "NIT-EJEMPLO"
 }
+
+### Precios: variantes con panel de costos (prices:propose o prices:approve)
+GET {{base}}/pricing/variants?q=&noPrice=false&withPending=false&page=1&pageSize=25
+
+### Precios: solicitar cambios en lote (Responsable de inventario)
+POST {{base}}/pricing/requests
+Content-Type: application/json
+
+{
+  "items": [{ "variantId": "00000000-0000-7000-8000-000000000000", "newPrice": "115.50" }],
+  "reason": "Precio de temporada"
+}
+
+### Precios: cambiar directamente (Administrador)
+POST {{base}}/pricing/apply
+Content-Type: application/json
+
+{
+  "items": [{ "variantId": "00000000-0000-7000-8000-000000000000", "newPrice": "120" }]
+}
+
+### Precios: aprobar solicitudes en masa (Administrador)
+POST {{base}}/pricing/changes/approve
+Content-Type: application/json
+
+{ "ids": ["00000000-0000-7000-8000-000000000000"] }
+
+### Precios: rechazar en masa (el comentario es obligatorio)
+POST {{base}}/pricing/changes/reject
+Content-Type: application/json
+
+{ "ids": ["00000000-0000-7000-8000-000000000000"], "comment": "Precio demasiado alto" }
+
+### Precios: historial global
+GET {{base}}/pricing/changes?status=PENDING
+
+### Precios: contador de pendientes (Administrador)
+GET {{base}}/pricing/pending-count

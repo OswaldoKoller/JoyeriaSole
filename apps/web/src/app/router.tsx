@@ -17,6 +17,8 @@ import { AdjustmentsPage } from '../features/adjustments/adjustments-page.tsx';
 import { StockEntriesPage } from '../features/stock-entries/stock-entries-page.tsx';
 import { StockEntryNewPage } from '../features/stock-entries/stock-entry-new-page.tsx';
 import { StockEntryPage } from '../features/stock-entries/stock-entry-page.tsx';
+import { CostTypesPage } from '../features/stock-entries/cost-types-page.tsx';
+import { PricingPage } from '../features/pricing/pricing-page.tsx';
 import { DashboardPage } from '../features/dashboard/dashboard-page.tsx';
 import { NotFoundPage } from '../pages/not-found-page.tsx';
 import { AppShell } from './app-shell.tsx';
@@ -84,6 +86,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'precios',
+        element: (
+          <RequireAuth anyPermissions={[PERMISSIONS.PRICES_PROPOSE, PERMISSIONS.PRICES_APPROVE]}>
+            <PricingPage />
+          </RequireAuth>
+        ),
+      },
+      {
         path: 'inventario',
         element: (
           <RequireAuth permissions={[PERMISSIONS.INVENTORY_READ]}>
@@ -136,6 +146,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth permissions={[PERMISSIONS.STOCK_ENTRIES_MANAGE]}>
             <StockEntryNewPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'configuracion/tipos-de-costo',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.STOCK_ENTRIES_READ]}>
+            <CostTypesPage />
           </RequireAuth>
         ),
       },

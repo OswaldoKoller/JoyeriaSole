@@ -121,7 +121,7 @@ export function ProductForm({
   /** `warnings`: avisos no bloqueantes de la operación (p. ej. código del proveedor repetido). */
   onClose: (warnings?: string[]) => void;
 }) {
-  const canPrice = useHasPermission(PERMISSIONS.PRICES_MANAGE);
+  const canPrice = useHasPermission(PERMISSIONS.PRICES_APPROVE);
   const categories = useCategories();
   const attributes = useAttributes();
   const suppliers = useSuppliers(1, '', 'active');
@@ -354,7 +354,7 @@ export function ProductForm({
         {!editing && canPrice && (
           <div className="space-y-1">
             <Input
-              label="Precio de venta (neto)"
+              label="Precio de venta inicial (neto)"
               inputMode="decimal"
               value={salePrice}
               onChange={(event) => {
@@ -364,7 +364,8 @@ export function ProductForm({
               placeholder="0.00"
             />
             <p id="product-price-hint" className="text-xs text-stone-600">
-              En bolivianos, antes de impuestos. Puede quedar en 0 y completarse después.
+              En bolivianos, antes de impuestos. Puede quedar en 0; después solo cambia desde
+              Precios.
             </p>
           </div>
         )}
@@ -443,7 +444,19 @@ export function ProductForm({
       {!editing && (
         <p className="text-sm text-stone-600">
           El SKU se asigna automáticamente. Si no hay código del proveedor, podrás generar uno
-          propio después de guardar. La etiqueta impresa lleva siempre el SKU.
+          propio después de guardar. La etiqueta impresa lleva siempre el SKU.{' '}
+          {canPrice
+            ? 'El precio de venta inicial queda registrado en el historial; después solo cambia desde Precios.'
+            : 'El precio de venta se define después desde Precios (lo fija el Administrador).'}
+        </p>
+      )}
+      {editing && (
+        <p className="text-sm text-stone-600">
+          El precio de venta no se edita aquí: se cambia desde{' '}
+          <Link to="/precios" className="text-brand-700 underline">
+            Precios
+          </Link>
+          .
         </p>
       )}
       {error && (

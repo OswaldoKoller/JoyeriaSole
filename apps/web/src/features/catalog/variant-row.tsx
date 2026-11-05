@@ -3,6 +3,10 @@ import { useState, type SyntheticEvent } from 'react';
 import { Link } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
+import { PERMISSIONS } from '@joyeria/shared';
+import { useHasPermission } from '../auth/use-auth.ts';
+import { VariantPriceHistory } from '../pricing/variant-price-history.tsx';
+import { CostHistory } from '../stock-entries/cost-history.tsx';
 import { useSuppliers } from '../suppliers/use-suppliers.ts';
 import {
   useAssignBarcode,
@@ -36,6 +40,10 @@ export function VariantRow({
   onError,
   onWarnings,
 }: Props) {
+  const canReadCosts = useHasPermission(PERMISSIONS.COSTS_READ);
+  const canProposePrice = useHasPermission(PERMISSIONS.PRICES_PROPOSE);
+  const canApprovePrice = useHasPermission(PERMISSIONS.PRICES_APPROVE);
+  const canSeePrices = canProposePrice || canApprovePrice;
   const assign = useAssignBarcode();
   const generate = useGenerateBarcode();
   const updateVariant = useUpdateVariant();
@@ -107,8 +115,18 @@ export function VariantRow({
         <strong>Precio de venta (neto):</strong>{' '}
         {Number(variant.salePrice) > 0
           ? currency.format(Number(variant.salePrice))
-          : 'Sin precio definido'}
+          : 'Sin precio definido'}{' '}
+        {canSeePrices && (
+          <Link
+            to={`/precios?q=${encodeURIComponent(variant.sku)}`}
+            aria-label={`Cambiar el precio de ${variant.sku} en Precios`}
+            className="inline-block py-1 text-brand-700 underline"
+          >
+            {canApprovePrice ? 'Cambiar en Precios' : 'Solicitar cambio en Precios'}
+          </Link>
+        )}
       </p>
+      {canSeePrices && <VariantPriceHistory variantId={variant.id} sku={variant.sku} />}
       <p>
         <strong>Stock mínimo:</strong>{' '}
         {variant.minStock > 0 ? `${variant.minStock} piezas` : '0 (sin alerta)'}
@@ -116,6 +134,7 @@ export function VariantRow({
       <p>
         <strong>Código de barras:</strong> {variant.barcode ?? 'Sin código'}
       </p>
+      {canReadCosts && <CostHistory variantId={variant.id} sku={variant.sku} />}
       {variant.status === 'INACTIVE' && (
         <p className="font-medium text-stone-700">Variante inactiva</p>
       )}

@@ -46,6 +46,23 @@ describe('panel lateral', () => {
     }
   });
 
+  it('Precios aparece solo con prices:propose o prices:approve', async () => {
+    mockUser(['catalog:read', 'inventory:read']);
+    const { unmount } = renderWithProviders(<AppShell />);
+    const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
+    await within(nav).findByRole('link', { name: 'Productos' });
+    expect(within(nav).queryByRole('link', { name: 'Precios' })).not.toBeInTheDocument();
+    unmount();
+
+    vi.restoreAllMocks();
+    mockUser(['catalog:read', 'prices:approve']);
+    renderWithProviders(<AppShell />);
+    expect(await screen.findByRole('link', { name: 'Precios' })).toHaveAttribute(
+      'href',
+      '/precios',
+    );
+  });
+
   it('abre y cierra el cajón móvil con teclado', async () => {
     mockUser([]);
     renderWithProviders(<AppShell />);

@@ -12,7 +12,7 @@ import { createTestUser, resetDatabase } from '../helpers/db.ts';
 const MANAGER: Permission[] = [
   PERMISSIONS.CATALOG_READ,
   PERMISSIONS.CATALOG_MANAGE,
-  PERMISSIONS.PRICES_MANAGE,
+  PERMISSIONS.PRICES_APPROVE,
 ];
 const READER: Permission[] = [PERMISSIONS.CATALOG_READ];
 const ADMIN_LIKE: Permission[] = [...MANAGER, PERMISSIONS.CATALOG_DELETE];
@@ -785,6 +785,7 @@ describe('catálogo completo (S2)', () => {
           stockEntryId: entry.id,
           variantId: entered.variants[0]?.id as string,
           receivedQty: 1,
+          unitPrice: '5',
           unitCost: '5',
         },
       });

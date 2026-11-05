@@ -9,7 +9,7 @@ import type {
   UpdateVariantStatusInput,
   VariantLookup,
 } from '@joyeria/shared';
-import { ERROR_CODES, PERMISSIONS } from '@joyeria/shared';
+import { ERROR_CODES, PERMISSIONS, hasSalePrice } from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import type { Prisma } from '../../generated/prisma/client.ts';
 import {
@@ -22,6 +22,7 @@ import {
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
+import { recordInitialPrice } from '../pricing/pricing.service.ts';
 
 const withDetails = {
   category: true,
@@ -36,7 +37,15 @@ type ProductWithDetails = Prisma.ProductGetPayload<{ include: typeof withDetails
 
 /** C1: una ficha está incompleta si no tiene descripción ni ninguna característica descriptiva. */
 const incompleteWhere = {
-  AND: [{ OR: [{ description: null }, { description: '' }] }, { attributeValues: { none: {} } }],
+  OR: [
+    { profileIncomplete: true },
+    {
+      AND: [
+        { OR: [{ description: null }, { description: '' }] },
+        { attributeValues: { none: {} } },
+      ],
+    },
+  ],
 } satisfies Prisma.ProductWhereInput;
 
 /** D9: alguna variante activa con precio de venta 0. */
@@ -62,7 +71,9 @@ function toResponse(product: ProductWithDetails, showStock = false) {
     description: product.description,
     model: product.model,
     status: product.status,
-    isIncomplete: !product.description?.trim() && product.attributeValues.length === 0,
+    isIncomplete:
+      product.profileIncomplete ||
+      (!product.description?.trim() && product.attributeValues.length === 0),
     hasMissingPrice: product.variants.some(
       (variant) => variant.status === 'ACTIVE' && variant.salePrice.isZero(),
     ),
@@ -79,6 +90,7 @@ function toResponse(product: ProductWithDetails, showStock = false) {
         valueBoolean: value.valueBoolean,
         displayValue: displayValue(value),
       })),
+    profileIncomplete: product.profileIncomplete,
     axes: product.variantAxes.map((axis) => ({
       attributeId: axis.attributeId,
       name: axis.attribute.name,
@@ -225,6 +237,20 @@ export class ProductsService {
       create: { supplierId, variantId, supplierCode: code },
     });
     return null;
+  }
+
+  /**
+   * El precio de venta solo se fija al CREAR la pieza o variante, y únicamente con `prices:approve`
+   * (queda en el historial como INITIAL). Todo cambio posterior pasa por el módulo de precios.
+   */
+  private assertCanSetInitialPrice(salePrice: string | undefined, request: FastifyRequest) {
+    if (
+      salePrice !== undefined &&
+      hasSalePrice(salePrice) &&
+      !getAuth(request).user.permissions.includes(PERMISSIONS.PRICES_APPROVE)
+    ) {
+      throw new ForbiddenError('No tiene permiso para establecer precios');
+    }
   }
 
   private async validateSelections(
@@ -445,77 +471,93 @@ export class ProductsService {
   }
 
   async create(input: CreateProductInput, request: FastifyRequest) {
-    if (
-      input.salePrice !== undefined &&
-      !getAuth(request).user.permissions.includes(PERMISSIONS.PRICES_MANAGE)
-    ) {
-      throw new ForbiddenError('No tiene permiso para establecer precios');
+    this.assertCanSetInitialPrice(input.salePrice, request);
+    return this.prisma.$transaction((tx) => this.createWithin(tx, input, request));
+  }
+
+  /**
+   * Alta de producto + variante única dentro de una transacción ajena. La reutiliza el alta
+   * rápida de piezas desde un ingreso (C1), que añade `profileIncomplete` y su propia metadata.
+   * No comprueba permisos: quien llama debe haberlos validado. Devuelve la ficha y los avisos
+   * (p. ej. código de proveedor repetido, Q-10).
+   */
+  async createWithin(
+    tx: Prisma.TransactionClient,
+    input: CreateProductInput,
+    request: FastifyRequest,
+    options: { profileIncomplete?: boolean; metadata?: Prisma.InputJsonValue } = {},
+  ) {
+    const category = await tx.category.findUnique({ where: { id: input.categoryId } });
+    if (!category || !category.isActive) throw new NotFoundError('Categoría activa no encontrada');
+    const sku = await this.nextSku(tx);
+    const axes = input.axes ? await this.validateSelections(tx, input.axes) : [];
+    const attributes = await this.validateAttributes(tx, input.attributes);
+    if (attributes.some((item) => axes.some((axis) => axis.attributeId === item.attributeId))) {
+      throw new ValidationError('Un eje de variante no puede ser también una característica');
     }
-    return this.prisma.$transaction(async (tx) => {
-      const category = await tx.category.findUnique({ where: { id: input.categoryId } });
-      if (!category?.isActive) throw new NotFoundError('Categoría activa no encontrada');
-      const axes = input.axes ? await this.validateSelections(tx, input.axes) : [];
-      const attributes = await this.validateAttributes(tx, input.attributes);
-      if (attributes.some((item) => axes.some((axis) => axis.attributeId === item.attributeId))) {
-        throw new ValidationError('Un eje de variante no puede ser también una característica');
-      }
-      const sku = await this.nextSku(tx);
-      const code = await this.checkProviderCode(tx, input.barcode);
-      const warnings = code.warning ? [code.warning] : [];
-      const product = await tx.product.create({
-        data: {
-          categoryId: input.categoryId,
-          name: input.name,
-          description: input.description || null,
-          model: input.model || null,
-          attributeValues: { createMany: { data: attributes } },
-          variantAxes: {
-            createMany: {
-              data: axes.map((axis, sortOrder) => ({ attributeId: axis.attributeId, sortOrder })),
-            },
+    const code = await this.checkProviderCode(tx, input.barcode);
+    const warnings = code.warning ? [code.warning] : [];
+    const product = await tx.product.create({
+      data: {
+        categoryId: input.categoryId,
+        name: input.name,
+        description: input.description || null,
+        model: input.model || null,
+        profileIncomplete: options.profileIncomplete ?? false,
+        attributeValues: { createMany: { data: attributes } },
+        variantAxes: {
+          createMany: {
+            data: axes.map((axis, sortOrder) => ({ attributeId: axis.attributeId, sortOrder })),
           },
-          variants: {
-            create: {
-              sku,
-              label:
-                axes.length > 0
-                  ? this.labelFor(
-                      axes,
-                      axes.map((axis) => axis.attributeId),
-                    )
-                  : 'Única',
-              barcode: code.barcode,
-              salePrice: input.salePrice ?? '0',
-              minStock: input.minStock,
-              attributeValues: {
-                createMany: {
-                  data: axes.map(({ attributeId, optionId }) => ({ attributeId, optionId })),
-                },
+        },
+        variants: {
+          create: {
+            sku,
+            label:
+              axes.length > 0
+                ? this.labelFor(
+                    axes,
+                    axes.map((axis) => axis.attributeId),
+                  )
+                : 'Única',
+            barcode: code.barcode,
+            salePrice: input.salePrice ?? '0',
+            minStock: input.minStock,
+            attributeValues: {
+              createMany: {
+                data: axes.map(({ attributeId, optionId }) => ({ attributeId, optionId })),
               },
             },
           },
         },
-        include: withDetails,
-      });
-      const base = product.variants[0];
-      if (base) {
-        const link = await this.linkSupplierCode(tx, input.supplierId, base.id, input.barcode);
-        if (link) warnings.push(link);
-      }
-      const after = toResponse(product);
-      await recordAudit(
-        tx,
-        {
-          action: 'product.created',
-          entityType: 'Product',
-          entityId: product.id,
-          after,
-          ...(warnings.length > 0 && { metadata: { warnings } }),
-        },
-        request,
-      );
-      return { product: after, warnings };
+      },
+      include: withDetails,
     });
+    const baseVariant = product.variants[0];
+    if (baseVariant) {
+      const link = await this.linkSupplierCode(tx, input.supplierId, baseVariant.id, input.barcode);
+      if (link) warnings.push(link);
+      if (input.salePrice !== undefined) {
+        await recordInitialPrice(tx, baseVariant, input.salePrice, request);
+      }
+    }
+    const after = toResponse(product);
+    const metadata = {
+      ...(options.metadata as Record<string, unknown> | undefined),
+      ...(warnings.length > 0 && { warnings }),
+    } as Prisma.InputJsonValue;
+    await recordAudit(
+      tx,
+      {
+        action: 'product.created',
+        entityType: 'Product',
+        entityId: product.id,
+        after,
+        ...(Object.keys(metadata).length > 0 && { metadata }),
+      },
+      request,
+    );
+    return { product: after, warnings };
   }
 
   async update(id: string, input: UpdateProductInput, request: FastifyRequest) {
@@ -836,12 +878,7 @@ export class ProductsService {
   }
 
   async addVariant(productId: string, input: CreateVariantInput, request: FastifyRequest) {
-    if (
-      input.salePrice !== undefined &&
-      !getAuth(request).user.permissions.includes(PERMISSIONS.PRICES_MANAGE)
-    ) {
-      throw new ForbiddenError('No tiene permiso para establecer precios');
-    }
+    this.assertCanSetInitialPrice(input.salePrice, request);
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId}::uuid FOR UPDATE`;
       const product = await tx.product.findUnique({
@@ -899,6 +936,9 @@ export class ProductsService {
       });
       const link = await this.linkSupplierCode(tx, input.supplierId, variant.id, input.barcode);
       if (link) warnings.push(link);
+      if (input.salePrice !== undefined) {
+        await recordInitialPrice(tx, variant, input.salePrice, request);
+      }
       const updated = await tx.product.findUniqueOrThrow({
         where: { id: productId },
         include: withDetails,

@@ -41,6 +41,8 @@ export const productSchema = z.object({
   /** C1/D9: alguna variante activa con precio de venta 0. */
   hasMissingPrice: z.boolean(),
   attributes: z.array(productAttributeValueSchema),
+  /** Creada desde un ingreso con datos mínimos: falta completar la ficha (C1). */
+  profileIncomplete: z.boolean(),
   axes: z.array(
     z.object({
       attributeId: z.uuid(),
@@ -122,7 +124,11 @@ export const updateProductSchema = z
     status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
     /** Reemplaza el conjunto completo de características descriptivas. */
     attributes: productAttributesInputSchema.optional(),
+    /** Permite marcar la ficha como completa (o volver a marcarla incompleta). */
+    profileIncomplete: z.boolean().optional(),
   })
+  // El precio de venta NO se edita aquí: después de crear la pieza solo cambia por /pricing (ADR-018).
+  .strict()
   .refine((value) => Object.keys(value).length > 0, 'Indique al menos un cambio');
 
 /** B10: el stock mínimo por variante lo modifica quien gestiona el catálogo. */

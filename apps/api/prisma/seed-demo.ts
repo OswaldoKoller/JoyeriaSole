@@ -12,11 +12,26 @@
  *   - Tres ajustes de inventario de ejemplo (ADR-017): dos PENDIENTES (el stock no cambia) y uno
  *     APROBADO (movimiento ADJUSTMENT auditado). No alteran el nivel (sin stock / bajo / disponible)
  *     de ninguna pieza, para no mover los totales del dashboard.
+ *   - 2 proveedores ficticios: uno nacional (Bs) y uno del exterior (China, USD).
+ *   - Un ingreso de importación CONFIRMADO en USD (aduanización y comisiones) y un borrador, sobre
+ *     piezas ya disponibles (no alteran los totales de disponibles / bajo mínimo / sin stock).
  *
  * Idempotente: si los datos DEMO ya existen, no los duplica.
  */
 import path from 'node:path';
-import { PASSWORD_MIN_LENGTH, ROLES, type RoleCode } from '@joyeria/shared';
+import {
+  PASSWORD_MIN_LENGTH,
+  ROLES,
+  computeEntryCosts,
+  convertToBob,
+  formatMoney,
+  formatUnitCost,
+  parseExchangeRate,
+  parseMoney,
+  parseUnitCost,
+  todayInLaPaz,
+  type RoleCode,
+} from '@joyeria/shared';
 import { config as loadEnv } from 'dotenv';
 import { hashPassword } from '../src/lib/password.ts';
 import { createPrismaClient } from '../src/lib/prisma.ts';
@@ -93,6 +108,54 @@ async function seedUsers() {
   }
   console.log(`✔ ${DEMO_USERS.length} usuarios DEMO (uno por rol)`);
   return ids;
+}
+
+const DEMO_SUPPLIERS = [
+  {
+    name: 'Proveedor Demo La Paz',
+    type: 'NATIONAL',
+    country: 'Bolivia',
+    contactName: 'DEMO Contacto Nacional',
+    phone: '+591 70000000',
+    whatsapp: '+591 70000000',
+    defaultCurrency: 'BOB',
+    paymentTerms: 'Contado contra entrega',
+  },
+  {
+    name: 'Proveedor Demo Guangzhou',
+    type: 'FOREIGN',
+    country: 'China',
+    contactName: 'DEMO Contacto Exterior',
+    whatsapp: '+86 130 0000 0000',
+    email: 'ventas@proveedor-demo.example.invalid',
+    defaultCurrency: 'USD',
+    paymentTerms: '50% anticipo y 50% contra embarque',
+  },
+] as const;
+
+async function seedSuppliers(adminId: string) {
+  let created = 0;
+  for (const demo of DEMO_SUPPLIERS) {
+    // El nombre no es único en el modelo: la existencia se decide por nombre para ser idempotente.
+    if (await prisma.supplier.findFirst({ where: { name: demo.name } })) continue;
+    const supplier = await prisma.supplier.create({ data: demo });
+    await prisma.auditLog.create({
+      data: {
+        action: 'supplier.created',
+        entityType: 'Supplier',
+        entityId: supplier.id,
+        userId: adminId,
+        after: { name: supplier.name, type: supplier.type },
+        metadata: { source: 'seed-demo' },
+      },
+    });
+    created += 1;
+  }
+  console.log(
+    created > 0
+      ? `✔ ${created} proveedores DEMO (nacional y del exterior)`
+      : '↷ Los proveedores DEMO ya existen (no se duplican)',
+  );
 }
 
 async function seedCatalogAndStock(adminId: string) {
@@ -284,6 +347,309 @@ async function seedAdjustments(managerId: string, adminId: string) {
   console.log('✔ 3 ajustes DEMO (2 pendientes, 1 aprobado)');
 }
 
+const IMPORT_DOCUMENT = 'DEMO-IMP-001';
+const IMPORT_DRAFT_DOCUMENT = 'DEMO-IMP-002';
+
+/**
+ * Compra de importación DEMO (S5): un ingreso CONFIRMADO en dólares con aduanización y comisiones, y
+ * un borrador. Usa piezas que ya están «disponibles» y solo les SUMA stock: los totales del
+ * dashboard (disponibles / bajo mínimo / sin stock) no cambian. El stock entra por movimientos
+ * auditados, nunca editando saldos (ADR-007).
+ */
+async function seedImportEntries(managerId: string) {
+  if (await prisma.stockEntry.findFirst({ where: { documentNumber: IMPORT_DOCUMENT } })) {
+    console.log('↷ Los ingresos de importación DEMO ya existen (no se duplican)');
+    return;
+  }
+  const foreign = await prisma.supplier.findFirst({ where: { name: 'Proveedor Demo Guangzhou' } });
+  const pieces = await prisma.productVariant.findMany({
+    where: {
+      product: {
+        name: {
+          in: ['DEMO Anillo Alianza Lisa', 'DEMO Anillo Sello Ónix', 'DEMO Collare Cruz Clásica'],
+        },
+      },
+    },
+    include: { product: true, inventory: true },
+    orderBy: { sku: 'asc' },
+  });
+  const types = await prisma.stockEntryCostType.findMany();
+  const typeId = (code: string) => types.find((type) => type.code === code)?.id;
+  const customs = typeId('CUSTOMS');
+  const commissions = typeId('COMMISSIONS');
+  const transport = typeId('TRANSPORT');
+  if (!foreign || pieces.length < 3 || !customs || !commissions || !transport) {
+    console.log('↷ Faltan proveedores, piezas o tipos de costo DEMO: se omiten los ingresos DEMO');
+    return;
+  }
+
+  const rate = '6.96';
+  const prices = ['4.50', '7.25', '1.80'];
+  const quantities = [20, 12, 30];
+  const extras = [
+    { costTypeId: customs, amount: '150.00', note: 'DUI y despachante (DEMO)' },
+    { costTypeId: commissions, amount: '85.50', note: 'Comisión del agente (DEMO)' },
+  ];
+  const costs = computeEntryCosts({
+    currency: 'USD',
+    exchangeRate: parseExchangeRate(rate),
+    items: pieces.map((piece, index) => ({
+      key: piece.id,
+      receivedQty: quantities[index] ?? 0,
+      unitPrice: parseUnitCost(prices[index] ?? '0'),
+    })),
+    extrasCents: extras.reduce((sum, cost) => sum + parseMoney(cost.amount), 0n),
+  });
+  if (!costs.ok) throw new Error('No se pudo calcular el costo del ingreso DEMO');
+
+  await prisma.$transaction(async (tx) => {
+    const confirmed = await tx.stockEntry.create({
+      data: {
+        supplierId: foreign.id,
+        status: 'CONFIRMED',
+        documentType: 'Factura de importación',
+        documentNumber: IMPORT_DOCUMENT,
+        documentDate: new Date(`${todayInLaPaz()}T00:00:00Z`),
+        currency: 'USD',
+        exchangeRate: rate,
+        notes: 'Ingreso de demostración en dólares (aduanización y comisiones).',
+        createdById: managerId,
+        confirmedById: managerId,
+        confirmedAt: new Date(),
+        costs: { create: extras },
+      },
+    });
+    for (const [index, piece] of pieces.entries()) {
+      const line = costs.lines.find((item) => item.key === piece.id);
+      const quantity = quantities[index] ?? 0;
+      if (!line) throw new Error('Línea de costo no encontrada');
+      await tx.stockEntryItem.create({
+        data: {
+          stockEntryId: confirmed.id,
+          variantId: piece.id,
+          expectedQty: quantity,
+          receivedQty: quantity,
+          unitPrice: prices[index] ?? '0',
+          unitCost: formatUnitCost(line.unitCostBob),
+          unitExtraCost: formatUnitCost(line.unitExtra),
+          extraCostAllocated: formatMoney(line.extraCents),
+          totalCost: formatUnitCost(line.totalCost),
+        },
+      });
+      const before = piece.inventory?.quantity ?? 0;
+      await tx.inventoryMovement.create({
+        data: {
+          variantId: piece.id,
+          type: 'STOCK_ENTRY',
+          quantity,
+          balanceBefore: before,
+          balanceAfter: before + quantity,
+          unitCost: formatUnitCost(line.unitTotal),
+          referenceType: 'STOCK_ENTRY',
+          referenceId: confirmed.id,
+          reason: `Ingreso ING-${confirmed.number.toString().padStart(6, '0')}`,
+          userId: managerId,
+        },
+      });
+      await tx.inventoryBalance.upsert({
+        where: { variantId: piece.id },
+        update: { quantity: before + quantity },
+        create: { variantId: piece.id, quantity: before + quantity },
+      });
+      await tx.productVariant.update({
+        where: { id: piece.id },
+        data: { costPrice: formatUnitCost(line.unitTotal) },
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        action: 'stock_entry.confirmed',
+        entityType: 'StockEntry',
+        entityId: confirmed.id,
+        userId: managerId,
+        after: {
+          status: 'CONFIRMED',
+          currency: 'USD',
+          exchangeRate: rate,
+          extrasTotal: formatMoney(costs.totals.extrasCents),
+        },
+        metadata: { source: 'seed-demo' },
+      },
+    });
+
+    // Borrador: dos piezas, una con diferencia ya justificada, listo para revisar y confirmar.
+    const draft = await tx.stockEntry.create({
+      data: {
+        supplierId: foreign.id,
+        documentType: 'Factura de importación',
+        documentNumber: IMPORT_DRAFT_DOCUMENT,
+        currency: 'USD',
+        exchangeRate: rate,
+        notes: 'Borrador de demostración: pendiente de confirmar.',
+        createdById: managerId,
+        costs: { create: [{ costTypeId: transport, amount: '40.00' }] },
+      },
+    });
+    for (const [index, piece] of pieces.slice(0, 2).entries()) {
+      const price = index === 0 ? '3.10' : '5.40';
+      await tx.stockEntryItem.create({
+        data: {
+          stockEntryId: draft.id,
+          variantId: piece.id,
+          expectedQty: 10,
+          receivedQty: index === 0 ? 10 : 8,
+          differenceReason: index === 0 ? null : 'Faltaron 2 piezas en la caja (DEMO)',
+          unitPrice: price,
+          unitCost: formatUnitCost(convertToBob(parseUnitCost(price), parseExchangeRate(rate))),
+        },
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        action: 'stock_entry.created',
+        entityType: 'StockEntry',
+        entityId: draft.id,
+        userId: managerId,
+        after: { status: 'DRAFT', currency: 'USD', exchangeRate: rate },
+        metadata: { source: 'seed-demo' },
+      },
+    });
+  });
+  console.log('✔ Ingreso de importación DEMO confirmado en USD y un borrador');
+}
+
+/**
+ * Cambios de precio DEMO (S7, ADR-018): un cambio aprobado de una solicitud, un cambio directo del
+ * Administrador, una solicitud rechazada y dos pendientes, sobre piezas que ningún E2E usa para
+ * precios. No tocan stock: los totales del dashboard no cambian. Quedan en auditoría.
+ */
+async function seedPriceChanges(adminId: string, managerId: string) {
+  if (await prisma.priceChange.findFirst({ where: { reason: { startsWith: 'DEMO' } } })) {
+    console.log('↷ Los cambios de precio DEMO ya existen (no se duplican)');
+    return;
+  }
+  const names = [
+    'DEMO Arete Estrella',
+    'DEMO Arete Gota Cristal',
+    'DEMO Pulsera Tenis',
+    'DEMO Collare Corazón',
+    'DEMO Collare Perla Simple',
+  ];
+  const variants = await prisma.productVariant.findMany({
+    where: { product: { name: { in: names } } },
+    include: { product: true },
+  });
+  const byName = (name: string) => variants.find((variant) => variant.product.name === name);
+  const [approved, direct, rejected, pendingA, pendingB] = names.map(byName);
+  if (!approved || !direct || !rejected || !pendingA || !pendingB) {
+    console.log('↷ Faltan piezas DEMO: se omiten los cambios de precio DEMO');
+    return;
+  }
+
+  const bump = (price: { toFixed: (digits: number) => string }, amount: number) =>
+    (Number(price.toFixed(2)) + amount).toFixed(2);
+
+  await prisma.$transaction(async (tx) => {
+    const now = new Date();
+    const audit = (action: string, entityId: string, userId: string, after: object) =>
+      tx.auditLog.create({
+        data: {
+          action,
+          entityType: 'PriceChange',
+          entityId,
+          userId,
+          after,
+          metadata: { source: 'seed-demo' },
+        },
+      });
+
+    // 1) Solicitado por el Responsable y aprobado por el Administrador.
+    const approvedPrice = bump(approved.salePrice, 12);
+    const first = await tx.priceChange.create({
+      data: {
+        variantId: approved.id,
+        previousPrice: approved.salePrice,
+        newPrice: approvedPrice,
+        status: 'APPROVED',
+        origin: 'REQUEST',
+        requestedById: managerId,
+        decidedById: adminId,
+        decidedAt: now,
+        reason: 'DEMO Ajuste de temporada',
+        costSnapshot: approved.costPrice,
+      },
+    });
+    await tx.productVariant.update({
+      where: { id: approved.id },
+      data: { salePrice: approvedPrice },
+    });
+    await audit('price.approved', first.id, adminId, {
+      status: 'APPROVED',
+      newPrice: approvedPrice,
+    });
+
+    // 2) Cambio directo del Administrador.
+    const directPrice = bump(direct.salePrice, -8);
+    const second = await tx.priceChange.create({
+      data: {
+        variantId: direct.id,
+        previousPrice: direct.salePrice,
+        newPrice: directPrice,
+        status: 'APPROVED',
+        origin: 'ADMIN_DIRECT',
+        requestedById: adminId,
+        decidedById: adminId,
+        decidedAt: now,
+        reason: 'DEMO Promoción del mes',
+        costSnapshot: direct.costPrice,
+      },
+    });
+    await tx.productVariant.update({ where: { id: direct.id }, data: { salePrice: directPrice } });
+    await audit('variant.price_changed', second.id, adminId, {
+      origin: 'ADMIN_DIRECT',
+      newPrice: directPrice,
+    });
+
+    // 3) Solicitud rechazada con comentario.
+    const third = await tx.priceChange.create({
+      data: {
+        variantId: rejected.id,
+        previousPrice: rejected.salePrice,
+        newPrice: bump(rejected.salePrice, 60),
+        status: 'REJECTED',
+        origin: 'REQUEST',
+        requestedById: managerId,
+        decidedById: adminId,
+        decidedAt: now,
+        reason: 'DEMO Subir precio',
+        decisionComment: 'DEMO Aumento demasiado alto para la temporada',
+        costSnapshot: rejected.costPrice,
+      },
+    });
+    await audit('price.rejected', third.id, adminId, { status: 'REJECTED' });
+
+    // 4) y 5) Pendientes de aprobación.
+    for (const [variant, amount] of [
+      [pendingA, 25],
+      [pendingB, 15],
+    ] as const) {
+      const pending = await tx.priceChange.create({
+        data: {
+          variantId: variant.id,
+          previousPrice: variant.salePrice,
+          newPrice: bump(variant.salePrice, amount),
+          origin: 'REQUEST',
+          requestedById: managerId,
+          reason: 'DEMO Pendiente de aprobación',
+          costSnapshot: variant.costPrice,
+        },
+      });
+      await audit('price.requested', pending.id, managerId, { status: 'PENDING' });
+    }
+  });
+  console.log('✔ Cambios de precio DEMO: 2 aprobados, 1 rechazado y 2 pendientes');
+}
+
 try {
   const ids = await seedUsers();
   const adminId = ids.get(ROLES.ADMIN);
@@ -291,6 +657,9 @@ try {
   if (!adminId || !managerId) throw new Error('No se crearon los usuarios DEMO');
   await seedCatalogAndStock(adminId);
   await seedAdjustments(managerId, adminId);
+  await seedSuppliers(adminId);
+  await seedImportEntries(managerId);
+  await seedPriceChanges(adminId, managerId);
 } finally {
   await prisma.$disconnect();
 }

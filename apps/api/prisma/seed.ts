@@ -8,6 +8,7 @@
  *   - Usuario administrador inicial (desde variables SEED_ADMIN_*)
  *   - Definiciones de atributos mencionadas en el requerimiento, SIN valores (P-15)
  *   - Catálogo de motivos de ajuste de inventario (P-20)
+ *   - Tipos de costo adicional de ingresos del sistema (Q-08)
  *
  * NO carga productos, categorías, proveedores ni stock: esos datos los define el cliente.
  */
@@ -20,6 +21,7 @@ import {
   PASSWORD_MIN_LENGTH,
   PERMISSION_DESCRIPTIONS,
   ROLES,
+  SYSTEM_COST_TYPES,
   type RoleCode,
 } from '@joyeria/shared';
 import type { AttributeDataType, AttributeUsage } from '../src/generated/prisma/client.ts';
@@ -163,11 +165,24 @@ async function seedAdjustmentReasons() {
   console.log(`✔ ${DEFAULT_ADJUSTMENT_REASONS.length} motivos de ajuste`);
 }
 
+async function seedCostTypes() {
+  for (const [index, type] of SYSTEM_COST_TYPES.entries()) {
+    // Se restablecen nombre y marca de sistema; nunca `isActive` ni los tipos agregados por el cliente.
+    await prisma.stockEntryCostType.upsert({
+      where: { code: type.code },
+      update: { name: type.name, isSystem: true },
+      create: { ...type, isSystem: true, sortOrder: index + 1 },
+    });
+  }
+  console.log(`✔ ${SYSTEM_COST_TYPES.length} tipos de costo de ingreso del sistema`);
+}
+
 try {
   await seedPermissionsAndRoles();
   await seedAdmin();
   await seedAttributes();
   await seedAdjustmentReasons();
+  await seedCostTypes();
 } finally {
   await prisma.$disconnect();
 }

@@ -162,7 +162,7 @@ export function CreateVariantForm({
   /** `warnings`: avisos no bloqueantes (p. ej. código del proveedor repetido). */
   onClose: (warnings?: string[]) => void;
 }) {
-  const canPrice = useHasPermission(PERMISSIONS.PRICES_MANAGE);
+  const canPrice = useHasPermission(PERMISSIONS.PRICES_APPROVE);
   const create = useCreateVariant();
   const [options, setOptions] = useState<Record<string, string>>({});
   const [barcode, setBarcode] = useState('');
@@ -246,7 +246,7 @@ export function CreateVariantForm({
         />
         {canPrice && (
           <Input
-            label="Precio de venta (neto)"
+            label="Precio de venta inicial de la variante (neto, Bs)"
             inputMode="decimal"
             value={salePrice}
             onChange={(event) => {
