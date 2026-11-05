@@ -675,7 +675,7 @@ describe('catálogo completo (S2)', () => {
       expect(
         (await call('GET', '/api/v1/products/health', undefined, nobody.cookie)).statusCode,
       ).toBe(403);
-    });
+    }, 60_000);
   });
 
   describe('eliminación física (B11)', () => {

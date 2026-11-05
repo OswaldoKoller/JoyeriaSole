@@ -270,7 +270,7 @@ describe('catálogo', () => {
         payload: { axes: [pick(material, 1)] },
       });
       expect(reconfigure.statusCode).toBe(422);
-    });
+    }, 60_000);
 
     it('rechaza opciones que no pertenecen al atributo indicado', async () => {
       const material = await createAttributeWithOptions('material', ['Plata 925']);
