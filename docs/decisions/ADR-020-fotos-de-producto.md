@@ -35,7 +35,7 @@ El cliente pidió fotografías de producto (B8): hasta 5 por producto, una princ
 ## Dependencias nuevas (regla de `CLAUDE.md`)
 
 - **`@fastify/multipart`** (mantenido por el equipo de Fastify): único modo soportado de recibir `multipart/form-data` con límites de tamaño, partes y campos. Escribir un analizador propio sería más riesgoso.
-- **`sharp`**: decodifica y re-codifica imágenes (libvips) con binarios precompilados. Se verificó en Windows (desarrollo) y está en `package-lock.json` el binario `linuxmusl-x64`, el de la imagen Docker Alpine; no requiere compilar ni paquetes del sistema. Es la librería estándar de Node para este caso; las alternativas en JavaScript puro son más lentas o no cubren WebP. Se vigila con `npm audit` como el resto de dependencias.
+- **`sharp`**: decodifica y re-codifica imágenes (libvips) con binarios precompilados. Se verificó en Windows (desarrollo) y también se verificó en la imagen Docker de producción: se construyó la etapa `prod-deps` (Alpine, `npm ci --omit=dev`) y `sharp` procesó una imagen con el binario `linuxmusl-x64`, sin cambios en el `Dockerfile` ni paquetes del sistema. Es la librería estándar de Node para este caso; las alternativas en JavaScript puro son más lentas o no cubren WebP. Se vigila con `npm audit` como el resto de dependencias.
 
 ## Consecuencias
 
