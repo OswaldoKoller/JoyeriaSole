@@ -8,6 +8,9 @@
  *   - 4 categorías y 20 productos (una variante cada uno, SKU correlativo, precio en Bs).
  *   - Stock variado mediante movimientos INITIAL_STOCK auditados: nunca editando saldos (ADR-007).
  *     Reparto: 5 sin stock, 5 bajo mínimo, 10 disponibles.
+ *   - Tres ajustes de inventario de ejemplo (ADR-017): dos PENDIENTES (el stock no cambia) y uno
+ *     APROBADO (movimiento ADJUSTMENT auditado). No alteran el nivel (sin stock / bajo / disponible)
+ *     de ninguna pieza, para no mover los totales del dashboard.
  *
  * Idempotente: si los datos DEMO ya existen, no los duplica.
  */
@@ -165,11 +168,124 @@ async function seedCatalogAndStock(adminId: string) {
   console.log(`✔ ${CATEGORIES.length} categorías y ${index} productos DEMO con stock variado`);
 }
 
+/**
+ * Ajustes de ejemplo. Requiere `npm run db:seed` (catálogo de motivos). Las líneas se escriben ya
+ * resueltas por inserción directa, igual que el stock inicial DEMO; el flujo real pasa por la API.
+ */
+async function seedAdjustments(managerId: string, adminId: string) {
+  if (await prisma.inventoryAdjustment.findFirst({ where: { notes: { startsWith: 'DEMO' } } })) {
+    console.log('↷ Los ajustes DEMO ya existen (no se duplican)');
+    return;
+  }
+  const reasons = await prisma.adjustmentReason.findMany();
+  const reasonId = (code: string) => {
+    const reason = reasons.find((item) => item.code === code);
+    if (!reason) throw new Error(`Falta el motivo ${code}: ejecutar antes npm run db:seed`);
+    return reason.id;
+  };
+  const variantOf = async (productName: string) => {
+    const variant = await prisma.productVariant.findFirst({
+      where: { product: { name: { endsWith: ` ${productName}` } } },
+      include: { inventory: true },
+    });
+    if (!variant) throw new Error(`Falta la variante de «${productName}»: seed-demo incompleto`);
+    return { ...variant, quantity: variant.inventory?.quantity ?? 0 };
+  };
+
+  // 1) Pendiente: rotura de una pieza (salida).
+  const broken = await variantOf('Cruz Clásica');
+  await prisma.inventoryAdjustment.create({
+    data: {
+      reasonId: reasonId('BREAKAGE'),
+      notes: 'DEMO: cierre roto al exhibir la pieza',
+      requestedById: managerId,
+      items: {
+        create: [{ variantId: broken.id, quantityDelta: -1, quantityAtRequest: broken.quantity }],
+      },
+    },
+  });
+  // 2) Pendiente: error de registro (entrada) con dos líneas.
+  const first = await variantOf('Argolla Mediana');
+  const second = await variantOf('Trébol');
+  await prisma.inventoryAdjustment.create({
+    data: {
+      reasonId: reasonId('REGISTRATION_ERROR'),
+      notes: 'DEMO: el conteo del estante mostró piezas sin registrar',
+      requestedById: managerId,
+      items: {
+        create: [
+          { variantId: first.id, quantityDelta: 2, quantityAtRequest: first.quantity },
+          { variantId: second.id, quantityDelta: 1, quantityAtRequest: second.quantity },
+        ],
+      },
+    },
+  });
+  // 3) Aprobado: muestra entregada a una clienta (salida de 1 pieza con stock sobrado).
+  const sample = await variantOf('Corazón');
+  const after = sample.quantity - 1;
+  await prisma.$transaction(async (tx) => {
+    const adjustment = await tx.inventoryAdjustment.create({
+      data: {
+        status: 'APPROVED',
+        reasonId: reasonId('SAMPLE'),
+        notes: 'DEMO: muestra entregada para fotografía',
+        requestedById: managerId,
+        resolvedById: adminId,
+        resolvedAt: new Date(),
+      },
+    });
+    const movement = await tx.inventoryMovement.create({
+      data: {
+        variantId: sample.id,
+        type: 'ADJUSTMENT',
+        quantity: -1,
+        balanceBefore: sample.quantity,
+        balanceAfter: after,
+        unitCost: sample.costPrice,
+        referenceType: 'INVENTORY_ADJUSTMENT',
+        referenceId: adjustment.id,
+        reason: `Ajuste AJ-${adjustment.number.toString().padStart(6, '0')} · Muestra`,
+        notes: 'DEMO: muestra entregada para fotografía',
+        userId: adminId,
+      },
+    });
+    await tx.inventoryBalance.update({
+      where: { variantId: sample.id },
+      data: { quantity: after },
+    });
+    await tx.inventoryAdjustmentItem.create({
+      data: {
+        adjustmentId: adjustment.id,
+        variantId: sample.id,
+        quantityDelta: -1,
+        quantityAtRequest: sample.quantity,
+        balanceBefore: sample.quantity,
+        balanceAfter: after,
+        unitCost: sample.costPrice,
+        movementId: movement.id,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        action: 'inventory_adjustment.approved',
+        entityType: 'InventoryAdjustment',
+        entityId: adjustment.id,
+        userId: adminId,
+        after: { status: 'APPROVED', movementId: movement.id.toString() },
+        metadata: { source: 'seed-demo' },
+      },
+    });
+  });
+  console.log('✔ 3 ajustes DEMO (2 pendientes, 1 aprobado)');
+}
+
 try {
   const ids = await seedUsers();
   const adminId = ids.get(ROLES.ADMIN);
-  if (!adminId) throw new Error('No se creó el administrador DEMO');
+  const managerId = ids.get(ROLES.INVENTORY_MANAGER);
+  if (!adminId || !managerId) throw new Error('No se crearon los usuarios DEMO');
   await seedCatalogAndStock(adminId);
+  await seedAdjustments(managerId, adminId);
 } finally {
   await prisma.$disconnect();
 }

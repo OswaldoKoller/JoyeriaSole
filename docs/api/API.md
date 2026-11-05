@@ -48,49 +48,57 @@ Error:
 
 ## Endpoints implementados
 
-| Método | Ruta                                      | Auth                            | Descripción                                                                      |
-| ------ | ----------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------- |
-| GET    | `/health`                                 | —                               | Estado del servicio y de la BD (`200` ok / `503` degradado)                      |
-| POST   | `/auth/login`                             | —                               | `{ email, password }` → `204` + cookie. Límite: 10 intentos / 15 min por IP      |
-| POST   | `/auth/change-password`                   | sesión                          | Valida contraseña actual; revoca todas las sesiones y exige nuevo login          |
-| POST   | `/auth/logout`                            | sesión                          | Revoca la sesión → `204`                                                         |
-| GET    | `/auth/me`                                | sesión                          | Usuario actual con roles y permisos                                              |
-| GET    | `/suppliers`                              | `suppliers:read`                | Lista paginada; filtros por texto, estado y página                               |
-| GET    | `/suppliers/:id`                          | `suppliers:read`                | Detalle de un proveedor; 404 si no existe                                        |
-| POST   | `/suppliers`                              | `suppliers:manage`              | Crea un proveedor y registra auditoría; 201                                      |
-| PATCH  | `/suppliers/:id`                          | `suppliers:manage`              | Edita campos o `isActive`; auditoría con antes/después                           |
-| GET    | `/users`                                  | `users:read`                    | Lista paginada; filtros por nombre/correo y estado                               |
-| GET    | `/users/:id`                              | `users:read`                    | Consulta usuario y roles; no expone contraseña ni sesiones                       |
-| POST   | `/users`                                  | `users:manage` + `roles:manage` | Crea usuario con roles y contraseña inicial; audita sin exponer hash             |
-| GET    | `/users/roles`                            | `users:read` + `roles:manage`   | Roles disponibles para asignación múltiple                                       |
-| PATCH  | `/users/:id`                              | `users:manage`                  | Edita nombre/estado; revoca sesiones al desactivar; audita el cambio             |
-| PUT    | `/users/:id/roles`                        | `users:manage` + `roles:manage` | Reemplaza la asignación de roles; protege al último administrador                |
-| GET    | `/categories`                             | `catalog:read`                  | Lista categorías y subcategorías                                                 |
-| GET    | `/categories/:id`                         | `catalog:read`                  | Consulta una categoría                                                           |
-| POST   | `/categories`                             | `catalog:manage`                | Crea categoría principal o subcategoría; máximo dos niveles                      |
-| PATCH  | `/categories/:id`                         | `catalog:manage`                | Edita nombre, descripción u orden                                                |
-| GET    | `/attributes`                             | `catalog:read`                  | Consulta definiciones y valores de atributos                                     |
-| POST   | `/attributes/:id/options`                 | `catalog:manage`                | Agrega valor a atributo de tipo lista                                            |
-| GET    | `/products`                               | `catalog:read`                  | Lista y busca por nombre, SKU o código de barras                                 |
-| GET    | `/products/:id`                           | `catalog:read`                  | Consulta producto y variantes                                                    |
-| GET    | `/products/lookup?code=`                  | `catalog:read`                  | Busca exactamente un SKU o código de barras                                      |
-| POST   | `/products`                               | `catalog:manage`                | Crea ficha y variante base con SKU correlativo                                   |
-| PATCH  | `/products/:id`                           | `catalog:manage`                | Edita nombre, modelo o descripción                                               |
-| PATCH  | `/products/variants/:id/barcode`          | `catalog:manage`                | Registra código recibido del proveedor si no existe otro                         |
-| POST   | `/products/variants/:id/barcode/generate` | `catalog:manage`                | Genera código propio tras guardar producto activo                                |
-| POST   | `/products/:id/axes`                      | `catalog:manage`                | Define los ejes y valores de la variante base                                    |
-| POST   | `/products/:id/variants`                  | `catalog:manage`                | Agrega combinación única con SKU correlativo                                     |
-| GET    | `/inventory`                              | `inventory:read`                | Saldos por variante, búsqueda y filtros `level` e `initialOnly`                  |
-| GET    | `/inventory/movements`                    | `inventory:read`                | Historial global paginado con producto, variante y SKU                           |
-| GET    | `/inventory/:variantId/movements`         | `inventory:read`                | Historial paginado de movimientos                                                |
-| POST   | `/inventory/:variantId/initial`           | `inventory:adjust`              | Entrada inicial única; actualiza saldo y audita en transacción                   |
-| GET    | `/stock-entries`                          | `stock-entries:read`            | Lista paginada; filtros `status`, `supplierId` y `q` (número o documento)        |
-| GET    | `/stock-entries/:id`                      | `stock-entries:read`            | Detalle con ítems, costos por pieza y `blockers` (motivos que impiden confirmar) |
-| POST   | `/stock-entries`                          | `stock-entries:manage`          | Crea un borrador (proveedor activo, documento y costos adicionales)              |
-| PATCH  | `/stock-entries/:id`                      | `stock-entries:manage`          | Edita la cabecera; solo en borrador                                              |
-| PUT    | `/stock-entries/:id/items`                | `stock-entries:manage`          | Reemplaza todos los ítems del borrador de forma atómica                          |
-| POST   | `/stock-entries/:id/confirm`              | `stock-entries:confirm`         | Confirmación única: movimientos, saldos, último costo y auditoría atómicos       |
-| POST   | `/stock-entries/:id/cancel`               | `stock-entries:manage`          | Cancela un borrador sin tocar el stock                                           |
+| Método | Ruta                                      | Auth                            | Descripción                                                                            |
+| ------ | ----------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
+| GET    | `/health`                                 | —                               | Estado del servicio y de la BD (`200` ok / `503` degradado)                            |
+| POST   | `/auth/login`                             | —                               | `{ email, password }` → `204` + cookie. Límite: 10 intentos / 15 min por IP            |
+| POST   | `/auth/change-password`                   | sesión                          | Valida contraseña actual; revoca todas las sesiones y exige nuevo login                |
+| POST   | `/auth/logout`                            | sesión                          | Revoca la sesión → `204`                                                               |
+| GET    | `/auth/me`                                | sesión                          | Usuario actual con roles y permisos                                                    |
+| GET    | `/suppliers`                              | `suppliers:read`                | Lista paginada; filtros por texto, estado y página                                     |
+| GET    | `/suppliers/:id`                          | `suppliers:read`                | Detalle de un proveedor; 404 si no existe                                              |
+| POST   | `/suppliers`                              | `suppliers:manage`              | Crea un proveedor y registra auditoría; 201                                            |
+| PATCH  | `/suppliers/:id`                          | `suppliers:manage`              | Edita campos o `isActive`; auditoría con antes/después                                 |
+| GET    | `/users`                                  | `users:read`                    | Lista paginada; filtros por nombre/correo y estado                                     |
+| GET    | `/users/:id`                              | `users:read`                    | Consulta usuario y roles; no expone contraseña ni sesiones                             |
+| POST   | `/users`                                  | `users:manage` + `roles:manage` | Crea usuario con roles y contraseña inicial; audita sin exponer hash                   |
+| GET    | `/users/roles`                            | `users:read` + `roles:manage`   | Roles disponibles para asignación múltiple                                             |
+| PATCH  | `/users/:id`                              | `users:manage`                  | Edita nombre/estado; revoca sesiones al desactivar; audita el cambio                   |
+| PUT    | `/users/:id/roles`                        | `users:manage` + `roles:manage` | Reemplaza la asignación de roles; protege al último administrador                      |
+| GET    | `/categories`                             | `catalog:read`                  | Lista categorías y subcategorías                                                       |
+| GET    | `/categories/:id`                         | `catalog:read`                  | Consulta una categoría                                                                 |
+| POST   | `/categories`                             | `catalog:manage`                | Crea categoría principal o subcategoría; máximo dos niveles                            |
+| PATCH  | `/categories/:id`                         | `catalog:manage`                | Edita nombre, descripción u orden                                                      |
+| GET    | `/attributes`                             | `catalog:read`                  | Consulta definiciones y valores de atributos                                           |
+| POST   | `/attributes/:id/options`                 | `catalog:manage`                | Agrega valor a atributo de tipo lista                                                  |
+| GET    | `/products`                               | `catalog:read`                  | Lista y busca por nombre, SKU o código de barras                                       |
+| GET    | `/products/:id`                           | `catalog:read`                  | Consulta producto y variantes                                                          |
+| GET    | `/products/lookup?code=`                  | `catalog:read`                  | Busca exactamente un SKU o código de barras                                            |
+| POST   | `/products`                               | `catalog:manage`                | Crea ficha y variante base con SKU correlativo                                         |
+| PATCH  | `/products/:id`                           | `catalog:manage`                | Edita nombre, modelo o descripción                                                     |
+| PATCH  | `/products/variants/:id/barcode`          | `catalog:manage`                | Registra código recibido del proveedor si no existe otro                               |
+| POST   | `/products/variants/:id/barcode/generate` | `catalog:manage`                | Genera código propio tras guardar producto activo                                      |
+| POST   | `/products/:id/axes`                      | `catalog:manage`                | Define los ejes y valores de la variante base                                          |
+| POST   | `/products/:id/variants`                  | `catalog:manage`                | Agrega combinación única con SKU correlativo                                           |
+| GET    | `/inventory`                              | `inventory:read`                | Saldos por variante, búsqueda y filtros `level` e `initialOnly`                        |
+| GET    | `/inventory/movements`                    | `inventory:read`                | Historial global paginado con producto, variante y SKU                                 |
+| GET    | `/inventory/:variantId/movements`         | `inventory:read`                | Historial paginado de movimientos                                                      |
+| POST   | `/inventory/:variantId/initial`           | `inventory:adjust`              | Entrada inicial única; actualiza saldo y audita en transacción                         |
+| GET    | `/inventory/adjustments`                  | `inventory:adjust`              | Lista paginada; filtros `status`, `variantId`, `from`, `to` (valores con `costs:read`) |
+| GET    | `/inventory/adjustments/reasons`          | `inventory:adjust`              | Catálogo de motivos activos (`requiresNotes` indica si exigen observación)             |
+| GET    | `/inventory/adjustments/pending-count`    | `inventory:adjust-approve`      | `{ data: { count } }` de ajustes pendientes (bandeja del Administrador)                |
+| GET    | `/inventory/adjustments/:id`              | `inventory:adjust`              | Detalle con líneas, saldo actual, cantidad anterior/nueva y `blockers`                 |
+| POST   | `/inventory/adjustments`                  | `inventory:adjust`              | Solicita un ajuste (varias líneas con diferencia con signo); NO toca el stock; 201     |
+| POST   | `/inventory/adjustments/:id/cancel`       | `inventory:adjust`              | Cancela un pendiente; solo quien lo solicitó                                           |
+| POST   | `/inventory/adjustments/:id/approve`      | `inventory:adjust-approve`      | Aprueba: movimientos `ADJUSTMENT`, saldos y auditoría atómicos                         |
+| POST   | `/inventory/adjustments/:id/reject`       | `inventory:adjust-approve`      | Rechaza con `notes` obligatorias; no toca el stock                                     |
+| GET    | `/stock-entries`                          | `stock-entries:read`            | Lista paginada; filtros `status`, `supplierId` y `q` (número o documento)              |
+| GET    | `/stock-entries/:id`                      | `stock-entries:read`            | Detalle con ítems, costos por pieza y `blockers` (motivos que impiden confirmar)       |
+| POST   | `/stock-entries`                          | `stock-entries:manage`          | Crea un borrador (proveedor activo, documento y costos adicionales)                    |
+| PATCH  | `/stock-entries/:id`                      | `stock-entries:manage`          | Edita la cabecera; solo en borrador                                                    |
+| PUT    | `/stock-entries/:id/items`                | `stock-entries:manage`          | Reemplaza todos los ítems del borrador de forma atómica                                |
+| POST   | `/stock-entries/:id/confirm`              | `stock-entries:confirm`         | Confirmación única: movimientos, saldos, último costo y auditoría atómicos             |
+| POST   | `/stock-entries/:id/cancel`               | `stock-entries:manage`          | Cancela un borrador sin tocar el stock                                                 |
 
 Ejemplos ejecutables: [`requests.http`](../../requests.http) (extensión REST Client).
 
@@ -99,7 +107,7 @@ Ejemplos ejecutables: [`requests.http`](../../requests.http) (extensión REST Cl
 | Módulo            | Rutas tentativas                                                               | Permisos                                   |
 | ----------------- | ------------------------------------------------------------------------------ | ------------------------------------------ |
 | Catálogo          | Atributos descriptivos por producto; edición de precios según P-25             | `catalog:*`, `prices:manage`, `costs:read` |
-| Inventario        | Ajustes posteriores y salidas de stock; P-01 parcial                           | `inventory:*`                              |
+| Inventario        | Salidas por ventas y cambios (Fase 2); los ajustes ya están implementados      | `inventory:*`                              |
 | Inventario físico | `/inventory-counts`, `/:id/start`, `/:id/items`, `/:id/review`, `/:id/approve` | `inventory-counts:*`                       |
 | Auditoría         | `/audit-logs`                                                                  | `audit:read`                               |
 
@@ -120,6 +128,42 @@ Un ingreso nace como **borrador** y no cambia el stock. Solo `POST /stock-entrie
 | Dos confirmaciones simultáneas                                | Una responde `200` y la otra `422`                  |
 
 Confirmar exige `stock-entries:confirm`, separado de `stock-entries:manage` (crear y editar borradores).
+
+### Ajustes de inventario
+
+Un ajuste es un **documento** (`AJ-000001`) que el Responsable **solicita** y el Administrador
+**aprueba o rechaza** ([ADR-017](../decisions/ADR-017-ajustes-solicitud-aprobacion.md)). El stock cambia
+**únicamente** en `POST /inventory/adjustments/:id/approve`, que en una sola transacción bloquea el
+documento, **revalida cada línea con el saldo vigente**, registra un movimiento `ADJUSTMENT` por línea
+(`referenceType = INVENTORY_ADJUSTMENT`, `referenceId` = id del documento), guarda cantidad anterior y
+nueva, cierra el documento y audita.
+
+Cuerpo de `POST /inventory/adjustments`:
+
+```json
+{
+  "reasonId": "<uuid del motivo>",
+  "notes": "texto libre (obligatorio si el motivo es «Otro»)",
+  "items": [{ "variantId": "<uuid>", "quantityDelta": -2 }]
+}
+```
+
+`quantityDelta` es entero con signo y distinto de cero (negativo = salida). No se repite una variante.
+
+| Situación                                                                | Respuesta                                                      |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| Sin sesión / sin permiso (el Vendedor no tiene ninguno)                  | `401` / `403`                                                  |
+| Quien solo solicita intenta aprobar, rechazar o ver el contador          | `403`                                                          |
+| `quantityDelta` 0 o no entero, líneas vacías o repetidas, sin motivo     | `400`                                                          |
+| Motivo «Otro» sin observación, variante inactiva, saldo que quedaría < 0 | `422` (al solicitar **y** al aprobar con el saldo vigente)     |
+| Motivo o variante inexistente                                            | `404`                                                          |
+| Aprobar/rechazar/cancelar un ajuste ya resuelto                          | `422`; no duplica movimientos                                  |
+| Cancelar un ajuste ajeno                                                 | `403`                                                          |
+| Dos aprobaciones simultáneas contra el mismo saldo                       | Una responde `200` y la otra `422`; nunca queda stock negativo |
+
+Si una línea falla al aprobar, **no se aplica ninguna** y el ajuste sigue pendiente. Los campos
+`unitCost` y `valueImpact` (costo y valor en Bs, con signo) solo se envían con `costs:read`; para el resto
+son `null`. `meta` y los filtros siguen la convención de paginación (`page`, `pageSize` ≤ 100).
 
 ## Cómo agregar un endpoint
 

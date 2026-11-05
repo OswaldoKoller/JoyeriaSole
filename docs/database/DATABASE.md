@@ -31,6 +31,7 @@ categories ─┐ (parent_id → árbol: categoría / subcategoría)
                                                 ├─< inventory_movements
                                                 ├─< supplier_products >── suppliers
                                                 ├─< stock_entry_items >── stock_entries ── suppliers
+                                                ├─< inventory_adjustment_items >── inventory_adjustments >── adjustment_reasons
                                                 └─< inventory_count_items >── inventory_counts
 ```
 
@@ -73,12 +74,15 @@ La migración `20261010000000_product_variant_sku_sequence` agrega la secuencia 
 
 ### Inventario
 
-| Tabla                   | Propósito                                                                                                                   |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `inventory_movements`   | **Libro mayor inmutable**. Cantidad con signo, saldo antes/después, costo, referencia al documento, motivo, usuario, fecha. |
-| `inventory_balances`    | Saldo actual por variante (lectura rápida). Se actualiza en la misma transacción que el movimiento.                         |
-| `inventory_counts`      | Inventario físico: `DRAFT → IN_PROGRESS → IN_REVIEW → APPROVED` / `CANCELLED`.                                              |
-| `inventory_count_items` | Por variante: stock del sistema (snapshot), contado, quién/cuándo, motivo de diferencia.                                    |
+| Tabla                        | Propósito                                                                                                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inventory_movements`        | **Libro mayor inmutable**. Cantidad con signo, saldo antes/después, costo, referencia al documento, motivo, usuario, fecha.                                                                                               |
+| `inventory_balances`         | Saldo actual por variante (lectura rápida). Se actualiza en la misma transacción que el movimiento.                                                                                                                       |
+| `inventory_counts`           | Inventario físico: `DRAFT → IN_PROGRESS → IN_REVIEW → APPROVED` / `CANCELLED`.                                                                                                                                            |
+| `inventory_count_items`      | Por variante: stock del sistema (snapshot), contado, quién/cuándo, motivo de diferencia.                                                                                                                                  |
+| `adjustment_reasons`         | Catálogo de motivos de ajuste (P-20): `code`, `name`, `requires_notes` (el motivo «Otro» exige observación), `is_active`. Lo siembra el seed.                                                                             |
+| `inventory_adjustments`      | Ajuste manual (ADR-017): número `AJ-000001`, estado `PENDING`, `APPROVED`, `REJECTED` o `CANCELLED`, motivo, observación, quién solicitó, quién resolvió y cuándo, comentario de resolución.                              |
+| `inventory_adjustment_items` | Líneas: variante, `quantity_delta` con signo (distinto de 0), saldo visto al solicitar y, al aprobar, `balance_before`/`balance_after`, `unit_cost` y `movement_id` del movimiento `ADJUSTMENT`. Una variante por ajuste. |
 
 ### Auditoría
 
@@ -96,7 +100,12 @@ Definidas en la migración inicial (SQL), además de las de Prisma:
 - `categories`: una categoría no puede ser su propio padre.
 - **Triggers append-only** en `inventory_movements` y `audit_logs`: impiden `UPDATE`/`DELETE`.
   (En `audit_logs` solo se permite que `user_id` pase a NULL si se elimina el usuario.)
-- Stock negativo **no** restringido a propósito (P-08).
+- `inventory_adjustment_items`: `quantity_delta <> 0`; cantidad anterior, nueva y movimiento van juntas y
+  `balance_after = balance_before + quantity_delta >= 0`.
+- `inventory_adjustments`: `resolved_by/at` solo en `APPROVED`/`REJECTED`, `cancelled_at` solo en
+  `CANCELLED`, y un rechazo exige comentario. **Triggers**: un ajuste no se borra y, una vez resuelto
+  (`status <> 'PENDING'`), ni él ni sus líneas se modifican (ADR-017).
+- Stock negativo **no** restringido a propósito en la base (P-08); lo impide el servicio (`stock-ledger.ts`).
 
 Estas garantías están cubiertas por `apps/api/test/integration/database-integrity.test.ts`.
 
@@ -122,4 +131,6 @@ Reglas:
 
 `apps/api/prisma/seed.ts` carga solo **estructura**: permisos, roles preliminares, administrador
 inicial (desde `SEED_ADMIN_*`) y las 12 definiciones de atributos citadas en el requerimiento, sin
-valores. **No** carga productos, categorías ni proveedores: los define el cliente.
+valores. **No** carga productos, categorías ni proveedores: los define el cliente. También siembra,
+de forma idempotente, el catálogo de motivos de ajuste (Robo, Pérdida, Muestra, Rotura, Error de
+registro, Otro); solo agrega los que faltan y no pisa cambios hechos después.
