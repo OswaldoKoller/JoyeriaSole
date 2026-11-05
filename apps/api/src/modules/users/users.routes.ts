@@ -2,6 +2,7 @@ import {
   PERMISSIONS,
   assignUserRolesSchema,
   createUserSchema,
+  resetPasswordSchema,
   roleSummarySchema,
   updateUserSchema,
   userSummarySchema,
@@ -79,6 +80,21 @@ export const usersRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => ({ data: await service.update(request.params.id, request.body, request) }),
+  );
+
+  app.post(
+    '/:id/reset-password',
+    {
+      preHandler: app.requirePermission(PERMISSIONS.USERS_MANAGE),
+      schema: {
+        params: z.object({ id: z.uuid() }),
+        body: resetPasswordSchema,
+        response: { 200: z.object({ data: userSummarySchema }) },
+      },
+    },
+    async (request) => ({
+      data: await service.resetPassword(request.params.id, request.body, request),
+    }),
   );
 
   app.put(

@@ -26,23 +26,59 @@ describe('autenticación y autorización', () => {
     });
 
     const { response, cookie } = await login(app, user.email, password);
-    expect(response.statusCode).toBe(204);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ data: { mustChangePassword: false } });
     const sessionCookie = response.cookies[0]!;
     expect(sessionCookie.httpOnly).toBe(true);
     expect(sessionCookie.sameSite).toBe('Strict');
 
     const me = await app.inject({ method: 'GET', url: '/api/v1/auth/me', headers: { cookie } });
     expect(me.statusCode).toBe(200);
-    expect(me.json().data).toMatchObject({ email: user.email, permissions: ['catalog:read'] });
+    expect(me.json().data).toMatchObject({
+      email: user.email,
+      permissions: ['catalog:read'],
+      mustChangePassword: false,
+    });
 
     const stored = await app.prisma.session.findFirstOrThrow({ where: { userId: user.id } });
     expect(sessionCookie.value).not.toContain(stored.tokenHash); // en BD solo el hash
+    // P-19 / Q-02: sesión fija de 8 horas desde el login.
     expect(stored.expiresAt.getTime() - stored.createdAt.getTime()).toBeGreaterThan(
-      3 * 60 * 60 * 1000 - 5_000,
+      8 * 60 * 60 * 1000 - 5_000,
     );
     expect(stored.expiresAt.getTime() - stored.createdAt.getTime()).toBeLessThan(
-      3 * 60 * 60 * 1000 + 5_000,
+      8 * 60 * 60 * 1000 + 5_000,
     );
+    expect(sessionCookie.expires!.getTime()).toBeCloseTo(stored.expiresAt.getTime(), -4);
+  });
+
+  it('la sesión vence a las 8 horas fijas y la actividad no la extiende', async () => {
+    const { user, password } = await createTestUser(app.prisma);
+    const { cookie } = await login(app, user.email, password);
+    const session = await app.prisma.session.findFirstOrThrow({ where: { userId: user.id } });
+
+    // Actividad tras 7 h 50 min: refresca lastSeenAt pero NO expiresAt (sin extensión).
+    const sevenFifty = new Date(session.createdAt.getTime() + (7 * 60 + 50) * 60_000);
+    await app.prisma.session.update({
+      where: { id: session.id },
+      data: { lastSeenAt: sevenFifty },
+    });
+    const active = await app.inject({ method: 'GET', url: '/api/v1/auth/me', headers: { cookie } });
+    expect(active.statusCode).toBe(200);
+    const after = await app.prisma.session.findUniqueOrThrow({ where: { id: session.id } });
+    expect(after.expiresAt.getTime()).toBe(session.expiresAt.getTime());
+
+    // Pasadas las 8 h desde el login, la sesión deja de ser válida aunque haya habido actividad.
+    await app.prisma.session.update({
+      where: { id: session.id },
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    });
+    const expired = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      headers: { cookie },
+    });
+    expect(expired.statusCode).toBe(401);
   });
 
   it('rechaza credenciales inválidas con mensaje genérico y lo audita', async () => {
@@ -203,7 +239,7 @@ describe('autenticación y autorización', () => {
       await app.prisma.session.count({ where: { userId: user.id, revokedAt: { not: null } } }),
     ).toBe(2);
     expect((await login(app, user.email, password)).response.statusCode).toBe(401);
-    expect((await login(app, user.email, 'nueva-clave-segura-123')).response.statusCode).toBe(204);
+    expect((await login(app, user.email, 'nueva-clave-segura-123')).response.statusCode).toBe(200);
     const audit = await app.prisma.auditLog.findFirstOrThrow({
       where: { action: 'user.password_changed' },
     });

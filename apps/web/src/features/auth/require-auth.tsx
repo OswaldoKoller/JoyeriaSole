@@ -2,6 +2,7 @@ import type { Permission } from '@joyeria/shared';
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { FullPageMessage } from '../../components/ui/full-page-message.tsx';
+import { ForcedPasswordChange } from './forced-password-change.tsx';
 import { useCurrentUser } from './use-auth.ts';
 
 /**
@@ -21,6 +22,8 @@ export function RequireAuth({
   if (isPending) return <FullPageMessage>Cargando…</FullPageMessage>;
   if (isError) return <FullPageMessage>No se pudo conectar con el servidor.</FullPageMessage>;
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  // Clave temporal (F2): ninguna otra pantalla hasta cambiarla.
+  if (user.mustChangePassword) return <ForcedPasswordChange />;
   if (!permissions.every((p) => user.permissions.includes(p))) {
     return <FullPageMessage>No tiene permiso para ver esta sección.</FullPageMessage>;
   }

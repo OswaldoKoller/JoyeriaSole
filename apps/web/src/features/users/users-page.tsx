@@ -156,6 +156,9 @@ export function UsersPage() {
                     </td>
                     <td data-label="Estado" className="py-3 pr-4">
                       {user.isActive ? 'Activo' : 'Inactivo'}
+                      {user.mustChangePassword && (
+                        <span className="block text-xs text-amber-800">Debe cambiar su clave</span>
+                      )}
                     </td>
                     {canManage && (
                       <td className="flex gap-2 py-2">

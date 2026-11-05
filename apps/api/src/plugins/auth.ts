@@ -2,7 +2,11 @@ import type { AuthUser, Permission, RoleCode } from '@joyeria/shared';
 import type { FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
 import fp from 'fastify-plugin';
 import type { Env } from '../config/env.ts';
-import { ForbiddenError, UnauthenticatedError } from '../lib/errors.ts';
+import {
+  ForbiddenError,
+  PasswordChangeRequiredError,
+  UnauthenticatedError,
+} from '../lib/errors.ts';
 import type { PrismaClient } from '../lib/prisma.ts';
 import { hashToken } from '../lib/tokens.ts';
 
@@ -13,9 +17,15 @@ export interface RequestAuth {
 
 declare module 'fastify' {
   interface FastifyInstance {
-    /** preHandler: exige sesión válida. */
+    /**
+     * preHandler: exige sesión válida. Lo usan solo las rutas `/auth/*`, que también atienden a
+     * quien tiene una clave temporal pendiente de cambio.
+     */
     authenticate: preHandlerAsyncHookHandler;
-    /** preHandler: exige sesión válida y TODOS los permisos indicados. */
+    /**
+     * preHandler: exige sesión válida y TODOS los permisos indicados. Mientras la clave sea
+     * temporal (mustChangePassword) responde 403 PASSWORD_CHANGE_REQUIRED sin evaluar permisos.
+     */
     requirePermission: (...permissions: Permission[]) => preHandlerAsyncHookHandler;
     sessionCookie: SessionCookieHelpers;
   }
@@ -82,6 +92,7 @@ export async function loadSessionUser(
       name: session.user.name,
       roles,
       permissions: [...permissions].sort(),
+      mustChangePassword: session.user.mustChangePassword,
     },
   };
 }
@@ -129,6 +140,7 @@ export const authPlugin = fp<{ env: Env }>(
       const handler: preHandlerAsyncHookHandler = async (request) => {
         const auth = await resolveAuth(request);
         if (!auth) throw new UnauthenticatedError();
+        if (auth.user.mustChangePassword) throw new PasswordChangeRequiredError();
         const missing = required.filter((p) => !auth.user.permissions.includes(p));
         if (missing.length > 0) {
           request.log.warn(
