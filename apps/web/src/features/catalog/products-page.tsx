@@ -1,10 +1,11 @@
-import { PERMISSIONS, type Product } from '@joyeria/shared';
+import { PERMISSIONS } from '@joyeria/shared';
 import { useState, type SyntheticEvent } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { ApiError } from '../../lib/api-client.ts';
 import { useHasPermission } from '../auth/use-auth.ts';
+import { PieceImage } from './photos/piece-image.tsx';
 import { ProductCard } from './product-card.tsx';
 import { ProductForm } from './product-form.tsx';
 import { categoryPath, useCategories } from './use-categories.ts';
@@ -34,10 +35,8 @@ export function ProductsPage() {
         : 'all',
   );
   const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<Product | null>(null);
-  const [error, setError] = useState('');
   const [warnings, setWarnings] = useState<string[]>([]);
-  const [found, setFound] = useState('');
+  const [found, setFound] = useState<{ text: string; variantId: string | null } | null>(null);
   const categories = useCategories();
   const list = useProducts({
     page,
@@ -57,18 +56,21 @@ export function ProductsPage() {
     event.preventDefault();
     const term = draftSearch.trim();
     setPage(1);
-    setFound('');
+    setFound(null);
     if (term) {
       try {
         const { data } = await lookupVariant(term);
-        setFound(
-          `Encontrada por ${MATCH_LABEL[data.matchedBy]}: ${data.productName}${data.label && data.label !== 'Única' ? ` · ${data.label}` : ''} (${data.sku}).`,
-        );
+        setFound({
+          text: `Encontrada por ${MATCH_LABEL[data.matchedBy]}: ${data.productName}${data.label && data.label !== 'Única' ? ` · ${data.label}` : ''} (${data.sku}).`,
+          variantId: data.variantId,
+        });
         setSearch(data.sku);
         return;
       } catch (cause) {
         // 404: no es un código exacto, se busca por texto. 409: código de varios proveedores.
-        if (cause instanceof ApiError && cause.status === 409) setFound(cause.message);
+        if (cause instanceof ApiError && cause.status === 409) {
+          setFound({ text: cause.message, variantId: null });
+        }
       }
     }
     setSearch(term);
@@ -91,7 +93,7 @@ export function ProductsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Productos</h1>
           <p className="text-sm text-stone-600">
-            Fichas, códigos y disponibilidad por variante. Consulta los movimientos en Inventario.
+            Toca un producto para ver su ficha completa. Consulta los movimientos en Inventario.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -105,7 +107,6 @@ export function ProductsPage() {
             <Button
               onClick={() => {
                 setCreating(true);
-                setEditing(null);
               }}
             >
               Nuevo producto
@@ -120,20 +121,6 @@ export function ProductsPage() {
             if (created && created.length > 0) setWarnings(created);
           }}
         />
-      )}
-      {editing && canManage && (
-        <ProductForm
-          key={editing.id}
-          editing={editing}
-          onClose={() => {
-            setEditing(null);
-          }}
-        />
-      )}
-      {error && (
-        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </p>
       )}
       {warnings.length > 0 && (
         <div role="status" className="space-y-1 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
@@ -216,9 +203,13 @@ export function ProductsPage() {
           </div>
         </div>
         {found && (
-          <p role="status" className="mt-3 rounded-lg bg-brand-50 p-3 text-sm text-stone-800">
-            {found}
-          </p>
+          <div
+            role="status"
+            className="mt-3 flex items-center gap-3 rounded-lg bg-brand-50 p-3 text-sm text-stone-800"
+          >
+            {found.variantId && <PieceImage variantId={found.variantId} className="size-14" />}
+            <p>{found.text}</p>
+          </div>
         )}
         {list.isPending && (
           <p role="status" className="py-6 text-sm">
@@ -237,21 +228,9 @@ export function ProductsPage() {
           <p className="py-6 text-sm text-stone-600">No se encontraron productos.</p>
         )}
         {list.isSuccess && products.length > 0 && (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {products.map((product) => (
-              <ProductCard
-                key={product.id}
-                defaultOpen={products.length === 1}
-                product={product}
-                canManage={canManage}
-                canReadInventory={canReadInventory}
-                onEdit={(selected) => {
-                  setEditing(selected);
-                  setCreating(false);
-                }}
-                onError={setError}
-                onWarnings={setWarnings}
-              />
+              <ProductCard key={product.id} product={product} canReadInventory={canReadInventory} />
             ))}
           </div>
         )}

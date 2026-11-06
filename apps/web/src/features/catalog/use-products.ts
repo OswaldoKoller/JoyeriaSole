@@ -45,6 +45,16 @@ export function useProducts(filters: ProductFilters) {
   });
 }
 
+/** Ficha completa de un producto (página de detalle). */
+export function useProduct(id: string) {
+  return useQuery({
+    queryKey: [...key, 'detail', id],
+    queryFn: () => api.get<{ data: Product }>(`/products/${id}`),
+    select: (response) => response.data,
+    enabled: id !== '',
+  });
+}
+
 /** Contadores de fichas incompletas y sin precio para el Inicio (sin costos). */
 export function useCatalogHealth(enabled: boolean) {
   return useQuery({

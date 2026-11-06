@@ -8,6 +8,7 @@ import { UsersPage } from '../features/users/users-page.tsx';
 import { CategoriesPage } from '../features/catalog/categories-page.tsx';
 import { AttributesPage } from '../features/catalog/attributes-page.tsx';
 import { ProductsPage } from '../features/catalog/products-page.tsx';
+import { ProductDetailPage } from '../features/catalog/product-detail-page.tsx';
 import { LabelsPage } from '../features/catalog/labels-page.tsx';
 import { InventoryPage } from '../features/inventory/inventory-page.tsx';
 import { MovementsPage } from '../features/inventory/movements-page.tsx';
@@ -77,6 +78,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth permissions={[PERMISSIONS.CATALOG_READ]}>
             <ProductsPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'productos/:id',
+        element: (
+          <RequireAuth permissions={[PERMISSIONS.CATALOG_READ]}>
+            <ProductDetailPage />
           </RequireAuth>
         ),
       },

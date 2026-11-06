@@ -14,6 +14,7 @@ import {
   useUpdateVariant,
   useUpdateVariantStatus,
 } from './use-products.ts';
+import { PieceImage } from './photos/piece-image.tsx';
 import { stockBlockMessage } from './stock-messages.ts';
 
 const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
@@ -91,10 +92,16 @@ export function VariantRow({
 
   return (
     <div className="rounded-lg bg-stone-50 p-3 text-sm">
-      <p>
-        <strong>SKU:</strong> {variant.sku}
-        {variant.label && variant.label !== 'Única' ? ` · ${variant.label}` : ''}
-      </p>
+      <div className="mb-2 flex items-center gap-3">
+        <PieceImage variantId={variant.id} className="size-14" />
+        <div>
+          <strong className="block">{product.name}</strong>
+          <p>
+            <strong>SKU:</strong> {variant.sku}
+            {variant.label && variant.label !== 'Única' ? ` · ${variant.label}` : ''}
+          </p>
+        </div>
+      </div>
       {canReadInventory && variant.stockQuantity !== undefined && (
         <p>
           <strong>Stock:</strong> {variant.stockQuantity} piezas

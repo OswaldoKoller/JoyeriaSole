@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openProduct } from './product-pages.ts';
 
 /**
  * E2E por roles con los usuarios DEMO de `npm run db:seed:demo` (se ejecuta dentro de `npm run qa`).
@@ -138,10 +139,13 @@ test.describe('productos e inventario desde la interfaz', () => {
     await page.getByLabel('Stock mínimo en piezas').fill('3');
     await page.getByRole('button', { name: 'Guardar producto' }).click();
 
+    // La tarjeta resume (solo nombre, precio, disponibilidad y stock); el detalle está en su ficha.
+    await expect(page.getByRole('link', { name: 'Ver ficha de E2E Anillo Prueba' })).toContainText(
+      'Sin stock',
+    );
+    await openProduct(page, 'E2E Anillo Prueba');
     const card = page.getByRole('article').filter({ hasText: 'E2E Anillo Prueba' });
     await expect(card).toContainText('DEMO Anillos');
-    // La tarjeta resume; el SKU y los códigos están en el detalle.
-    await card.getByRole('button', { name: 'Ver detalle de E2E Anillo Prueba' }).click();
     await expect(card).toContainText(/SKU-\d{6}/);
     await expect(card).toContainText('Sin código');
 
@@ -156,9 +160,11 @@ test.describe('productos e inventario desde la interfaz', () => {
 
     // Verificación tras recargar: persistió
     await page.reload();
+    await expect(page.getByRole('heading', { level: 1, name: 'E2E Anillo Editado' })).toBeVisible();
+    await page.goto('/productos');
     await page.getByLabel('Buscar por nombre, SKU o código de barras').fill('E2E Anillo Editado');
     await page.getByRole('button', { name: 'Buscar' }).click();
-    await expect(page.getByRole('article').filter({ hasText: 'E2E Anillo Editado' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Ver ficha de E2E Anillo Editado' })).toBeVisible();
 
     // El responsable de inventario autoriza (regla 2026-11-05): también carga el stock inicial de una
     // pieza sin movimientos.

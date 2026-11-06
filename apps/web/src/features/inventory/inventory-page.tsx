@@ -36,6 +36,7 @@ export function InventoryPage() {
   const [error, setError] = useState('');
   const list = useInventory(page, search, level, initialOnly);
   const movements = useInventoryMovements(selected?.variantId ?? null);
+  const initialItem = (list.data?.data ?? []).find((item) => item.variantId === initialFor);
   const initial = useInitialStock();
   const items = list.data?.data ?? [];
   const total = list.data?.meta.total ?? 0;
@@ -235,6 +236,18 @@ export function InventoryPage() {
           className="space-y-3 rounded-xl border border-stone-200 bg-white p-5 shadow-xs"
         >
           <h2 className="font-semibold">Registrar stock inicial</h2>
+          {initialItem && (
+            <div className="flex items-center gap-3 text-sm">
+              <PieceImage variantId={initialItem.variantId} className="size-16" />
+              <span>
+                {initialItem.productName}
+                {initialItem.variantLabel && initialItem.variantLabel !== 'Única'
+                  ? ` · ${initialItem.variantLabel}`
+                  : ''}
+                <span className="block text-xs text-stone-600">{initialItem.sku}</span>
+              </span>
+            </div>
+          )}
           <Input
             label="Cantidad en piezas"
             type="number"
@@ -273,7 +286,18 @@ export function InventoryPage() {
       {selected && (
         <section className="space-y-3 rounded-xl border border-stone-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-semibold">Historial de {selected.sku}</h2>
+            <div className="flex items-center gap-3">
+              <PieceImage variantId={selected.variantId} className="size-16" />
+              <div>
+                <h2 className="font-semibold">Historial de {selected.sku}</h2>
+                <p className="text-sm text-stone-600">
+                  {selected.productName}
+                  {selected.variantLabel && selected.variantLabel !== 'Única'
+                    ? ` · ${selected.variantLabel}`
+                    : ''}
+                </p>
+              </div>
+            </div>
             <Button
               variant="secondary"
               onClick={() => {

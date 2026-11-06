@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openProduct, productTile } from './product-pages.ts';
 
 /**
  * P-22: no se desactiva un producto ni una variante con stock. Usa el Administrador DEMO y crea
@@ -14,7 +15,7 @@ async function createProduct(page: Page, name: string) {
   await page.getByLabel('Categoría').selectOption({ label: 'DEMO Anillos' });
   await page.getByLabel('Nombre del producto').fill(name);
   await page.getByRole('button', { name: 'Guardar producto' }).click();
-  await expect(page.getByRole('article').filter({ hasText: name })).toBeVisible();
+  await expect(productTile(page, name)).toBeVisible();
 }
 
 test('un producto con stock no se desactiva; sin stock sí', async ({ page }) => {
@@ -47,6 +48,7 @@ test('un producto con stock no se desactiva; sin stock sí', async ({ page }) =>
   await menu(page).getByRole('link', { name: 'Productos' }).click();
   await page.getByLabel('Buscar por nombre, SKU o código de barras').fill(stocked);
   await page.getByRole('button', { name: 'Buscar' }).click();
+  await openProduct(page, stocked);
   const stockedCard = page.getByRole('article').filter({ hasText: stocked });
   await expect(stockedCard.getByRole('button', { name: `Desactivar ${stocked}` })).toBeDisabled();
   await expect(stockedCard).toContainText('No se puede desactivar el producto: tiene 4 piezas');
@@ -65,8 +67,10 @@ test('un producto con stock no se desactiva; sin stock sí', async ({ page }) =>
   expect((await blocked.json()).error.code).toBe('STOCK_BLOCKS_DEACTIVATION');
 
   // Sin stock: se desactiva y se puede volver a activar.
+  await page.getByRole('link', { name: '← Volver a Productos' }).click();
   await page.getByLabel('Buscar por nombre, SKU o código de barras').fill(empty);
   await page.getByRole('button', { name: 'Buscar' }).click();
+  await openProduct(page, empty);
   const emptyCard = page.getByRole('article').filter({ hasText: empty });
   await emptyCard.getByRole('button', { name: `Desactivar ${empty}` }).click();
   await expect(emptyCard).toContainText('Inactivo');

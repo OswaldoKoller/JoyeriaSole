@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openProduct } from './product-pages.ts';
 
 /**
  * Flujo de importación (S5): proveedor del exterior → ingreso en USD con tipo de cambio →
@@ -224,6 +225,7 @@ test('importación: ingreso en USD con aduanización, comisiones y pieza nueva',
   await page.goto('/productos');
   await page.getByLabel('Buscar por nombre, SKU o código de barras').fill(NEW_PIECE);
   await page.getByRole('button', { name: 'Buscar' }).click();
+  await openProduct(page, NEW_PIECE);
   const card = page.getByRole('article').filter({ hasText: NEW_PIECE });
   await expect(card).toContainText('Ficha incompleta');
   await expect(card).toContainText(NEW_PIECE_CODE); // el código del proveedor quedó como código de barras
@@ -291,6 +293,7 @@ test('un código de proveedor repetido avisa y no se guarda como código de barr
     .getByLabel('Buscar por nombre, SKU o código de barras')
     .fill('E2E Anillo código repetido');
   await page.getByRole('button', { name: 'Buscar' }).click();
+  await openProduct(page, 'E2E Anillo código repetido');
   const card = page.getByRole('article').filter({ hasText: 'E2E Anillo código repetido' });
   await expect(card).toContainText('Sin código');
 });
