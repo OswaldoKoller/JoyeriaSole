@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState, type SyntheticEvent } from 'react';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
+import { formatBsPrecise, formatUsd } from '../../lib/format.ts';
 import type { Line } from './lines.ts';
 import { searchVariants, useVariantSearch, variantSearchKey } from './use-stock-entries.ts';
 import { PieceImage } from '../catalog/photos/piece-image.tsx';
@@ -115,14 +116,7 @@ interface ItemsProps {
 }
 
 const money = (value: string, currency: StockEntryCurrency) =>
-  value === ''
-    ? '—'
-    : new Intl.NumberFormat('es-BO', {
-        style: 'currency',
-        currency: currency === 'USD' ? 'USD' : 'BOB',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 4,
-      }).format(Number(value));
+  value === '' ? '—' : currency === 'USD' ? formatUsd(value) : formatBsPrecise(value);
 
 /** Ítems del borrador: cantidades, precio de compra en la moneda del ingreso y diferencias (C2). */
 export function StockEntryItems({

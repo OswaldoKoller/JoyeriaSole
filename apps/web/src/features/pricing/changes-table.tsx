@@ -4,7 +4,7 @@ import {
   type PriceChange,
   type PriceChangeStatus,
 } from '@joyeria/shared';
-import { formatBs, formatDateTime } from './price-math.ts';
+import { formatBsPrecise, formatDateTime } from '../../lib/format.ts';
 import { ProfitDisplay } from './profit-display.tsx';
 import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
@@ -81,14 +81,14 @@ export function ChangesTable({
                 </td>
               )}
               <td data-label="Precio anterior" className="py-3 pr-3 tabular-nums">
-                {formatBs(row.previousPrice)}
+                {formatBsPrecise(row.previousPrice)}
               </td>
               <td data-label="Precio nuevo" className="py-3 pr-3 font-medium tabular-nums">
-                {formatBs(row.newPrice)}
+                {formatBsPrecise(row.newPrice)}
               </td>
               {showCosts && (
                 <td data-label="Costo total del momento" className="py-3 pr-3 tabular-nums">
-                  {formatBs(row.costSnapshot)}
+                  {formatBsPrecise(row.costSnapshot)}
                 </td>
               )}
               {showCosts && (

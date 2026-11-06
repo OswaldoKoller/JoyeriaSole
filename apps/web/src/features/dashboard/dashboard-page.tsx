@@ -9,13 +9,8 @@ import { CatalogHealthNotice } from './catalog-health-notice.tsx';
 import { StatCard } from './stat-card.tsx';
 import { StockDonut } from './stock-donut.tsx';
 import { useAttentionItems, useStockSummary } from './use-dashboard.ts';
-
-const today = new Intl.DateTimeFormat('es-BO', {
-  timeZone: 'America/La_Paz',
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-});
+import { formatWeekdayDate } from '../../lib/format.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 const card = 'rounded-xl border border-stone-200 bg-white p-5 shadow-sm shadow-black/5';
 
@@ -38,6 +33,7 @@ function DashboardSkeleton() {
  * sin `inventory:read` muestra únicamente el saludo. No incluye costos (P-02).
  */
 export function DashboardPage() {
+  useDocumentTitle('Inicio');
   const { data: user } = useCurrentUser();
   const canReadInventory = useHasPermission(PERMISSIONS.INVENTORY_READ);
   const stock = useStockSummary(canReadInventory);
@@ -51,7 +47,7 @@ export function DashboardPage() {
         <h1 className="text-2xl font-semibold text-balance text-stone-900">
           Bienvenido/a, {user?.name}
         </h1>
-        <p className="text-sm text-stone-500 first-letter:capitalize">{today.format(new Date())}</p>
+        <p className="text-sm text-stone-500 first-letter:capitalize">{formatWeekdayDate()}</p>
       </header>
 
       <PendingApprovals />

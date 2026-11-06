@@ -6,13 +6,9 @@ import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
 import { AdjustmentStatusBadge } from './status-badge.tsx';
 import { searchInventory, useAdjustments, usePendingAdjustmentsCount } from './use-adjustments.ts';
-
-const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
-const dateTime = new Intl.DateTimeFormat('es-BO', {
-  timeZone: 'America/La_Paz',
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
+import { Pagination } from '../../components/ui/pagination.tsx';
+import { formatBs, formatDateTime } from '../../lib/format.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 function signed(value: number) {
   return value > 0 ? `+${value}` : String(value);
@@ -47,7 +43,7 @@ function AdjustmentRow({
       </td>
       {showValue && (
         <td data-label="Valor" className="py-3 pr-4 tabular-nums">
-          {adjustment.valueImpact === null ? '—' : currency.format(Number(adjustment.valueImpact))}
+          {adjustment.valueImpact === null ? '—' : formatBs(adjustment.valueImpact)}
         </td>
       )}
       <td data-label="Solicitó" className="py-3 pr-4">
@@ -57,13 +53,14 @@ function AdjustmentRow({
         <AdjustmentStatusBadge status={adjustment.status} />
       </td>
       <td data-label="Fecha" className="py-3">
-        {dateTime.format(new Date(adjustment.createdAt))}
+        {formatDateTime(adjustment.createdAt)}
       </td>
     </tr>
   );
 }
 
 export function AdjustmentsPage() {
+  useDocumentTitle('Ajustes');
   const canApprove = useHasPermission(PERMISSIONS.INVENTORY_ADJUST_APPROVE);
   const canSeeCosts = useHasPermission(PERMISSIONS.COSTS_READ);
   const [page, setPage] = useState(1);
@@ -117,7 +114,7 @@ export function AdjustmentsPage() {
         </div>
         <Link
           to="/inventario/ajustes/nuevo"
-          className="inline-flex min-h-10 items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+          className="inline-flex min-h-10 items-center rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
         >
           Solicitar ajuste
         </Link>
@@ -239,7 +236,7 @@ export function AdjustmentsPage() {
           <p className="py-6 text-sm text-stone-600">No se encontraron ajustes.</p>
         )}
         {list.isSuccess && rows.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
+          <div aria-busy={list.isPlaceholderData} className="mt-4 overflow-x-auto">
             <table className="table-cards w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
@@ -261,30 +258,8 @@ export function AdjustmentsPage() {
             </table>
           </div>
         )}
-        {list.isSuccess && total > 25 && (
-          <div className="mt-4 flex items-center gap-3 text-sm">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {page} · {total} ajustes
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page * 25 >= total}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-            >
-              Siguiente
-            </Button>
-          </div>
+        {list.isSuccess && (
+          <Pagination page={page} total={total} noun="ajustes" onPageChange={setPage} />
         )}
       </div>
     </section>

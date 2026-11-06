@@ -10,11 +10,13 @@ import type {
   UpdateVariantStatusInput,
   VariantLookup,
 } from '@joyeria/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
+import { PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
 const key = ['products'] as const;
-type ProductList = { data: Product[]; meta: { page: number; pageSize: number; total: number } };
+const detailKey = (id: string) => [...key, 'detail', id] as const;
+type ProductList = Paged<Product>;
 /** Respuesta de las operaciones que pueden dejar avisos no bloqueantes (código repetido, Q-10). */
 export type ProductResult = { data: Product; meta: { warnings: string[] } };
 
@@ -39,18 +41,40 @@ function filterQuery(filters: ProductFilters, pageSize: number) {
 }
 
 export function useProducts(filters: ProductFilters) {
-  return useQuery({
-    queryKey: [...key, filters],
-    queryFn: () => api.get<ProductList>(`/products?${filterQuery(filters, 25)}`),
-  });
+  return useListQuery([...key, filters], () =>
+    api.get<ProductList>(`/products?${filterQuery(filters, PAGE_SIZE)}`),
+  );
 }
 
-/** Ficha completa de un producto (página de detalle). */
+/** Busca un producto ya descargado en algún listado en caché (con la hora de esa descarga). */
+function findInCachedLists(client: QueryClient, id: string) {
+  for (const [queryKey, cached] of client.getQueriesData<Partial<ProductList>>({ queryKey: key })) {
+    const product = Array.isArray(cached?.data)
+      ? cached.data.find((item) => item.id === id)
+      : undefined;
+    if (product) {
+      return { product, updatedAt: client.getQueryState(queryKey)?.dataUpdatedAt };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Ficha completa de un producto (página de detalle). Si el producto ya está en un listado en
+ * caché, se muestra al instante mientras se confirma con la API (los listados traen la misma
+ * ficha); si el listado ya no es reciente, igualmente se vuelve a pedir.
+ */
 export function useProduct(id: string) {
+  const client = useQueryClient();
   return useQuery({
-    queryKey: [...key, 'detail', id],
+    queryKey: detailKey(id),
     queryFn: () => api.get<{ data: Product }>(`/products/${id}`),
     select: (response) => response.data,
+    initialData: () => {
+      const cached = findInCachedLists(client, id);
+      return cached ? { data: cached.product } : undefined;
+    },
+    initialDataUpdatedAt: () => findInCachedLists(client, id)?.updatedAt,
     enabled: id !== '',
   });
 }
@@ -80,16 +104,27 @@ export async function searchCatalog(term: string) {
   return page.data;
 }
 
+/**
+ * Tras un cambio: la ficha que devolvió la API pasa directo a la caché del detalle (sin volver
+ * a pedirla) y el resto de consultas de productos (listados, búsquedas) se marcan como viejas.
+ */
 function useRefreshProducts() {
   const client = useQueryClient();
-  return () => client.invalidateQueries({ queryKey: key });
+  return (result?: { data: Product }) => {
+    if (result) client.setQueryData(detailKey(result.data.id), { data: result.data });
+    return client.invalidateQueries({
+      queryKey: key,
+      predicate: (query) =>
+        !(result && query.queryKey[1] === 'detail' && query.queryKey[2] === result.data.id),
+    });
+  };
 }
 
 export function useCreateProduct() {
   const refresh = useRefreshProducts();
   return useMutation({
     mutationFn: (input: CreateProductInput) => api.post<ProductResult>('/products', input),
-    onSuccess: refresh,
+    onSuccess: (result) => refresh(result),
   });
 }
 
@@ -98,7 +133,7 @@ export function useUpdateProduct() {
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateProductInput }) =>
       api.patch<{ data: Product }>(`/products/${id}`, input),
-    onSuccess: refresh,
+    onSuccess: (result) => refresh(result),
   });
 }
 
@@ -107,7 +142,9 @@ export function useDeleteProduct() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<{ data: { id: string } }>(`/products/${id}`),
-    onSuccess: async () => {
+    onSuccess: async (_result, id) => {
+      // La ficha eliminada deja de existir: se quita de la caché (no se vuelve a pedir, daría 404).
+      client.removeQueries({ queryKey: detailKey(id) });
       await client.invalidateQueries({ queryKey: key });
       await client.invalidateQueries({ queryKey: ['inventory'] });
     },
@@ -119,18 +156,19 @@ export function useUpdateVariantStatus() {
   return useMutation({
     mutationFn: ({ variantId, input }: { variantId: string; input: UpdateVariantStatusInput }) =>
       api.patch<{ data: Product }>(`/products/variants/${variantId}/status`, input),
-    onSuccess: refresh,
+    onSuccess: (result) => refresh(result),
   });
 }
 
 /** B10: stock mínimo por variante (0 = sin alerta). */
 export function useUpdateVariant() {
   const client = useQueryClient();
+  const refresh = useRefreshProducts();
   return useMutation({
     mutationFn: ({ variantId, input }: { variantId: string; input: UpdateVariantInput }) =>
       api.patch<{ data: Product }>(`/products/variants/${variantId}`, input),
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: key });
+    onSuccess: async (result) => {
+      await refresh(result);
       await client.invalidateQueries({ queryKey: ['inventory'] });
     },
   });
@@ -141,7 +179,7 @@ export function useAssignBarcode() {
   return useMutation({
     mutationFn: ({ variantId, input }: { variantId: string; input: AssignBarcodeInput }) =>
       api.patch<ProductResult>(`/products/variants/${variantId}/barcode`, input),
-    onSuccess: refresh,
+    onSuccess: (result) => refresh(result),
   });
 }
 
@@ -150,7 +188,7 @@ export function useGenerateBarcode() {
   return useMutation({
     mutationFn: (variantId: string) =>
       api.post<{ data: Product }>(`/products/variants/${variantId}/barcode/generate`),
-    onSuccess: refresh,
+    onSuccess: (result) => refresh(result),
   });
 }
 
@@ -159,7 +197,7 @@ export function useConfigureAxes() {
   return useMutation({
     mutationFn: ({ productId, input }: { productId: string; input: ConfigureAxesInput }) =>
       api.post<{ data: Product }>(`/products/${productId}/axes`, input),
-    onSuccess: refresh,
+    onSuccess: (result) => refresh(result),
   });
 }
 
@@ -168,6 +206,6 @@ export function useCreateVariant() {
   return useMutation({
     mutationFn: ({ productId, input }: { productId: string; input: CreateVariantInput }) =>
       api.post<ProductResult>(`/products/${productId}/variants`, input),
-    onSuccess: refresh,
+    onSuccess: (result) => refresh(result),
   });
 }

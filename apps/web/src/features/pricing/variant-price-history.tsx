@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Button } from '../../components/ui/button.tsx';
 import { ChangesTable } from './changes-table.tsx';
 import { useVariantPriceHistory } from './use-pricing.ts';
+import { Pagination } from '../../components/ui/pagination.tsx';
+import { SMALL_PAGE_SIZE } from '../../lib/paging.ts';
 
 /** Panel con el historial de precios de una variante (D5); la API responde 403 al Vendedor. */
 export function PriceHistoryPanel({
@@ -35,31 +37,14 @@ export function PriceHistoryPanel({
         <p className="text-sm text-stone-600">Esta variante aún no tiene cambios de precio.</p>
       )}
       {history.isSuccess && rows.length > 0 && <ChangesTable rows={rows} showProduct={false} />}
-      {total > 10 && (
-        <div className="flex items-center gap-3 text-sm">
-          <Button
-            variant="secondary"
-            disabled={page === 1}
-            onClick={() => {
-              setPage(page - 1);
-            }}
-          >
-            Anterior
-          </Button>
-          <span>
-            Página {page} · {total} cambios
-          </span>
-          <Button
-            variant="secondary"
-            disabled={page * 10 >= total}
-            onClick={() => {
-              setPage(page + 1);
-            }}
-          >
-            Siguiente
-          </Button>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        total={total}
+        noun="cambios"
+        onPageChange={setPage}
+        pageSize={SMALL_PAGE_SIZE}
+        className=""
+      />
     </section>
   );
 }

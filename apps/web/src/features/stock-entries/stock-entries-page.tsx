@@ -7,11 +7,12 @@ import { useHasPermission } from '../auth/use-auth.ts';
 import { ingressLabel } from './lines.ts';
 import { StatusBadge } from './status-badge.tsx';
 import { useStockEntries } from './use-stock-entries.ts';
-
-const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
-const date = new Intl.DateTimeFormat('es-BO', { timeZone: 'America/La_Paz', dateStyle: 'short' });
+import { Pagination } from '../../components/ui/pagination.tsx';
+import { formatBs, formatDate } from '../../lib/format.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 export function StockEntriesPage() {
+  useDocumentTitle('Ingresos de mercadería');
   const canManage = useHasPermission(PERMISSIONS.STOCK_ENTRIES_MANAGE);
   const canCosts = useHasPermission(PERMISSIONS.COSTS_READ);
   const [page, setPage] = useState(1);
@@ -40,7 +41,7 @@ export function StockEntriesPage() {
         {canManage && (
           <Link
             to="/ingresos/nuevo"
-            className="inline-flex min-h-10 items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+            className="inline-flex min-h-10 items-center rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
           >
             Nuevo ingreso
           </Link>
@@ -100,7 +101,7 @@ export function StockEntriesPage() {
           <p className="py-6 text-sm text-stone-600">No se encontraron ingresos.</p>
         )}
         {list.isSuccess && entries.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
+          <div aria-busy={list.isPlaceholderData} className="mt-4 overflow-x-auto">
             <table className="table-cards w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
@@ -143,23 +144,19 @@ export function StockEntriesPage() {
                     )}
                     {canCosts && (
                       <td data-label="Valor de compra (Bs)" className="py-3 pr-4">
-                        {entry.purchaseTotal === null
-                          ? '—'
-                          : currency.format(Number(entry.purchaseTotal))}
+                        {entry.purchaseTotal === null ? '—' : formatBs(entry.purchaseTotal)}
                       </td>
                     )}
                     {canCosts && (
                       <td data-label="Costos adicionales (Bs)" className="py-3 pr-4">
-                        {entry.extrasTotal === null
-                          ? '—'
-                          : currency.format(Number(entry.extrasTotal))}
+                        {entry.extrasTotal === null ? '—' : formatBs(entry.extrasTotal)}
                       </td>
                     )}
                     <td data-label="Estado" className="py-3 pr-4">
                       <StatusBadge status={entry.status} />
                     </td>
                     <td data-label="Fecha" className="py-3">
-                      {date.format(new Date(entry.confirmedAt ?? entry.createdAt))}
+                      {formatDate(entry.confirmedAt ?? entry.createdAt)}
                     </td>
                   </tr>
                 ))}
@@ -167,30 +164,8 @@ export function StockEntriesPage() {
             </table>
           </div>
         )}
-        {list.isSuccess && total > 25 && (
-          <div className="mt-4 flex items-center gap-3 text-sm">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {page} · {total} ingresos
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page * 25 >= total}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-            >
-              Siguiente
-            </Button>
-          </div>
+        {list.isSuccess && (
+          <Pagination page={page} total={total} noun="ingresos" onPageChange={setPage} />
         )}
       </div>
     </section>

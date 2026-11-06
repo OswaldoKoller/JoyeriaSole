@@ -6,21 +6,21 @@ import type {
 } from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
+import { PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
 const key = ['inventory-counts'] as const;
-type Page<T> = { data: T[]; meta: { page: number; pageSize: number; total: number } };
+type Page<T> = Paged<T>;
 const base = '/inventory/counts';
 
 export function useInventoryCounts(filters: { page: number; status: string }) {
   const query = new URLSearchParams({
     page: String(filters.page),
-    pageSize: '25',
+    pageSize: String(PAGE_SIZE),
     status: filters.status,
   });
-  return useQuery({
-    queryKey: [...key, 'list', filters],
-    queryFn: () => api.get<Page<InventoryCountSummary>>(`${base}?${query}`),
-  });
+  return useListQuery([...key, 'list', filters], () =>
+    api.get<Page<InventoryCountSummary>>(`${base}?${query}`),
+  );
 }
 
 export function useInventoryCount(id: string) {
@@ -36,6 +36,8 @@ function useAfterChange() {
   return async (detail: InventoryCountDetail, affectsStock = false) => {
     client.setQueryData([...key, 'detail', detail.id], detail);
     await client.invalidateQueries({ queryKey: [...key, 'list'] });
+    // La bandeja «Pendientes de aprobación» del Inicio también cambia (Q-06).
+    await client.invalidateQueries({ queryKey: ['approvals'] });
     if (affectsStock) {
       await Promise.all([
         client.invalidateQueries({ queryKey: ['inventory'] }),

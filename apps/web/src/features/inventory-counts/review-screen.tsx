@@ -16,13 +16,7 @@ import {
   useRegularizeFinding,
 } from './use-inventory-counts.ts';
 import { PieceImage } from '../catalog/photos/piece-image.tsx';
-
-const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
-const dateTime = new Intl.DateTimeFormat('es-BO', {
-  timeZone: 'America/La_Paz',
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
+import { formatBs, formatDateTime } from '../../lib/format.ts';
 
 const signed = (value: number) => (value > 0 ? `+${value}` : String(value));
 
@@ -73,9 +67,8 @@ function FindingRow({
       {finding.regularized ? (
         <p className="text-emerald-800">
           Regularizado por {finding.regularizedByName ?? '—'}
-          {finding.regularizedAt
-            ? ` el ${dateTime.format(new Date(finding.regularizedAt))}`
-            : ''}: {finding.regularizationNote}
+          {finding.regularizedAt ? ` el ${formatDateTime(finding.regularizedAt)}` : ''}:{' '}
+          {finding.regularizationNote}
         </p>
       ) : (
         canRegularize && (
@@ -179,15 +172,15 @@ export function ReviewScreen({ count }: { count: InventoryCountReviewDetail }) {
         <p className="text-sm text-stone-600">
           {count.scope ?? 'Sin categoría'} · Iniciado por{' '}
           {count.operatorName ?? count.createdByName}
-          {count.startedAt ? ` el ${dateTime.format(new Date(count.startedAt))}` : ''}
+          {count.startedAt ? ` el ${formatDateTime(count.startedAt)}` : ''}
         </p>
       </div>
 
       {count.status === 'APPROVED' && (
         <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
           Aprobado por {count.approvedByName ?? '—'}
-          {count.approvedAt ? ` el ${dateTime.format(new Date(count.approvedAt))}` : ''}. El stock
-          ya cambió y cada ajuste quedó en el historial de movimientos.
+          {count.approvedAt ? ` el ${formatDateTime(count.approvedAt)}` : ''}. El stock ya cambió y
+          cada ajuste quedó en el historial de movimientos.
         </p>
       )}
 
@@ -207,9 +200,7 @@ export function ReviewScreen({ count }: { count: InventoryCountReviewDetail }) {
         {showCosts && (
           <div className="rounded-xl border border-stone-200 bg-white p-4">
             <dt className="text-sm text-stone-500">Valor de la diferencia</dt>
-            <dd className="text-2xl font-semibold tabular-nums">
-              {currency.format(Number(count.valueImpact))}
-            </dd>
+            <dd className="text-2xl font-semibold tabular-nums">{formatBs(count.valueImpact)}</dd>
           </div>
         )}
       </dl>
@@ -302,7 +293,7 @@ export function ReviewScreen({ count }: { count: InventoryCountReviewDetail }) {
                   </td>
                   {showCosts && (
                     <td data-label="Valor" className="py-3 tabular-nums">
-                      {item.valueImpact === null ? '—' : currency.format(Number(item.valueImpact))}
+                      {item.valueImpact === null ? '—' : formatBs(item.valueImpact)}
                     </td>
                   )}
                 </tr>

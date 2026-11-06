@@ -8,9 +8,10 @@ import type {
 } from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
+import { PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
 const key = ['adjustments'] as const;
-type Page<T> = { data: T[]; meta: { page: number; pageSize: number; total: number } };
+type Page<T> = Paged<T>;
 
 export interface AdjustmentFilters {
   page: number;
@@ -23,16 +24,15 @@ export interface AdjustmentFilters {
 export function useAdjustments(filters: AdjustmentFilters) {
   const query = new URLSearchParams({
     page: String(filters.page),
-    pageSize: '25',
+    pageSize: String(PAGE_SIZE),
     status: filters.status,
   });
   if (filters.variantId) query.set('variantId', filters.variantId);
   if (filters.from) query.set('from', filters.from);
   if (filters.to) query.set('to', filters.to);
-  return useQuery({
-    queryKey: [...key, 'list', filters],
-    queryFn: () => api.get<Page<AdjustmentSummary>>(`/inventory/adjustments?${query}`),
-  });
+  return useListQuery([...key, 'list', filters], () =>
+    api.get<Page<AdjustmentSummary>>(`/inventory/adjustments?${query}`),
+  );
 }
 
 export function useAdjustment(id: string) {
@@ -70,6 +70,8 @@ function useAfterChange() {
     client.setQueryData([...key, 'detail', detail.id], detail);
     await client.invalidateQueries({ queryKey: [...key, 'list'] });
     await client.invalidateQueries({ queryKey: [...key, 'pending-count'] });
+    // La bandeja «Pendientes de aprobación» del Inicio también cambia (Q-06).
+    await client.invalidateQueries({ queryKey: ['approvals'] });
     if (affectsStock) {
       await Promise.all([
         client.invalidateQueries({ queryKey: ['inventory'] }),

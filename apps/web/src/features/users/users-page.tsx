@@ -6,8 +6,11 @@ import { useHasPermission } from '../auth/use-auth.ts';
 import { UserCreateForm } from './user-create-form.tsx';
 import { UserEditor } from './user-editor.tsx';
 import { useUpdateUser, useUsers } from './use-users.ts';
+import { Pagination } from '../../components/ui/pagination.tsx';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 export function UsersPage() {
+  useDocumentTitle('Usuarios');
   const canManage = useHasPermission(PERMISSIONS.USERS_MANAGE);
   const canManageRoles = useHasPermission(PERMISSIONS.ROLES_MANAGE);
   const [page, setPage] = useState(1);
@@ -133,7 +136,7 @@ export function UsersPage() {
           <p className="py-6 text-sm text-stone-600">No se encontraron usuarios.</p>
         )}
         {list.isSuccess && users.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
+          <div aria-busy={list.isPlaceholderData} className="mt-4 overflow-x-auto">
             <table className="table-cards w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
@@ -186,30 +189,8 @@ export function UsersPage() {
             </table>
           </div>
         )}
-        {list.isSuccess && total > 25 && (
-          <div className="mt-4 flex items-center gap-3 text-sm">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {page} · {total} usuarios
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page * 25 >= total}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-            >
-              Siguiente
-            </Button>
-          </div>
+        {list.isSuccess && (
+          <Pagination page={page} total={total} noun="usuarios" onPageChange={setPage} />
         )}
       </div>
     </section>

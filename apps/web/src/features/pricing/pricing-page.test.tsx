@@ -3,7 +3,8 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { jsonResponse, renderWithProviders } from '../../test/render.tsx';
-import { formatBs, parsePriceInput, profitView } from './price-math.ts';
+import { formatBsPrecise } from '../../lib/format.ts';
+import { parsePriceInput, profitView } from './price-math.ts';
 import { PricingPage } from './pricing-page.tsx';
 
 const ID_A = '01900000-0000-7000-8000-00000000000a';
@@ -127,7 +128,7 @@ describe('cálculo de ganancia en la interfaz', () => {
     expect(profitView('100.00', '40.0000')).toEqual({ profit: '60.00', percent: '150.00' });
     expect(profitView('50.00', '0.0000')).toEqual({ profit: '50.00', percent: null });
     expect(profitView('50.00', null)).toEqual({ profit: null, percent: null });
-    expect(formatBs(null)).toBe('—');
+    expect(formatBsPrecise(null)).toBe('—');
   });
 });
 

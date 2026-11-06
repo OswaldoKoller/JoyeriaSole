@@ -2,6 +2,7 @@ import type { Product } from '@joyeria/shared';
 import { useState } from 'react';
 import { Button } from '../../../components/ui/button.tsx';
 import { formatBytes } from './photo-files.ts';
+import { isSafePhotoUrl } from './photo-url.ts';
 import { PhotoUploader } from './photo-uploader.tsx';
 import { useDeletePhoto, useReorderPhotos, useSetCoverPhoto } from './use-product-photos.ts';
 
@@ -14,7 +15,8 @@ export function PhotoGallery({ product, canManage }: Props) {
   const remove = useDeletePhoto();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
-  const photos = product.photos;
+  // Solo se muestran fotos servidas por nuestra API (S-01).
+  const photos = product.photos.filter((photo) => isSafePhotoUrl(photo.url));
   const busy = setCover.isPending || reorder.isPending || remove.isPending;
 
   async function run(action: () => Promise<unknown>, fallback: string) {
@@ -69,7 +71,7 @@ export function PhotoGallery({ product, canManage }: Props) {
                     {photo.width} × {photo.height} px · {formatBytes(photo.sizeBytes)}
                   </span>
                   {photo.isCover && (
-                    <span className="text-brand-800 rounded-full bg-brand-100 px-2 py-0.5 font-medium">
+                    <span className="rounded-full bg-brand-100 px-2 py-0.5 font-medium text-brand-800">
                       Portada
                     </span>
                   )}

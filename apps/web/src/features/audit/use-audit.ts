@@ -1,8 +1,7 @@
 import type { AuditDetail, AuditEntry, AuditFilters } from '@joyeria/shared';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
-
-type Page<T> = { data: T[]; meta: { page: number; pageSize: number; total: number } };
+import { PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
 /** Filtros ya normalizados (la fecha va como instante ISO; ver `audit-filters.ts`). */
 export interface AuditQueryFilters {
@@ -15,20 +14,16 @@ export interface AuditQueryFilters {
   q: string;
 }
 
-export const AUDIT_PAGE_SIZE = 25;
-
 const key = ['audit'] as const;
 
 export function useAuditList(filters: AuditQueryFilters, page: number) {
-  const query = new URLSearchParams({ page: String(page), pageSize: String(AUDIT_PAGE_SIZE) });
+  const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
   for (const name of Object.keys(filters) as (keyof AuditQueryFilters)[]) {
     if (filters[name]) query.set(name, filters[name]);
   }
-  return useQuery({
-    queryKey: [...key, 'list', filters, page],
-    queryFn: () => api.get<Page<AuditEntry>>(`/audit?${query}`),
-    placeholderData: keepPreviousData,
-  });
+  return useListQuery([...key, 'list', filters, page], () =>
+    api.get<Paged<AuditEntry>>(`/audit?${query}`),
+  );
 }
 
 export function useAuditDetail(id: string | null) {

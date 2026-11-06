@@ -13,19 +13,8 @@ import {
   useRejectAdjustment,
 } from './use-adjustments.ts';
 import { PieceImage } from '../catalog/photos/piece-image.tsx';
-
-const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
-const unitCurrency = new Intl.NumberFormat('es-BO', {
-  style: 'currency',
-  currency: 'BOB',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-const dateTime = new Intl.DateTimeFormat('es-BO', {
-  timeZone: 'America/La_Paz',
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
+import { formatBs, formatBsPrecise, formatDateTime } from '../../lib/format.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 const signed = (value: number) => (value > 0 ? `+${value}` : String(value));
 
@@ -109,15 +98,15 @@ function Detail({ adjustment }: { adjustment: AdjustmentDetail }) {
       {adjustment.status === 'APPROVED' && (
         <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
           Aprobado por {adjustment.resolvedByName ?? '—'}
-          {adjustment.resolvedAt ? ` el ${dateTime.format(new Date(adjustment.resolvedAt))}` : ''}.
-          El stock ya cambió y cada línea quedó en el historial de movimientos.
+          {adjustment.resolvedAt ? ` el ${formatDateTime(adjustment.resolvedAt)}` : ''}. El stock ya
+          cambió y cada línea quedó en el historial de movimientos.
         </p>
       )}
       {adjustment.status === 'REJECTED' && (
         <p role="status" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
           Rechazado por {adjustment.resolvedByName ?? '—'}
-          {adjustment.resolvedAt ? ` el ${dateTime.format(new Date(adjustment.resolvedAt))}` : ''}.
-          Motivo: {adjustment.resolutionNotes}. No se registró ningún movimiento de stock.
+          {adjustment.resolvedAt ? ` el ${formatDateTime(adjustment.resolvedAt)}` : ''}. Motivo:{' '}
+          {adjustment.resolutionNotes}. No se registró ningún movimiento de stock.
         </p>
       )}
       {adjustment.status === 'CANCELLED' && (
@@ -138,7 +127,7 @@ function Detail({ adjustment }: { adjustment: AdjustmentDetail }) {
           <div>
             <dt className="text-stone-500">Solicitado por</dt>
             <dd className="font-medium">
-              {adjustment.requestedByName} · {dateTime.format(new Date(adjustment.createdAt))}
+              {adjustment.requestedByName} · {formatDateTime(adjustment.createdAt)}
             </dd>
           </div>
           <div className="sm:col-span-2">
@@ -148,9 +137,7 @@ function Detail({ adjustment }: { adjustment: AdjustmentDetail }) {
           {adjustment.valueImpact !== null && (
             <div>
               <dt className="text-stone-500">Valor de la diferencia</dt>
-              <dd className="font-medium tabular-nums">
-                {currency.format(Number(adjustment.valueImpact))}
-              </dd>
+              <dd className="font-medium tabular-nums">{formatBs(adjustment.valueImpact)}</dd>
             </div>
           )}
         </dl>
@@ -207,12 +194,12 @@ function Detail({ adjustment }: { adjustment: AdjustmentDetail }) {
                   </td>
                   {showCosts && (
                     <td data-label="Costo unitario" className="py-3 pr-3 tabular-nums">
-                      {item.unitCost === null ? '—' : unitCurrency.format(Number(item.unitCost))}
+                      {item.unitCost === null ? '—' : formatBsPrecise(item.unitCost)}
                     </td>
                   )}
                   {showCosts && (
                     <td data-label="Valor" className="py-3 tabular-nums">
-                      {item.valueImpact === null ? '—' : currency.format(Number(item.valueImpact))}
+                      {item.valueImpact === null ? '—' : formatBs(item.valueImpact)}
                     </td>
                   )}
                 </tr>
@@ -301,6 +288,7 @@ function Detail({ adjustment }: { adjustment: AdjustmentDetail }) {
 }
 
 export function AdjustmentPage() {
+  useDocumentTitle('Ajuste de stock');
   const { id = '' } = useParams();
   const query = useAdjustment(id);
 

@@ -1,10 +1,9 @@
 import { Skeleton } from '../../components/ui/skeleton.tsx';
 import type { StockSummary } from './use-dashboard.ts';
+import { formatInt, formatRatio } from '../../lib/format.ts';
 
 const RADIUS = 42;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-const number = new Intl.NumberFormat('es-BO');
-const percent = new Intl.NumberFormat('es-BO', { style: 'percent', maximumFractionDigits: 0 });
 
 const SEGMENTS = [
   { key: 'ok', label: 'Disponibles', stroke: 'stroke-emerald-500', dot: 'bg-emerald-500' },
@@ -38,7 +37,7 @@ export function StockDonut({ summary }: { summary: StockSummary | null }) {
     offset: lengths.slice(0, index).reduce((sum, length) => sum + length, 0),
   }));
   const description = `Distribución del stock: ${SEGMENTS.map(
-    (segment) => `${number.format(summary[segment.key])} ${segment.label.toLowerCase()}`,
+    (segment) => `${formatInt(summary[segment.key])} ${segment.label.toLowerCase()}`,
   ).join(', ')}.`;
 
   return (
@@ -77,7 +76,7 @@ export function StockDonut({ summary }: { summary: StockSummary | null }) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <span className="text-2xl font-semibold text-stone-900 tabular-nums">
-            {number.format(total)}
+            {formatInt(total)}
           </span>
           <span className="text-xs text-stone-500">variantes</span>
         </div>
@@ -93,9 +92,9 @@ export function StockDonut({ summary }: { summary: StockSummary | null }) {
                 {segment.label}
               </span>
               <span className="tabular-nums">
-                <strong className="font-semibold text-stone-900">{number.format(value)}</strong>
+                <strong className="font-semibold text-stone-900">{formatInt(value)}</strong>
                 <span className="ml-2 text-xs text-stone-500">
-                  {total > 0 ? percent.format(value / total) : '—'}
+                  {total > 0 ? formatRatio(value / total) : '—'}
                 </span>
               </span>
             </li>

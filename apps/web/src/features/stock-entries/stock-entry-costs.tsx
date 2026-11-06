@@ -2,8 +2,7 @@ import { formatMoney, type StockEntryCostType } from '@joyeria/shared';
 import { Button } from '../../components/ui/button.tsx';
 import { newCostKey, type CostLine } from './cost-lines.ts';
 import { sumCosts } from './lines.ts';
-
-const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
+import { formatBs } from '../../lib/format.ts';
 
 interface Props {
   lines: CostLine[];
@@ -132,8 +131,7 @@ export function StockEntryCosts({
               </>
             ) : (
               <p className="text-sm sm:col-span-4">
-                <strong>{typeName(line.costTypeId)}</strong> ·{' '}
-                {currency.format(Number(line.amount))}
+                <strong>{typeName(line.costTypeId)}</strong> · {formatBs(line.amount)}
                 {line.note ? ` · ${line.note}` : ''}
               </p>
             )}
@@ -172,7 +170,7 @@ export function StockEntryCosts({
           )}
           <p className="text-sm">
             <span className="text-stone-600">Total de costos adicionales: </span>
-            <strong className="tabular-nums">{currency.format(Number(formatMoney(total)))}</strong>
+            <strong className="tabular-nums">{formatBs(formatMoney(total))}</strong>
           </p>
         </div>
       </fieldset>

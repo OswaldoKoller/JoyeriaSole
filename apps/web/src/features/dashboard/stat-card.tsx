@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { Skeleton } from '../../components/ui/skeleton.tsx';
+import { formatInt, formatRatio } from '../../lib/format.ts';
 
 export type Tone = 'neutral' | 'ok' | 'warn' | 'danger';
 
@@ -9,9 +10,6 @@ const TONES: Record<Tone, { icon: string; bar: string; value: string }> = {
   warn: { icon: 'bg-amber-50 text-amber-700', bar: 'bg-amber-500', value: 'text-stone-900' },
   danger: { icon: 'bg-red-50 text-red-700', bar: 'bg-red-500', value: 'text-stone-900' },
 };
-
-const number = new Intl.NumberFormat('es-BO');
-const percent = new Intl.NumberFormat('es-BO', { style: 'percent', maximumFractionDigits: 0 });
 
 type StatCardProps = {
   label: string;
@@ -35,9 +33,7 @@ export function StatCard({ label, value, icon: Icon, tone, caption, share }: Sta
       className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm shadow-black/5 transition-shadow duration-200 ease-out hover:shadow-md sm:p-5"
     >
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-[11px] font-semibold tracking-wider text-stone-500 uppercase sm:text-xs">
-          {label}
-        </h2>
+        <h2 className="text-xs font-semibold tracking-wider text-stone-600 uppercase">{label}</h2>
         <span
           className={`hidden size-9 shrink-0 items-center justify-center rounded-lg sm:flex ${styles.icon}`}
         >
@@ -50,7 +46,7 @@ export function StatCard({ label, value, icon: Icon, tone, caption, share }: Sta
           <Skeleton className="h-8 w-20" />
         ) : (
           <p className={`text-2xl font-semibold tabular-nums sm:text-3xl ${styles.value}`}>
-            {number.format(value)}
+            {formatInt(value)}
           </p>
         )}
       </div>
@@ -59,7 +55,7 @@ export function StatCard({ label, value, icon: Icon, tone, caption, share }: Sta
         <div
           className="h-1.5 overflow-hidden rounded-full bg-stone-100"
           role="img"
-          aria-label={loading ? 'Cargando' : `${percent.format(ratio)} del total`}
+          aria-label={loading ? 'Cargando' : `${formatRatio(ratio)} del total`}
         >
           <div
             className={`h-full rounded-full transition-[width] duration-300 ease-out ${styles.bar}`}

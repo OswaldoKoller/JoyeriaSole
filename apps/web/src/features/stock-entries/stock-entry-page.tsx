@@ -31,12 +31,8 @@ import {
   useStockEntry,
   useUpdateStockEntry,
 } from './use-stock-entries.ts';
-
-const dateTime = new Intl.DateTimeFormat('es-BO', {
-  timeZone: 'America/La_Paz',
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
+import { formatDateTime } from '../../lib/format.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 function messageOf(error: unknown) {
   if (error instanceof ApiError) {
@@ -249,9 +245,9 @@ function Editor({ entry, quick, onQuickChange }: EditorProps) {
       {entry.status === 'CONFIRMED' && (
         <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
           Confirmado por {entry.confirmedByName ?? '—'}
-          {entry.confirmedAt ? ` el ${dateTime.format(new Date(entry.confirmedAt))}` : ''}. El stock
-          y el último costo de cada variante ya fueron actualizados; el precio de venta no cambia.
-          Las correcciones se hacen con un ajuste de inventario.
+          {entry.confirmedAt ? ` el ${formatDateTime(entry.confirmedAt)}` : ''}. El stock y el
+          último costo de cada variante ya fueron actualizados; el precio de venta no cambia. Las
+          correcciones se hacen con un ajuste de inventario.
         </p>
       )}
       {entry.status === 'CANCELLED' && (
@@ -370,6 +366,7 @@ function Editor({ entry, quick, onQuickChange }: EditorProps) {
 }
 
 export function StockEntryPage() {
+  useDocumentTitle('Ingreso de mercadería');
   const { id = '' } = useParams();
   const query = useStockEntry(id);
   // El editor se reinicia al guardar; el estado del alta rápida vive aquí para no perderlo.

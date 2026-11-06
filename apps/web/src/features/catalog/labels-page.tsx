@@ -19,6 +19,7 @@ import {
 } from './label-settings.ts';
 import { PieceImage } from './photos/piece-image.tsx';
 import { lookupVariant, searchCatalog } from './use-products.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 type Item = {
   variantId: string;
@@ -48,6 +49,7 @@ function candidatesOf(products: Product[]): Candidate[] {
  * se define cuántas copias y el tamaño de la etiqueta, y se imprime desde el navegador.
  */
 export function LabelsPage() {
+  useDocumentTitle('Etiquetas');
   const [params] = useSearchParams();
   const [items, setItems] = useState<Item[]>([]);
   const [codeDraft, setCodeDraft] = useState('');

@@ -198,6 +198,17 @@ export function AppShell() {
   const closeRef = useRef<HTMLButtonElement>(null);
   const permissions = user?.permissions ?? [];
   const { pathname, search } = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  const shownPath = useRef(pathname);
+
+  // Al cambiar de pantalla el foco pasa al contenido (lectores de pantalla y teclado). Si la
+  // pantalla ya puso el foco en un campo propio (p. ej. el lector de códigos), no se le quita.
+  useEffect(() => {
+    if (shownPath.current === pathname) return;
+    shownPath.current = pathname;
+    const main = mainRef.current;
+    if (main && !main.contains(document.activeElement)) main.focus();
+  }, [pathname]);
 
   useEffect(() => {
     if (!open) return;
@@ -287,7 +298,7 @@ export function AppShell() {
             if (visible.length === 0) return null;
             return (
               <div key={group.label} className="space-y-1">
-                <p className="px-3 text-[11px] font-semibold tracking-wider text-stone-400 uppercase">
+                <p className="px-3 text-xs font-semibold tracking-wider text-stone-600 uppercase">
                   {group.label}
                 </p>
                 <ul className="space-y-0.5">
@@ -320,11 +331,11 @@ export function AppShell() {
                         ) : (
                           <span
                             aria-disabled="true"
-                            className="flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm text-stone-400"
+                            className="flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm text-stone-600"
                           >
                             <item.icon className="size-[18px] shrink-0" aria-hidden="true" />
                             <span className="flex-1">{item.label}</span>
-                            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500">
+                            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-600">
                               Próximamente
                             </span>
                           </span>
@@ -365,7 +376,12 @@ export function AppShell() {
         </div>
       </aside>
 
-      <main id="contenido" className="min-w-0 flex-1 px-4 py-6 lg:px-8 lg:py-8">
+      <main
+        id="contenido"
+        ref={mainRef}
+        tabIndex={-1}
+        className="min-w-0 flex-1 px-4 py-6 focus:outline-none lg:px-8 lg:py-8"
+      >
         <div className="@container mx-auto w-full max-w-6xl">
           <Outlet />
         </div>

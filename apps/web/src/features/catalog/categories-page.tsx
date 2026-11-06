@@ -15,6 +15,7 @@ import {
   useSetCategoryAttributes,
   useUpdateCategory,
 } from './use-categories.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 function CategoryForm({
   roots,
@@ -260,6 +261,7 @@ function AttributesPanel({ category, onClose }: { category: Category; onClose: (
 }
 
 export function CategoriesPage() {
+  useDocumentTitle('Categorías');
   const canManage = useHasPermission(PERMISSIONS.CATALOG_MANAGE);
   const list = useCategories();
   const update = useUpdateCategory();

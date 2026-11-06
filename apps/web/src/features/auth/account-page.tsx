@@ -1,7 +1,9 @@
 import { ChangePasswordForm } from './change-password-form.tsx';
 import { useCurrentUser } from './use-auth.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 export function AccountPage() {
+  useDocumentTitle('Mi cuenta');
   const { data: user } = useCurrentUser();
 
   return (

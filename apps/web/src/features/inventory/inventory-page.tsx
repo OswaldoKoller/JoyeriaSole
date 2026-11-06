@@ -11,15 +11,14 @@ import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
 import { useInitialStock, useInventory, useInventoryMovements } from './use-inventory.ts';
 import { PieceImage } from '../catalog/photos/piece-image.tsx';
+import { Pagination } from '../../components/ui/pagination.tsx';
+import { formatDateTime } from '../../lib/format.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 const levelLabels = { OUT: 'Sin stock', LOW: 'Bajo mínimo', OK: 'Disponible' };
-const dateTime = new Intl.DateTimeFormat('es-BO', {
-  timeZone: 'America/La_Paz',
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
 
 export function InventoryPage() {
+  useDocumentTitle('Saldos y alertas');
   const [searchParams] = useSearchParams();
   const requestedSku = searchParams.get('sku') ?? '';
   const initialOnly = searchParams.get('accion') === 'inicial';
@@ -125,7 +124,7 @@ export function InventoryPage() {
           <p className="py-6 text-sm text-stone-600">No hay variantes para este filtro.</p>
         )}
         {list.isSuccess && items.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
+          <div aria-busy={list.isPlaceholderData} className="mt-4 overflow-x-auto">
             <table className="table-cards w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
@@ -199,30 +198,8 @@ export function InventoryPage() {
             </table>
           </div>
         )}
-        {list.isSuccess && total > 25 && (
-          <div className="mt-4 flex items-center gap-3 text-sm">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {page} · {total} variantes
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page * 25 >= total}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-            >
-              Siguiente
-            </Button>
-          </div>
+        {list.isSuccess && (
+          <Pagination page={page} total={total} noun="variantes" onPageChange={setPage} />
         )}
       </div>
       {error && (
@@ -316,8 +293,8 @@ export function InventoryPage() {
             <ol className="space-y-2">
               {movements.data.data.map((movement) => (
                 <li key={movement.id} className="border-t border-stone-100 pt-2 text-sm">
-                  {dateTime.format(new Date(movement.createdAt))} ·{' '}
-                  {movementTypeLabel(movement.type)} · {movement.quantity > 0 ? '+' : ''}
+                  {formatDateTime(movement.createdAt)} · {movementTypeLabel(movement.type)} ·{' '}
+                  {movement.quantity > 0 ? '+' : ''}
                   {movement.quantity} piezas · saldo {movement.balanceBefore} →{' '}
                   {movement.balanceAfter}
                   {movement.reason ? ` · ${movement.reason}` : ''}

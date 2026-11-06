@@ -17,6 +17,7 @@ import {
   useUpdateAttribute,
   useUpdateAttributeOption,
 } from './use-attributes.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 const dataTypeLabels = {
   OPTION: 'Lista de valores',
@@ -420,6 +421,7 @@ function AttributeCard({ attribute }: { attribute: Attribute }) {
 }
 
 export function AttributesPage() {
+  useDocumentTitle('Atributos');
   const canManage = useHasPermission(PERMISSIONS.CATALOG_MANAGE);
   const list = useAttributes(true);
   const [creating, setCreating] = useState(false);

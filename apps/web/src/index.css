@@ -4,9 +4,11 @@
 @theme {
   --color-brand-50: #fdf8ec;
   --color-brand-100: #f9edc9;
+  --color-brand-200: #f1dd9f;
   --color-brand-500: #b8860b;
   --color-brand-600: #9a7009;
   --color-brand-700: #7a5807;
+  --color-brand-800: #5c4205;
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 

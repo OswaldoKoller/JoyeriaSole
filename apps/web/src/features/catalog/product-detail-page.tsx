@@ -1,13 +1,16 @@
 import { PERMISSIONS, type Product } from '@joyeria/shared';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
+import { ApiError } from '../../lib/api-client.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useHasPermission } from '../auth/use-auth.ts';
 import { PhotoGallery } from './photos/photo-gallery.tsx';
 import { ProductThumb } from './photos/product-thumb.tsx';
 import { ProductBadges } from './product-badges.tsx';
 import { ProductForm } from './product-form.tsx';
-import { availability, priceLabel, productStock } from './product-summary.ts';
+import { ProductPrice } from './product-price.tsx';
+import { availability, productStock } from './product-summary.ts';
 import { stockBlockMessage } from './stock-messages.ts';
 import { useDeleteProduct, useProduct, useUpdateProduct } from './use-products.ts';
 import { VariantRow } from './variant-row.tsx';
@@ -24,10 +27,21 @@ function productBlocked(product: Product) {
 export function ProductDetailPage() {
   const { id = '' } = useParams();
   const query = useProduct(id);
+  const { state } = useLocation() as { state: { productsSearch?: unknown } | null };
+  // El listado deja su búsqueda en el estado de la navegación: al volver se conserva el contexto.
+  const productsSearch =
+    typeof state?.productsSearch === 'string' && state.productsSearch.startsWith('?')
+      ? state.productsSearch
+      : '';
+  const notFound = query.error instanceof ApiError && query.error.status === 404;
+  useDocumentTitle(query.data?.name ?? 'Producto');
 
   return (
     <section className="space-y-6">
-      <Link to="/productos" className="inline-flex min-h-10 items-center text-sm underline">
+      <Link
+        to={`/productos${productsSearch}`}
+        className="inline-flex min-h-10 items-center text-sm underline"
+      >
         ← Volver a Productos
       </Link>
       {query.isPending && (
@@ -37,13 +51,19 @@ export function ProductDetailPage() {
       )}
       {query.isError && !query.data && (
         <p role="alert" className="py-6 text-sm text-red-700">
-          No se pudo cargar el producto. Puede que ya no exista.{' '}
-          <button className="underline" onClick={() => void query.refetch()}>
-            Reintentar
-          </button>
+          {notFound ? (
+            'Este producto no existe o fue eliminado.'
+          ) : (
+            <>
+              No se pudo cargar el producto.{' '}
+              <button className="underline" onClick={() => void query.refetch()}>
+                Reintentar
+              </button>
+            </>
+          )}
         </p>
       )}
-      {query.data && <ProductDetail product={query.data} />}
+      {query.data && <ProductDetail key={query.data.id} product={query.data} />}
     </section>
   );
 }
@@ -99,7 +119,7 @@ function ProductDetail({ product }: { product: Product }) {
   return (
     <article aria-label={`Ficha de ${product.name}`} className="space-y-6">
       <div className="flex flex-wrap items-start gap-5 rounded-xl border border-stone-200 bg-white p-4 shadow-xs">
-        <ProductThumb product={product} className="size-40 sm:size-56" />
+        <ProductThumb product={product} priority className="size-40 sm:size-56" />
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold">
             <span>{product.name}</span>
@@ -109,7 +129,7 @@ function ProductDetail({ product }: { product: Product }) {
             {product.categoryName}
             {product.model ? ` · ${product.model}` : ''}
           </p>
-          <p className="text-xl font-semibold text-stone-900">{priceLabel(product)}</p>
+          <ProductPrice product={product} className="text-xl font-semibold text-stone-900" />
           <div className="flex flex-wrap items-center gap-3 text-sm">
             {state && (
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${state.tone}`}>

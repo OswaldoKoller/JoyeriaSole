@@ -8,12 +8,9 @@ import { categoryOptions } from './category-options.ts';
 import { useHasPermission } from '../auth/use-auth.ts';
 import { CountStatusBadge } from './status-badge.tsx';
 import { useCreateInventoryCount, useInventoryCounts } from './use-inventory-counts.ts';
-
-const dateTime = new Intl.DateTimeFormat('es-BO', {
-  timeZone: 'America/La_Paz',
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
+import { Pagination } from '../../components/ui/pagination.tsx';
+import { formatDateTime } from '../../lib/format.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 function progressOf(count: InventoryCountSummary) {
   if (count.status === 'DRAFT') return 'Sin iniciar';
@@ -114,6 +111,7 @@ function NewCountForm() {
 }
 
 export function CountsPage() {
+  useDocumentTitle('Conteo físico');
   const canManage = useHasPermission(PERMISSIONS.INVENTORY_COUNTS_MANAGE);
   const [page, setPage] = useState(1);
   const [searchParams] = useSearchParams();
@@ -178,7 +176,7 @@ export function CountsPage() {
           <p className="py-6 text-sm text-stone-600">No se encontraron conteos.</p>
         )}
         {list.isSuccess && rows.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
+          <div aria-busy={list.isPlaceholderData} className="mt-4 overflow-x-auto">
             <table className="table-cards w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
@@ -220,7 +218,7 @@ export function CountsPage() {
                       {count.operatorName ?? '—'}
                     </td>
                     <td data-label="Creado" className="py-3">
-                      {dateTime.format(new Date(count.createdAt))}
+                      {formatDateTime(count.createdAt)}
                     </td>
                   </tr>
                 ))}
@@ -228,30 +226,8 @@ export function CountsPage() {
             </table>
           </div>
         )}
-        {list.isSuccess && total > 25 && (
-          <div className="mt-4 flex items-center gap-3 text-sm">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {page} · {total} conteos
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page * 25 >= total}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-            >
-              Siguiente
-            </Button>
-          </div>
+        {list.isSuccess && (
+          <Pagination page={page} total={total} noun="conteos" onPageChange={setPage} />
         )}
       </div>
     </section>

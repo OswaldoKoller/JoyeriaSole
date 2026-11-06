@@ -140,10 +140,13 @@ describe('pantalla de auditoría', () => {
     });
 
     await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
+    // El listado sin filtros se acaba de consultar y sigue fresco (30 s): se sirve de la caché,
+    // sin otra petición. Lo que importa es que los filtros quedan limpios.
     await waitFor(() => {
-      expect(lastListQuery(urls).get('action')).toBeNull();
+      expect(screen.getByLabelText('Acción')).toHaveValue('');
     });
-    expect(screen.getByLabelText('Acción')).toHaveValue('');
+    expect(screen.getByLabelText(/^Buscar/)).toHaveValue('');
+    expect(screen.queryByText(/con \d+ filtros?/)).not.toBeInTheDocument();
   });
 
   it('impide aplicar un rango de fechas invertido', async () => {

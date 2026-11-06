@@ -1,9 +1,12 @@
 import { PERMISSIONS } from '@joyeria/shared';
-import { useState, type SyntheticEvent } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
+import { Pagination } from '../../components/ui/pagination.tsx';
 import { ApiError } from '../../lib/api-client.ts';
+import { PAGE_SIZE } from '../../lib/paging.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useHasPermission } from '../auth/use-auth.ts';
 import { PieceImage } from './photos/piece-image.tsx';
 import { ProductCard } from './product-card.tsx';
@@ -19,21 +22,32 @@ const MATCH_LABEL = {
 
 type QualityFilter = 'all' | 'incomplete' | 'withoutPrice';
 
+/** Página de la URL (`?page=`): entero positivo; cualquier otro valor se trata como la primera. */
+function pageFromParam(value: string | null) {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
 export function ProductsPage() {
+  useDocumentTitle('Productos');
   const canManage = useHasPermission(PERMISSIONS.CATALOG_MANAGE);
   const canReadInventory = useHasPermission(PERMISSIONS.INVENTORY_READ);
+  // Búsqueda, rubro, estado de la ficha y página viven en la URL: se conservan al volver desde
+  // una ficha, al recargar y al compartir el enlace.
   const [params, setParams] = useSearchParams();
-  const [page, setPage] = useState(1);
-  const [draftSearch, setDraftSearch] = useState(params.get('q') ?? '');
-  const [search, setSearch] = useState(params.get('q') ?? '');
-  const [categoryId, setCategoryId] = useState('');
-  const [quality, setQuality] = useState<QualityFilter>(
+  const { search: currentSearch } = useLocation();
+  const search = params.get('q') ?? '';
+  const categoryId = params.get('categoryId') ?? '';
+  const page = pageFromParam(params.get('page'));
+  const quality: QualityFilter =
     params.get('incomplete') === '1'
       ? 'incomplete'
       : params.get('withoutPrice') === '1'
         ? 'withoutPrice'
-        : 'all',
-  );
+        : 'all';
+  const [draftSearch, setDraftSearch] = useState(search);
+  const [syncedSearch, setSyncedSearch] = useState(search);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [creating, setCreating] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [found, setFound] = useState<{ text: string; variantId: string | null } | null>(null);
@@ -48,6 +62,32 @@ export function ProductsPage() {
   const products = list.data?.data ?? [];
   const total = list.data?.meta.total ?? 0;
 
+  // Si la búsqueda cambia desde fuera (botón «Atrás», enlace), el campo la refleja.
+  if (search !== syncedSearch) {
+    setSyncedSearch(search);
+    setDraftSearch(search);
+  }
+
+  // Tras una coincidencia exacta (lector de códigos) el texto queda seleccionado: la siguiente
+  // lectura lo reemplaza en vez de pegarse al código anterior. Se repite cuando la búsqueda de
+  // la URL pasa a ser el SKU, porque el campo se reescribe con ese valor.
+  useEffect(() => {
+    if (!found?.variantId) return;
+    searchRef.current?.focus();
+    searchRef.current?.select();
+  }, [found, search]);
+
+  /** Cambia parámetros de la URL; por defecto vuelve a la primera página. */
+  function updateParams(changes: Record<string, string | null>, keepPage = false) {
+    const next = new URLSearchParams(params);
+    for (const [name, value] of Object.entries(changes)) {
+      if (value) next.set(name, value);
+      else next.delete(name);
+    }
+    if (!keepPage) next.delete('page');
+    setParams(next, { replace: true });
+  }
+
   /**
    * Búsqueda unificada: primero se prueba el texto como código exacto (SKU, código de barras o
    * del proveedor; el lector escribe el código y pulsa Enter) y, si no existe, se busca por texto.
@@ -55,7 +95,6 @@ export function ProductsPage() {
   async function submitSearch(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const term = draftSearch.trim();
-    setPage(1);
     setFound(null);
     if (term) {
       try {
@@ -64,7 +103,7 @@ export function ProductsPage() {
           text: `Encontrada por ${MATCH_LABEL[data.matchedBy]}: ${data.productName}${data.label && data.label !== 'Única' ? ` · ${data.label}` : ''} (${data.sku}).`,
           variantId: data.variantId,
         });
-        setSearch(data.sku);
+        updateParams({ q: data.sku });
         return;
       } catch (cause) {
         // 404: no es un código exacto, se busca por texto. 409: código de varios proveedores.
@@ -73,18 +112,14 @@ export function ProductsPage() {
         }
       }
     }
-    setSearch(term);
+    updateParams({ q: term });
   }
 
   function changeQuality(value: QualityFilter) {
-    setQuality(value);
-    setPage(1);
-    const next = new URLSearchParams(params);
-    next.delete('incomplete');
-    next.delete('withoutPrice');
-    if (value === 'incomplete') next.set('incomplete', '1');
-    if (value === 'withoutPrice') next.set('withoutPrice', '1');
-    setParams(next, { replace: true });
+    updateParams({
+      incomplete: value === 'incomplete' ? '1' : null,
+      withoutPrice: value === 'withoutPrice' ? '1' : null,
+    });
   }
 
   return (
@@ -145,6 +180,7 @@ export function ProductsPage() {
         >
           <div className="min-w-52 flex-1">
             <Input
+              ref={searchRef}
               label="Buscar por nombre, SKU o código de barras"
               value={draftSearch}
               onChange={(event) => {
@@ -171,8 +207,7 @@ export function ProductsPage() {
               id="filter-category"
               value={categoryId}
               onChange={(event) => {
-                setCategoryId(event.target.value);
-                setPage(1);
+                updateParams({ categoryId: event.target.value });
               }}
               className="block min-h-10 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
             >
@@ -228,36 +263,36 @@ export function ProductsPage() {
           <p className="py-6 text-sm text-stone-600">No se encontraron productos.</p>
         )}
         {list.isSuccess && products.length > 0 && (
-          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          // Cuadrícula por ancho del contenido (no de la pantalla): el panel lateral fijo le resta
+          // espacio. 2 columnas en teléfono y hasta 5 en pantalla ancha.
+          <ul
+            aria-label="Productos"
+            aria-busy={list.isPlaceholderData}
+            className={`mt-4 grid grid-cols-2 gap-3 @xl:grid-cols-3 @2xl:grid-cols-4 @4xl:grid-cols-5 ${
+              list.isPlaceholderData ? 'opacity-60' : ''
+            }`}
+          >
             {products.map((product) => (
-              <ProductCard key={product.id} product={product} canReadInventory={canReadInventory} />
+              <li key={product.id}>
+                <ProductCard
+                  product={product}
+                  canReadInventory={canReadInventory}
+                  from={currentSearch}
+                />
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-        {list.isSuccess && total > 25 && (
-          <div className="mt-4 flex items-center gap-3 text-sm">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {page} · {total} productos
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page * 25 >= total}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-            >
-              Siguiente
-            </Button>
-          </div>
+        {list.isSuccess && (
+          <Pagination
+            page={page}
+            total={total}
+            pageSize={PAGE_SIZE}
+            noun="productos"
+            onPageChange={(next) => {
+              updateParams({ page: next > 1 ? String(next) : null }, true);
+            }}
+          />
         )}
       </div>
     </section>

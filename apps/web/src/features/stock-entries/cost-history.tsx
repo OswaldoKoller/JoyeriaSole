@@ -3,20 +3,9 @@ import { Link } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { useCostHistory } from './use-stock-entries.ts';
 import { ingressLabel } from './lines.ts';
-
-const bob = new Intl.NumberFormat('es-BO', {
-  style: 'currency',
-  currency: 'BOB',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-const usd = new Intl.NumberFormat('es-BO', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-const date = new Intl.DateTimeFormat('es-BO', { timeZone: 'America/La_Paz', dateStyle: 'short' });
+import { Pagination } from '../../components/ui/pagination.tsx';
+import { SMALL_PAGE_SIZE } from '../../lib/paging.ts';
+import { formatBsPrecise, formatDate, formatUsd } from '../../lib/format.ts';
 
 /**
  * Historial de costos de una variante (C10): compras confirmadas con su precio original, tipo de
@@ -65,7 +54,7 @@ export function CostHistory({ variantId, sku }: { variantId: string; sku: string
             </p>
           )}
           {history.isSuccess && rows.length > 0 && (
-            <div className="overflow-x-auto">
+            <div aria-busy={history.isPlaceholderData} className="overflow-x-auto">
               <table className="table-cards w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-stone-200 text-stone-600">
@@ -91,7 +80,7 @@ export function CostHistory({ variantId, sku }: { variantId: string; sku: string
                         </Link>
                       </td>
                       <td data-label="Fecha" className="py-3 pr-3">
-                        {date.format(new Date(row.confirmedAt))}
+                        {formatDate(row.confirmedAt)}
                       </td>
                       <td data-label="Proveedor" className="py-3 pr-3">
                         {row.supplierName}
@@ -101,23 +90,23 @@ export function CostHistory({ variantId, sku }: { variantId: string; sku: string
                       </td>
                       <td data-label="Precio de compra" className="py-3 pr-3 tabular-nums">
                         {row.currency === 'USD'
-                          ? `${usd.format(Number(row.unitPrice))} × ${row.exchangeRate ?? ''}`
-                          : bob.format(Number(row.unitPrice))}
+                          ? `${formatUsd(row.unitPrice)} × ${row.exchangeRate ?? ''}`
+                          : formatBsPrecise(row.unitPrice)}
                       </td>
                       <td data-label="Precio de compra (Bs)" className="py-3 pr-3 tabular-nums">
-                        {bob.format(Number(row.unitCostBob))}
+                        {formatBsPrecise(row.unitCostBob)}
                       </td>
                       <td
                         data-label="Costos adicionales por pieza"
                         className="py-3 pr-3 tabular-nums"
                       >
-                        {row.unitExtraCost === null ? '—' : bob.format(Number(row.unitExtraCost))}
+                        {row.unitExtraCost === null ? '—' : formatBsPrecise(row.unitExtraCost)}
                       </td>
                       <td
                         data-label="Costo unitario total"
                         className="py-3 font-medium tabular-nums"
                       >
-                        {row.unitTotalCost === null ? '—' : bob.format(Number(row.unitTotalCost))}
+                        {row.unitTotalCost === null ? '—' : formatBsPrecise(row.unitTotalCost)}
                       </td>
                     </tr>
                   ))}
@@ -125,31 +114,14 @@ export function CostHistory({ variantId, sku }: { variantId: string; sku: string
               </table>
             </div>
           )}
-          {total > 10 && (
-            <div className="flex items-center gap-3 text-sm">
-              <Button
-                variant="secondary"
-                disabled={page === 1}
-                onClick={() => {
-                  setPage(page - 1);
-                }}
-              >
-                Anterior
-              </Button>
-              <span>
-                Página {page} · {total} compras
-              </span>
-              <Button
-                variant="secondary"
-                disabled={page * 10 >= total}
-                onClick={() => {
-                  setPage(page + 1);
-                }}
-              >
-                Siguiente
-              </Button>
-            </div>
-          )}
+          <Pagination
+            page={page}
+            total={total}
+            noun="compras"
+            onPageChange={setPage}
+            pageSize={SMALL_PAGE_SIZE}
+            className=""
+          />
         </section>
       )}
     </div>

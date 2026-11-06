@@ -35,7 +35,14 @@ async function logout(page: Page) {
 async function stockOf(page: Page, name: string) {
   await page.goto('/inventario');
   await page.getByLabel('Buscar por producto, SKU o código').fill(name);
-  await page.getByRole('button', { name: 'Buscar' }).click();
+  // La lista conserva la anterior mientras carga la búsqueda: se espera a la respuesta filtrada.
+  await Promise.all([
+    page.waitForResponse(
+      (response) => response.url().includes('/api/v1/inventory?') && response.url().includes('q='),
+    ),
+    page.getByRole('button', { name: 'Buscar' }).click(),
+  ]);
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
   const row = page.getByRole('row', { name: new RegExp(name) });
   await expect(row).toBeVisible();
   return Number(await row.getByRole('cell').nth(2).innerText());
@@ -140,9 +147,7 @@ test('«Ajustar a cero» desde Inventario pide sacar todo el saldo; el Administr
   expect(await stockOf(page, 'Cadena Rolo')).toBe(before);
 
   // Una nueva solicitud igual sí se aprueba: la pieza queda sin stock
-  await page.goto('/inventario');
-  await page.getByLabel('Buscar por producto, SKU o código').fill('Cadena Rolo');
-  await page.getByRole('button', { name: 'Buscar' }).click();
+  await stockOf(page, 'Cadena Rolo'); // abre Inventario y espera la lista ya filtrada
   await page.getByRole('link', { name: /^Ajustar a cero SKU-/ }).click();
   await pickReason(page, 'Pérdida');
   await page.getByRole('button', { name: 'Enviar solicitud' }).click();

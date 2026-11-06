@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Button } from '../../components/ui/button.tsx';
 import { ApiError } from '../../lib/api-client.ts';
 import { useCurrentUser, useHasPermission } from '../auth/use-auth.ts';
-import { formatBs, formatDateTime } from './price-math.ts';
+import { formatBsPrecise, formatDateTime } from '../../lib/format.ts';
 import { ProfitDisplay } from './profit-display.tsx';
 import {
   useApproveChanges,
@@ -259,17 +259,17 @@ export function PendingPanel() {
                         {row.requestedBy.name}
                       </td>
                       <td data-label="Precio vigente" className="py-3 pr-3 tabular-nums">
-                        {formatBs(row.previousPrice)}
+                        {formatBsPrecise(row.previousPrice)}
                       </td>
                       <td
                         data-label="Precio solicitado"
                         className="py-3 pr-3 font-medium tabular-nums"
                       >
-                        {formatBs(row.newPrice)}
+                        {formatBsPrecise(row.newPrice)}
                       </td>
                       {showCosts && (
                         <td data-label="Costo total" className="py-3 pr-3 tabular-nums">
-                          {formatBs(row.costSnapshot)}
+                          {formatBsPrecise(row.costSnapshot)}
                         </td>
                       )}
                       {showCosts && (

@@ -12,7 +12,7 @@ import { useState, type SyntheticEvent } from 'react';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
-import { useActiveSuppliers } from './use-stock-entries.ts';
+import { useActiveSuppliers } from '../suppliers/use-suppliers.ts';
 
 const FIELD_LABELS: Record<string, string> = {
   supplierId: 'Proveedor',

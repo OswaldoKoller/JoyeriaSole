@@ -9,22 +9,21 @@ import type {
   StockEntryCostType,
   StockEntryDetail,
   StockEntrySummary,
-  Supplier,
   UpdateStockEntryCostTypeInput,
   UpdateStockEntryInput,
 } from '@joyeria/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
+import { PAGE_SIZE, SMALL_PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
 const key = ['stock-entries'] as const;
-type Page<T> = { data: T[]; meta: { page: number; pageSize: number; total: number } };
+type Page<T> = Paged<T>;
 
 export function useStockEntries(page: number, q: string, status: string) {
-  const query = new URLSearchParams({ page: String(page), pageSize: '25', q, status });
-  return useQuery({
-    queryKey: [...key, 'list', page, q, status],
-    queryFn: () => api.get<Page<StockEntrySummary>>(`/stock-entries?${query}`),
-  });
+  const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), q, status });
+  return useListQuery([...key, 'list', page, q, status], () =>
+    api.get<Page<StockEntrySummary>>(`/stock-entries?${query}`),
+  );
 }
 
 export function useStockEntry(id: string) {
@@ -123,16 +122,6 @@ export function useCancelStockEntry(id: string) {
   });
 }
 
-/** Proveedores activos para elegir en la cabecera (requiere suppliers:read). */
-export function useActiveSuppliers(enabled: boolean) {
-  return useQuery({
-    queryKey: ['suppliers', 'active-picker'],
-    queryFn: () => api.get<Page<Supplier>>('/suppliers?page=1&pageSize=100&q=&status=active'),
-    select: (page) => page.data,
-    enabled,
-  });
-}
-
 export interface VariantOption {
   variantId: string;
   sku: string;
@@ -205,8 +194,9 @@ export function useCostHistory(variantId: string, page: number, enabled: boolean
     queryKey: ['cost-history', variantId, page],
     queryFn: () =>
       api.get<Page<CostHistoryEntry>>(
-        `/products/variants/${variantId}/cost-history?page=${page}&pageSize=10`,
+        `/products/variants/${variantId}/cost-history?page=${page}&pageSize=${SMALL_PAGE_SIZE}`,
       ),
+    placeholderData: keepPreviousData,
     enabled,
   });
 }

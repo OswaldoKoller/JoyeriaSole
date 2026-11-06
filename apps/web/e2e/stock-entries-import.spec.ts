@@ -54,7 +54,14 @@ async function addVariant(page: Page, term: string) {
 async function stockOf(page: Page, name: string) {
   await page.goto('/inventario');
   await page.getByLabel('Buscar por producto, SKU o código').fill(name);
-  await page.getByRole('button', { name: 'Buscar' }).click();
+  // La lista conserva la anterior mientras carga la búsqueda: se espera a la respuesta filtrada.
+  await Promise.all([
+    page.waitForResponse(
+      (response) => response.url().includes('/api/v1/inventory?') && response.url().includes('q='),
+    ),
+    page.getByRole('button', { name: 'Buscar' }).click(),
+  ]);
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
   const row = page.getByRole('row', { name: new RegExp(name) });
   await expect(row).toBeVisible();
   return Number(await row.getByRole('cell').nth(2).innerText());

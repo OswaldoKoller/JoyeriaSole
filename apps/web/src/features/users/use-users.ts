@@ -9,18 +9,13 @@ import type {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authKeys } from '../auth/use-auth.ts';
 import { api } from '../../lib/api-client.ts';
+import { PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
-type UserList = {
-  data: UserSummary[];
-  meta: { page: number; pageSize: number; total: number };
-};
+type UserList = Paged<UserSummary>;
 
 export function useUsers(page: number, q: string, status: string) {
-  const query = new URLSearchParams({ page: String(page), pageSize: '25', q, status });
-  return useQuery({
-    queryKey: ['users', page, q, status],
-    queryFn: () => api.get<UserList>(`/users?${query}`),
-  });
+  const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), q, status });
+  return useListQuery(['users', page, q, status], () => api.get<UserList>(`/users?${query}`));
 }
 
 export function useAvailableRoles(enabled: boolean) {
