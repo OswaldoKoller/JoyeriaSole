@@ -237,10 +237,11 @@ export function ProductsPage() {
           <p className="py-6 text-sm text-stone-600">No se encontraron productos.</p>
         )}
         {list.isSuccess && products.length > 0 && (
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((product) => (
               <ProductCard
                 key={product.id}
+                defaultOpen={products.length === 1}
                 product={product}
                 canManage={canManage}
                 canReadInventory={canReadInventory}

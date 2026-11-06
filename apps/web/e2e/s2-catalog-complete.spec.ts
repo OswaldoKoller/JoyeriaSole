@@ -88,6 +88,9 @@ test.describe('Responsable de inventario', () => {
     await page.getByRole('button', { name: 'Guardar producto' }).click();
 
     const ring = card(page, 'E2E Anillo corazón con circonia');
+    await ring
+      .getByRole('button', { name: 'Ver detalle de E2E Anillo corazón con circonia' })
+      .click();
     await expect(ring).toContainText('Piedra:');
     await expect(ring).toContainText('E2E Circonia');
     await expect(ring).toContainText('E2E Plata 925 / E2E 16');
@@ -138,6 +141,7 @@ test.describe('Responsable de inventario', () => {
       page.getByRole('status').filter({ hasText: 'ya pertenece a la pieza' }),
     ).toContainText('esta pieza se identifica por su SKU');
     const repeated = card(page, 'E2E Anillo repetido');
+    await repeated.getByRole('button', { name: 'Ver detalle de E2E Anillo repetido' }).click();
     await expect(repeated).toContainText('Sin código');
     // Sin descripción ni características: ficha incompleta.
     await expect(repeated.getByText('Ficha incompleta')).toBeVisible();
@@ -167,6 +171,9 @@ test.describe('Responsable de inventario', () => {
     });
     await login(page, USERS.inventario);
     await menu(page).getByRole('link', { name: 'Productos' }).click();
+    await page
+      .getByRole('button', { name: 'Ver detalle de E2E Anillo corazón con circonia' })
+      .click();
     await page
       .getByRole('link', { name: 'Imprimir etiquetas de E2E Anillo corazón con circonia' })
       .click();
@@ -316,6 +323,10 @@ test.describe('Vendedor', () => {
     await expect(menu(page).getByRole('link', { name: 'Etiquetas' })).toBeVisible();
     await menu(page).getByRole('link', { name: 'Productos' }).click();
     await expect(page.getByRole('heading', { name: 'Productos' })).toBeVisible();
+    await page
+      .getByRole('button', { name: /^Ver detalle de / })
+      .first()
+      .click();
     await expect(page.getByRole('button', { name: 'Nuevo producto' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Editar / })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Eliminar / })).toHaveCount(0);
