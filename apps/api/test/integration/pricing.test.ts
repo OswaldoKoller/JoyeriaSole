@@ -64,17 +64,19 @@ describe('precios de venta: solicitud, aprobación e historial', () => {
   async function createVariant(
     options: { salePrice?: string; costPrice?: string; active?: boolean } = {},
   ) {
+    // Valor local: createVariant puede llamarse en paralelo y `counter` cambia durante los await.
     counter += 1;
+    const n = counter;
     const category = await app.prisma.category.create({
-      data: { name: `Cat ${counter}`, slug: `cat-${counter}-${Date.now()}` },
+      data: { name: `Cat ${n}`, slug: `cat-${n}-${Date.now()}` },
     });
     const product = await app.prisma.product.create({
-      data: { categoryId: category.id, name: `Producto ${counter}` },
+      data: { categoryId: category.id, name: `Producto ${n}` },
     });
     return app.prisma.productVariant.create({
       data: {
         productId: product.id,
-        sku: `PRC-${counter}-${Date.now()}`,
+        sku: `PRC-${n}-${Date.now()}`,
         salePrice: options.salePrice ?? '0',
         costPrice: options.costPrice ?? '40.3333',
         status: options.active === false ? 'INACTIVE' : 'ACTIVE',
