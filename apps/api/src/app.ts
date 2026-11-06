@@ -9,7 +9,7 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
-import type { Env } from './config/env.ts';
+import { startupWarnings, type Env } from './config/env.ts';
 import { authRoutes } from './modules/auth/auth.routes.ts';
 import { healthRoutes } from './modules/health/health.routes.ts';
 import { suppliersRoutes } from './modules/suppliers/suppliers.routes.ts';
@@ -33,6 +33,20 @@ import { authPlugin } from './plugins/auth.ts';
 import { errorHandlerPlugin } from './plugins/error-handler.ts';
 import { prismaPlugin } from './plugins/prisma.ts';
 import { securityPlugin } from './plugins/security.ts';
+
+const REQUEST_TIMEOUT_MS = 120_000;
+const CONNECTION_TIMEOUT_MS = 120_000;
+const KEEP_ALIVE_TIMEOUT_MS = 65_000;
+
+/** Rutas `/api/*` que gestionan su propia caché (imágenes con ETag); el resto nunca se cachea. */
+function isApiPath(url: string) {
+  return url.startsWith('/api/');
+}
+
+/** Confía solo en los primeros `hops` saltos de la cadena (el socket es el salto 0). */
+function trustHops(hops: number) {
+  return (_address: string, hop: number) => hop < hops;
+}
 
 function loggerOptions(env: Env): FastifyServerOptions['logger'] {
   return {
@@ -63,8 +77,15 @@ export async function buildApp(env: Env) {
     logger: loggerOptions(env),
     genReqId: () => randomUUID(),
     requestIdHeader: false,
-    trustProxy: env.TRUST_PROXY ?? false,
+    // Número de saltos de proxy propios (0 = ninguno). Nunca `true`: ver TRUST_PROXY_HOPS.
+    trustProxy: env.TRUST_PROXY_HOPS > 0 ? trustHops(env.TRUST_PROXY_HOPS) : false,
     bodyLimit: 1024 * 1024, // 1 MiB: JSON. Las fotos (multipart, 5 MB) tienen sus propios límites: ADR-020.
+    // Tiempos explícitos (por defecto Fastify no limita el tiempo de una petición ni de un socket):
+    // una subida de 5 MB desde un móvil lento cabe de sobra en 2 minutos; el keep-alive supera el
+    // tiempo de inactividad habitual de los balanceadores (60 s) para evitar cortes de conexión.
+    requestTimeout: REQUEST_TIMEOUT_MS,
+    connectionTimeout: CONNECTION_TIMEOUT_MS,
+    keepAliveTimeout: KEEP_ALIVE_TIMEOUT_MS,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
@@ -72,7 +93,14 @@ export async function buildApp(env: Env) {
 
   app.addHook('onSend', async (request, reply) => {
     reply.header('x-request-id', request.id);
+    // Respuestas de la API con datos de negocio: ni el navegador ni un proxy deben guardarlas.
+    // Las imágenes (portada/fotos) fijan su propio Cache-Control con ETag y no se tocan.
+    if (isApiPath(request.url) && !reply.hasHeader('cache-control')) {
+      reply.header('cache-control', 'no-store');
+    }
   });
+
+  for (const warning of startupWarnings(env)) app.log.warn(warning);
 
   await app.register(errorHandlerPlugin);
   await app.register(securityPlugin, { env });

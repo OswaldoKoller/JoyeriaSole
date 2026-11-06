@@ -38,7 +38,7 @@ export const authRoutes: FastifyPluginAsyncZod<{
 
   app.post(
     '/logout',
-    { preHandler: app.authenticate, schema: { response: { 204: z.null() } } },
+    { preValidation: app.authenticate, schema: { response: { 204: z.null() } } },
     async (request, reply) => {
       const auth = getAuth(request);
       await service.logout(auth.sessionId, auth.user.id, request);
@@ -50,7 +50,7 @@ export const authRoutes: FastifyPluginAsyncZod<{
   app.get(
     '/me',
     {
-      preHandler: app.authenticate,
+      preValidation: app.authenticate,
       schema: { response: { 200: z.object({ data: authUserSchema }) } },
     },
     async (request) => ({ data: getAuth(request).user }),
@@ -59,7 +59,8 @@ export const authRoutes: FastifyPluginAsyncZod<{
   app.post(
     '/change-password',
     {
-      preHandler: app.authenticate,
+      // preValidation: sin sesión responde 401 antes de validar el cuerpo (no filtra detalles).
+      preValidation: app.authenticate,
       config: { rateLimit: { max: loginRateLimitMax, timeWindow: '15 minutes' } },
       schema: { body: changePasswordSchema, response: { 204: z.null() } },
     },

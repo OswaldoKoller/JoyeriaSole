@@ -1,9 +1,11 @@
 import {
-  PERMISSIONS,
+  REFERENCE_TYPES,
   adjustmentLabel,
+  dayRangeLaPaz,
   formatMoney,
   parseUnitCost,
   unitsToCents,
+  valueOfDelta,
   type AdjustmentStatus,
   type CreateAdjustmentInput,
   type RejectAdjustmentInput,
@@ -11,13 +13,11 @@ import {
 import type { FastifyRequest } from 'fastify';
 import type { Prisma } from '../../generated/prisma/client.ts';
 import { BusinessRuleError, ForbiddenError, NotFoundError } from '../../lib/errors.ts';
+import { canSeeCosts } from '../../lib/permissions.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { applyStockChanges, planBalanceChange } from './stock-ledger.ts';
-
-/** Tipo de documento que referencian los movimientos que genera un ajuste aprobado. */
-export const ADJUSTMENT_REFERENCE_TYPE = 'INVENTORY_ADJUSTMENT';
 
 const withDetails = {
   reason: true,
@@ -30,16 +30,6 @@ const withDetails = {
 } satisfies Prisma.InventoryAdjustmentInclude;
 type AdjustmentWithDetails = Prisma.InventoryAdjustmentGetPayload<{ include: typeof withDetails }>;
 type ItemWithVariant = AdjustmentWithDetails['items'][number];
-
-/** Valor de `delta` piezas a `unitCost` (4 decimales), en Bs con 2 decimales y signo. */
-export function valueOfDelta(delta: number, unitCost: string): string {
-  const magnitude = unitsToCents(BigInt(Math.abs(delta)) * parseUnitCost(unitCost));
-  return formatMoney(delta < 0 ? -magnitude : magnitude);
-}
-
-/** Inicio y fin (inclusive) de un día calendario de La Paz (UTC−4, sin horario de verano). */
-const dayStart = (day: string) => new Date(`${day}T00:00:00.000-04:00`);
-const dayEnd = (day: string) => new Date(`${day}T23:59:59.999-04:00`);
 
 function unitCostOf(item: ItemWithVariant, status: AdjustmentWithDetails['status']) {
   // Pendiente: costo vigente de la variante. Aprobado: el registrado al aprobar. Otros: ninguno.
@@ -70,7 +60,7 @@ function blockersOf(adjustment: AdjustmentWithDetails): string[] {
   return blockers;
 }
 
-function toSummary(adjustment: AdjustmentWithDetails, canSeeCosts: boolean) {
+function toSummary(adjustment: AdjustmentWithDetails, showCosts: boolean) {
   let value = 0n;
   let hasCost = true;
   for (const item of adjustment.items) {
@@ -96,14 +86,14 @@ function toSummary(adjustment: AdjustmentWithDetails, canSeeCosts: boolean) {
     resolvedAt: adjustment.resolvedAt?.toISOString() ?? null,
     itemsCount: adjustment.items.length,
     netUnits: adjustment.items.reduce((sum, item) => sum + item.quantityDelta, 0),
-    valueImpact: canSeeCosts && hasCost ? formatMoney(value) : null,
+    valueImpact: showCosts && hasCost ? formatMoney(value) : null,
   };
 }
 
-function toDetail(adjustment: AdjustmentWithDetails, canSeeCosts: boolean) {
+function toDetail(adjustment: AdjustmentWithDetails, showCosts: boolean) {
   const pending = adjustment.status === 'PENDING';
   return {
-    ...toSummary(adjustment, canSeeCosts),
+    ...toSummary(adjustment, showCosts),
     resolutionNotes: adjustment.resolutionNotes,
     cancelledAt: adjustment.cancelledAt?.toISOString() ?? null,
     items: adjustment.items.map((item) => {
@@ -119,8 +109,8 @@ function toDetail(adjustment: AdjustmentWithDetails, canSeeCosts: boolean) {
         currentQuantity: pending ? (item.variant.inventory?.quantity ?? 0) : null,
         balanceBefore: item.balanceBefore,
         balanceAfter: item.balanceAfter,
-        unitCost: canSeeCosts ? cost : null,
-        valueImpact: canSeeCosts && cost !== null ? valueOfDelta(item.quantityDelta, cost) : null,
+        unitCost: showCosts ? cost : null,
+        valueImpact: showCosts && cost !== null ? valueOfDelta(item.quantityDelta, cost) : null,
       };
     }),
     blockers: blockersOf(adjustment),
@@ -129,10 +119,6 @@ function toDetail(adjustment: AdjustmentWithDetails, canSeeCosts: boolean) {
 
 export class AdjustmentsService {
   constructor(private readonly prisma: PrismaClient) {}
-
-  private static canSeeCosts(request: FastifyRequest) {
-    return getAuth(request).user.permissions.includes(PERMISSIONS.COSTS_READ);
-  }
 
   private async load(db: Prisma.TransactionClient | PrismaClient, id: string) {
     const adjustment = await db.inventoryAdjustment.findUnique({
@@ -190,8 +176,8 @@ export class AdjustmentsService {
       ...(input.variantId && { items: { some: { variantId: input.variantId } } }),
       ...((input.from || input.to) && {
         createdAt: {
-          ...(input.from && { gte: dayStart(input.from) }),
-          ...(input.to && { lte: dayEnd(input.to) }),
+          ...(input.from && { gte: dayRangeLaPaz(input.from).start }),
+          ...(input.to && { lte: dayRangeLaPaz(input.to).end }),
         },
       }),
     };
@@ -205,21 +191,21 @@ export class AdjustmentsService {
       }),
       this.prisma.inventoryAdjustment.count({ where }),
     ]);
-    const canSeeCosts = AdjustmentsService.canSeeCosts(request);
+    const showCosts = canSeeCosts(request);
     return {
-      data: rows.map((row) => toSummary(row, canSeeCosts)),
+      data: rows.map((row) => toSummary(row, showCosts)),
       meta: { page: input.page, pageSize: input.pageSize, total },
     };
   }
 
   async get(id: string, request: FastifyRequest) {
-    return toDetail(await this.load(this.prisma, id), AdjustmentsService.canSeeCosts(request));
+    return toDetail(await this.load(this.prisma, id), canSeeCosts(request));
   }
 
   /** Solicitud: NO toca el stock. Valida lo que ya se puede saber (saldo no negativo). */
   async create(input: CreateAdjustmentInput, request: FastifyRequest) {
     const userId = getAuth(request).user.id;
-    const canSeeCosts = AdjustmentsService.canSeeCosts(request);
+    const showCosts = canSeeCosts(request);
     return this.prisma.$transaction(async (tx) => {
       const reason = await tx.adjustmentReason.findUnique({ where: { id: input.reasonId } });
       if (!reason || !reason.isActive) throw new NotFoundError('Motivo de ajuste no encontrado');
@@ -286,14 +272,14 @@ export class AdjustmentsService {
         },
         request,
       );
-      return toDetail(adjustment, canSeeCosts);
+      return toDetail(adjustment, showCosts);
     });
   }
 
   /** Solo quien solicitó puede cancelar, y solo mientras esté pendiente. No toca el stock. */
   async cancel(id: string, request: FastifyRequest) {
     const userId = getAuth(request).user.id;
-    const canSeeCosts = AdjustmentsService.canSeeCosts(request);
+    const showCosts = canSeeCosts(request);
     return this.prisma.$transaction(async (tx) => {
       const previous = await this.lockPending(tx, id);
       if (previous.requestedById !== userId) {
@@ -314,14 +300,14 @@ export class AdjustmentsService {
         },
         request,
       );
-      return toDetail(await this.load(tx, id), canSeeCosts);
+      return toDetail(await this.load(tx, id), showCosts);
     });
   }
 
   /** El Administrador rechaza con un comentario obligatorio. No toca el stock. */
   async reject(id: string, input: RejectAdjustmentInput, request: FastifyRequest) {
     const userId = getAuth(request).user.id;
-    const canSeeCosts = AdjustmentsService.canSeeCosts(request);
+    const showCosts = canSeeCosts(request);
     return this.prisma.$transaction(async (tx) => {
       const previous = await this.lockPending(tx, id);
       await tx.inventoryAdjustment.update({
@@ -344,7 +330,7 @@ export class AdjustmentsService {
         },
         request,
       );
-      return toDetail(await this.load(tx, id), canSeeCosts);
+      return toDetail(await this.load(tx, id), showCosts);
     });
   }
 
@@ -356,7 +342,7 @@ export class AdjustmentsService {
    */
   async approve(id: string, request: FastifyRequest) {
     const userId = getAuth(request).user.id;
-    const canSeeCosts = AdjustmentsService.canSeeCosts(request);
+    const showCosts = canSeeCosts(request);
     return this.prisma.$transaction(async (tx) => {
       const adjustment = await this.lockPending(tx, id);
       for (const item of adjustment.items) {
@@ -372,7 +358,7 @@ export class AdjustmentsService {
           type: 'ADJUSTMENT' as const,
           quantity: item.quantityDelta,
           unitCost: item.variant.costPrice.toFixed(4),
-          referenceType: ADJUSTMENT_REFERENCE_TYPE,
+          referenceType: REFERENCE_TYPES.INVENTORY_ADJUSTMENT,
           referenceId: adjustment.id,
           reason: `Ajuste ${adjustmentLabel(adjustment.number)} · ${adjustment.reason.name}`,
           notes: adjustment.notes,
@@ -427,7 +413,7 @@ export class AdjustmentsService {
         },
         request,
       );
-      return toDetail(await this.load(tx, id), canSeeCosts);
+      return toDetail(await this.load(tx, id), showCosts);
     });
   }
 }

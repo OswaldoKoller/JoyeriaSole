@@ -136,7 +136,11 @@ describe('catálogo', () => {
       expect(res.statusCode).toBe(201);
       const product = res.json().data;
       expect(product.variants).toHaveLength(1);
-      expect(product.variants[0]).toMatchObject({ salePrice: '150.5', minStock: 2, barcode: null });
+      expect(product.variants[0]).toMatchObject({
+        salePrice: '150.50',
+        minStock: 2,
+        barcode: null,
+      });
       expect(product.variants[0].sku).toMatch(/^SKU-\d{6,}$/);
 
       const second = (await createProduct()).json().data;

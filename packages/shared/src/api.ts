@@ -19,6 +19,8 @@ export const ERROR_CODES = {
   /** 413 — el archivo subido supera el tamaño permitido (p. ej. fotos de producto, 5 MB). */
   PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
   RATE_LIMITED: 'RATE_LIMITED', // 429
+  /** 503 — conflicto transitorio de la base (bloqueo, tiempo agotado): reintentar en unos segundos. */
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR', // 500 — nunca expone detalles internos
 } as const;
 

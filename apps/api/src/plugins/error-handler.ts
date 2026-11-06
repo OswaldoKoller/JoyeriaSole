@@ -8,6 +8,37 @@ import {
 import { Prisma } from '../generated/prisma/client.ts';
 import { AppError } from '../lib/errors.ts';
 
+/** Segundos sugeridos al cliente (cabecera Retry-After) ante un conflicto transitorio de la base. */
+const TRANSIENT_RETRY_AFTER_SECONDS = 2;
+
+/** SQLSTATE de conflictos transitorios: deadlock_detected y serialization_failure. */
+const TRANSIENT_SQLSTATES = new Set(['40P01', '40001']);
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * Conflictos transitorios de la base: conflicto de escritura/deadlock (P2034, 40P01, 40001) o
+ * transacción interactiva sin tiempo/conexión (P2028). Reintentar suele funcionar; no es un bug.
+ */
+export function isTransientDatabaseError(error: unknown): boolean {
+  const record = asRecord(error);
+  if (!record) return false;
+  const code = record.code;
+  if (code === 'P2034' || code === 'P2028') return true;
+  if (typeof code === 'string' && TRANSIENT_SQLSTATES.has(code)) return true;
+  const meta = asRecord(record.meta);
+  if (typeof meta?.code === 'string' && TRANSIENT_SQLSTATES.has(meta.code)) return true;
+  const cause = asRecord(asRecord(meta?.driverAdapterError)?.cause);
+  return (
+    cause?.kind === 'TransactionWriteConflict' ||
+    (typeof cause?.originalCode === 'string' && TRANSIENT_SQLSTATES.has(cause.originalCode))
+  );
+}
+
 /**
  * Manejo centralizado de errores. Garantiza:
  *   - Formato único: { error: { code, message, details?, requestId } }.
@@ -39,6 +70,16 @@ export const errorHandlerPlugin = fp(
             ),
             message: issue.message,
           })),
+        });
+      }
+
+      if (isTransientDatabaseError(error)) {
+        request.log.warn({ err: error }, 'Conflicto transitorio de base de datos');
+        reply.header('retry-after', String(TRANSIENT_RETRY_AFTER_SECONDS));
+        return send(503, {
+          code: ERROR_CODES.SERVICE_UNAVAILABLE,
+          message:
+            'El sistema está ocupado procesando otra operación. Espere unos segundos y vuelva a intentarlo.',
         });
       }
 

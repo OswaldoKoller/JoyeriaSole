@@ -290,7 +290,7 @@ function startNodeApi(env) {
           API_PORT: String(port),
           WEB_DIST_DIR: path.join(ROOT, 'apps', 'web', 'dist'),
           COOKIE_SECURE: 'false',
-          TRUST_PROXY: 'false',
+          TRUST_PROXY_HOPS: '0',
           CORS_ORIGIN: `http://localhost:${port}`,
           FRONTEND_URL: `http://localhost:${port}`,
         },

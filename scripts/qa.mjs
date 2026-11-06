@@ -90,7 +90,7 @@ try {
     SEED_ADMIN_NAME: 'Administrador de pruebas',
     DEMO_USER_PASSWORD: randomBytes(24).toString('hex'),
     COOKIE_SECURE: 'false',
-    TRUST_PROXY: 'false',
+    TRUST_PROXY_HOPS: '0',
     WEB_DIST_DIR: '',
   };
   npm(['run', 'db:generate'], env);

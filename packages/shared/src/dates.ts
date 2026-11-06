@@ -19,6 +19,20 @@ export function todayInLaPaz(now: Date = new Date()): string {
   return formatter.format(now);
 }
 
+/** Desfase fijo de La Paz respecto de UTC: Bolivia no tiene horario de verano. */
+const LA_PAZ_UTC_OFFSET = '-04:00';
+
+/**
+ * Instantes (UTC) de inicio y fin INCLUSIVE de un día calendario de La Paz, «AAAA-MM-DD».
+ * 20:00 del día 5 en La Paz son las 00:00 UTC del día 6 y siguen siendo del día 5.
+ */
+export function dayRangeLaPaz(day: string): { start: Date; end: Date } {
+  return {
+    start: new Date(`${day}T00:00:00.000${LA_PAZ_UTC_OFFSET}`),
+    end: new Date(`${day}T23:59:59.999${LA_PAZ_UTC_OFFSET}`),
+  };
+}
+
 function shiftDays(date: string, days: number): string {
   const shifted = new Date(`${date}T00:00:00Z`);
   shifted.setUTCDate(shifted.getUTCDate() + days);

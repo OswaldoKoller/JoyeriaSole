@@ -44,4 +44,4 @@ Corrección: preHandler: app.requirePermission(PERMISSIONS.PRICES_APPROVE)
 ## Cambios sensibles que requieren aprobación del usuario
 
 Relajar CSP/CORS/SameSite, cambiar parámetros de Argon2 o duración de sesión, cambiar permisos de
-roles (P-01/P-02), exponer nuevos datos personales, activar `TRUST_PROXY`.
+roles (P-01/P-02), exponer nuevos datos personales, cambiar `TRUST_PROXY_HOPS`.

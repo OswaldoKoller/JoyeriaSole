@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
-  EXCHANGE_REFERENCE_TYPE,
   PERMISSIONS,
+  REFERENCE_TYPES,
   type CreateExchangeInput,
   type Exchange,
   type ExchangeLine,
@@ -9,6 +9,7 @@ import {
 import type { FastifyRequest } from 'fastify';
 import type { Prisma } from '../../generated/prisma/client.ts';
 import { BusinessRuleError, NotFoundError } from '../../lib/errors.ts';
+import { canSeeCostsWith } from '../../lib/permissions.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
@@ -107,7 +108,7 @@ export class ExchangesService {
           quantity: input.returned.quantity,
           // Costo vigente de la variante, solo informativo: un cambio no recalcula costos (ADR-019).
           unitCost: returned.costPrice.toFixed(4),
-          referenceType: EXCHANGE_REFERENCE_TYPE,
+          referenceType: REFERENCE_TYPES.EXCHANGE,
           referenceId,
           reason: input.reason,
           notes: input.notes,
@@ -119,7 +120,7 @@ export class ExchangesService {
           type: 'EXCHANGE_OUT',
           quantity: -input.delivered.quantity,
           unitCost: delivered.costPrice.toFixed(4),
-          referenceType: EXCHANGE_REFERENCE_TYPE,
+          referenceType: REFERENCE_TYPES.EXCHANGE,
           referenceId,
           reason: input.reason,
           notes: input.notes,
@@ -155,7 +156,7 @@ export class ExchangesService {
 
   private async load(referenceId: string, permissions: readonly string[]): Promise<Exchange> {
     const movements = await this.prisma.inventoryMovement.findMany({
-      where: { referenceType: EXCHANGE_REFERENCE_TYPE, referenceId },
+      where: { referenceType: REFERENCE_TYPES.EXCHANGE, referenceId },
       include: { variant: { include: { product: true } } },
       orderBy: { id: 'asc' },
     });
@@ -163,7 +164,7 @@ export class ExchangesService {
     const outgoing = movements.find((m) => m.type === 'EXCHANGE_OUT');
     if (!incoming || !outgoing) throw new NotFoundError('Cambio de pieza no encontrado');
 
-    const canSeeCosts = permissions.includes(PERMISSIONS.COSTS_READ);
+    const showCosts = canSeeCostsWith(permissions);
     const canSeeAudit =
       permissions.includes(PERMISSIONS.INVENTORY_EXCHANGE) ||
       permissions.includes(PERMISSIONS.AUDIT_READ);
@@ -181,8 +182,8 @@ export class ExchangesService {
       notes: incoming.notes,
       userId: incoming.userId,
       createdAt: incoming.createdAt.toISOString(),
-      returned: lineOf(incoming, canSeeCosts),
-      delivered: lineOf(outgoing, canSeeCosts),
+      returned: lineOf(incoming, showCosts),
+      delivered: lineOf(outgoing, showCosts),
       audit: audit
         ? {
             action: audit.action,

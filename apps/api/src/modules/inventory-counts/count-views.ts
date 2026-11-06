@@ -8,10 +8,10 @@ import {
   type ReviewCountItem,
   formatMoney,
   parseMoney,
+  valueOfDelta,
 } from '@joyeria/shared';
 import type { Prisma, PrismaClient } from '../../generated/prisma/client.ts';
 import { NotFoundError } from '../../lib/errors.ts';
-import { valueOfDelta } from '../inventory/adjustments.service.ts';
 import { MAX_BALANCE } from '../inventory/stock-ledger.ts';
 import { finalCountOf, reconcileCount } from './count-logic.ts';
 

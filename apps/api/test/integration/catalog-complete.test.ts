@@ -536,6 +536,11 @@ describe('catálogo completo (S2)', () => {
       expect(
         (await lookup((withBarcode.variants[0]?.sku as string).toLowerCase())).statusCode,
       ).toBe(200);
+      // Igualdad exacta (F-12): un fragmento del SKU o con comodines no identifica a ninguna pieza.
+      const fullSku = withBarcode.variants[0]?.sku as string;
+      for (const partial of [fullSku.slice(0, -1), `${fullSku.slice(0, -1)}%`, '%', '_']) {
+        expect((await lookup(partial)).statusCode, partial).toBe(404);
+      }
 
       const byBarcode = await lookup('BAR-777');
       expect(byBarcode.json().data).toMatchObject({

@@ -6,9 +6,6 @@ import { z } from 'zod';
  * entra al stock vendible (`EXCHANGE_IN`) y la entregada en su lugar sale (`EXCHANGE_OUT`).
  */
 
-/** Tipo de documento que referencian los dos movimientos de un cambio. */
-export const EXCHANGE_REFERENCE_TYPE = 'EXCHANGE';
-
 /** Piezas máximas por lado: evita errores de tipeo y desbordes del saldo (columna entera). */
 export const MAX_EXCHANGE_QUANTITY = 1_000_000;
 

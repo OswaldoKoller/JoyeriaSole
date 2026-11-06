@@ -1,5 +1,5 @@
+import { valueOfDelta } from '@joyeria/shared';
 import { describe, expect, it } from 'vitest';
-import { valueOfDelta } from '../../src/modules/inventory/adjustments.service.ts';
 import { MAX_BALANCE, planBalanceChange } from '../../src/modules/inventory/stock-ledger.ts';
 
 describe('planBalanceChange', () => {

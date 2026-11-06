@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadEnv } from '../../src/config/env.ts';
+import { loadEnv, startupWarnings } from '../../src/config/env.ts';
 
 const base = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
@@ -47,5 +47,32 @@ describe('configuración de entorno', () => {
 
   it('rechaza una duración distinta de las ocho horas aprobadas', () => {
     expect(() => loadEnv({ ...base, SESSION_TTL_HOURS: '3' })).toThrow(/SESSION_TTL_HOURS/);
+  });
+});
+
+describe('TRUST_PROXY_HOPS', () => {
+  it('por defecto no se confía en ningún proxy', () => {
+    expect(loadEnv(base).TRUST_PROXY_HOPS).toBe(0);
+  });
+
+  it('acepta un número de saltos pequeño y rechaza valores inválidos', () => {
+    expect(loadEnv({ ...base, TRUST_PROXY_HOPS: '1' }).TRUST_PROXY_HOPS).toBe(1);
+    expect(() => loadEnv({ ...base, TRUST_PROXY_HOPS: '-1' })).toThrow(/TRUST_PROXY_HOPS/);
+    expect(() => loadEnv({ ...base, TRUST_PROXY_HOPS: '1.5' })).toThrow(/TRUST_PROXY_HOPS/);
+    expect(() => loadEnv({ ...base, TRUST_PROXY_HOPS: '99' })).toThrow(/TRUST_PROXY_HOPS/);
+  });
+
+  it('el antiguo TRUST_PROXY=true se rechaza con un mensaje claro (ruptura de compatibilidad)', () => {
+    expect(() => loadEnv({ ...base, TRUST_PROXY: 'true' })).toThrow(/TRUST_PROXY_HOPS/);
+    expect(loadEnv({ ...base, TRUST_PROXY: 'false' }).TRUST_PROXY_HOPS).toBe(0);
+  });
+});
+
+describe('avisos de arranque', () => {
+  it('advierte de COOKIE_SECURE=false en producción y de nada más', () => {
+    const insecure = loadEnv({ ...base, NODE_ENV: 'production', COOKIE_SECURE: 'false' });
+    expect(startupWarnings(insecure)).toEqual([expect.stringMatching(/COOKIE_SECURE=false/)]);
+    expect(startupWarnings(loadEnv({ ...base, NODE_ENV: 'production' }))).toEqual([]);
+    expect(startupWarnings(loadEnv({ ...base, COOKIE_SECURE: 'false' }))).toEqual([]);
   });
 });

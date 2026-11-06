@@ -39,8 +39,13 @@ export class UsersService {
   async create(input: CreateUserInput, request: FastifyRequest) {
     const passwordHash = await hashPassword(input.password);
     return this.prisma.$transaction(async (tx) => {
-      const found = await tx.role.count({ where: { id: { in: input.roleIds } } });
-      if (found !== input.roleIds.length) throw new ValidationError('Uno o más roles no existen');
+      const roles = await tx.role.findMany({
+        where: { id: { in: input.roleIds } },
+        select: { id: true, code: true },
+      });
+      if (roles.length !== input.roleIds.length)
+        throw new ValidationError('Uno o más roles no existen');
+      this.assertCanGrantAdmin(roles, request);
       const user = await tx.user.create({
         data: {
           email: input.email,
@@ -128,6 +133,19 @@ export class UsersService {
     }
   }
 
+  /**
+   * Solo un Administrador puede conceder el rol ADMIN (al crear o al reasignar roles): evita que un
+   * rol personalizado con `users:manage` + `roles:manage` se otorgue o entregue control total.
+   */
+  private assertCanGrantAdmin(roles: { code: string }[], request: FastifyRequest) {
+    if (
+      roles.some((role) => role.code === 'ADMIN') &&
+      !getAuth(request).user.roles.includes('ADMIN')
+    ) {
+      throw new ForbiddenError('Solo un Administrador puede asignar el rol Administrador');
+    }
+  }
+
   async update(id: string, input: UpdateUserInput, request: FastifyRequest) {
     return this.prisma.$transaction(async (tx) => {
       const previous = await this.lockedUser(tx, id);
@@ -203,12 +221,15 @@ export class UsersService {
   async assignRoles(id: string, input: AssignUserRolesInput, request: FastifyRequest) {
     return this.prisma.$transaction(async (tx) => {
       const previous = await this.lockedUser(tx, id);
+      // Quitar el rol ADMIN a un Administrador también exige ser Administrador.
+      this.assertCanTouch(previous, request);
       const roles = await tx.role.findMany({
         where: { id: { in: input.roleIds } },
         select: { id: true, code: true },
       });
       if (roles.length !== input.roleIds.length)
         throw new ValidationError('Uno o más roles no existen');
+      this.assertCanGrantAdmin(roles, request);
       const removesAdmin =
         previous.roles.some(({ role }) => role.code === 'ADMIN') &&
         !roles.some((role) => role.code === 'ADMIN');
