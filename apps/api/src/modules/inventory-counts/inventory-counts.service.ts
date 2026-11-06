@@ -128,6 +128,7 @@ export class InventoryCountsService {
       round: row.round,
       code: row.code,
       source: row.source,
+      variantId: row.variantId ?? null,
       sku: row.variant?.sku ?? null,
       productName: row.variant?.product.name ?? null,
       findingCode: row.finding?.code ?? null,

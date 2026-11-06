@@ -11,6 +11,7 @@ import {
   usePendingChanges,
   useRejectChanges,
 } from './use-pricing.ts';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 /** Ids que la API señala como causa de un rechazo de lote (`error.details.ids`). */
 function offendingIds(cause: unknown): string[] {
@@ -235,6 +236,10 @@ export function PendingPanel() {
                             />
                           )}
                           <span>
+                            <PieceImage
+                              variantId={row.variantId}
+                              className="float-left mr-3 size-12"
+                            />
                             <span className="block font-medium">{row.productName}</span>
                             <span className="block text-xs font-normal text-stone-500">
                               {row.variantLabel && row.variantLabel !== 'Única'

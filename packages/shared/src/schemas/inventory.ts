@@ -25,6 +25,7 @@ export const inventoryMovementSchema = z.object({
 });
 
 export const globalInventoryMovementSchema = inventoryMovementSchema.extend({
+  variantId: z.uuid(),
   sku: z.string(),
   productName: z.string(),
   variantLabel: z.string().nullable(),

@@ -16,6 +16,7 @@ import {
   useCountTransition,
   useScanMutations,
 } from './use-inventory-counts.ts';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 function messageOf(error: unknown) {
   if (error instanceof ApiError) return error.message;
@@ -41,12 +42,18 @@ function beep(kind: 'ok' | 'finding' | 'error') {
   }
 }
 
-type Feedback = { tone: 'ok' | 'finding' | 'error'; text: string };
+type Feedback = {
+  tone: 'ok' | 'finding' | 'error';
+  text: string;
+  /** Pieza leída: se muestra su foto para confirmar que es la correcta. */
+  variantId?: string | null;
+};
 
 function describeScan(scan: LastCountScan): Feedback {
   if (scan.kind === 'FINDING') {
     return {
       tone: 'finding',
+      variantId: scan.variantId,
       text:
         scan.findingType === 'OUT_OF_SCOPE'
           ? `Hallazgo: ${scan.sku ?? scan.code} (${scan.productName ?? ''}) pertenece a otra categoría. Registradas: ${scan.quantityAfter}.`
@@ -55,6 +62,7 @@ function describeScan(scan: LastCountScan): Feedback {
   }
   return {
     tone: 'ok',
+    variantId: scan.variantId,
     text: `${scan.sku ?? scan.code} · ${scan.productName ?? ''}${
       scan.variantLabel && scan.variantLabel !== 'Única' ? ` · ${scan.variantLabel}` : ''
     } — contadas: ${scan.quantityAfter}`,
@@ -320,10 +328,17 @@ export function CaptureScreen({ count }: { count: InventoryCountBlindDetail }) {
 
       <div role="status" aria-live="polite" className="min-h-14">
         {feedback && (
-          <p className={`rounded-lg border p-3 text-sm font-medium ${TONES[feedback.tone]}`}>
-            <span className="block text-xs font-normal text-stone-600">Última lectura</span>
-            {feedback.text}
-          </p>
+          <div
+            className={`flex items-center gap-3 rounded-lg border p-3 text-sm font-medium ${TONES[feedback.tone]}`}
+          >
+            {feedback.variantId && (
+              <PieceImage variantId={feedback.variantId} className="size-20" />
+            )}
+            <p>
+              <span className="block text-xs font-normal text-stone-600">Última lectura</span>
+              {feedback.text}
+            </p>
+          </div>
         )}
       </div>
 
@@ -376,6 +391,7 @@ export function CaptureScreen({ count }: { count: InventoryCountBlindDetail }) {
                 {count.items.map((item) => (
                   <tr key={item.variantId} className="border-b border-stone-100 align-top">
                     <td className="py-3 pr-3">
+                      <PieceImage variantId={item.variantId} className="float-left mr-3 size-12" />
                       <span className="block font-medium">{item.productName}</span>
                       <span className="block text-xs text-stone-500">
                         {item.variantLabel && item.variantLabel !== 'Única'

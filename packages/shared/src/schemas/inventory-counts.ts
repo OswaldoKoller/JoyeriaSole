@@ -134,6 +134,8 @@ export const countFindingSchema = z.object({
   round: z.number(),
   code: z.string(),
   type: z.enum(INVENTORY_COUNT_FINDING_TYPES),
+  /** Pieza del hallazgo (para mostrar su foto); null si el código no corresponde a ninguna. */
+  variantId: z.uuid().nullable(),
   sku: z.string().nullable(),
   productName: z.string().nullable(),
   quantity: z.number(),
@@ -148,6 +150,7 @@ export const lastCountScanSchema = z.object({
   /** ITEM = pieza del conteo; FINDING = hallazgo (código desconocido o fuera de alcance). */
   kind: z.enum(['ITEM', 'FINDING']),
   code: z.string(),
+  variantId: z.uuid().nullable(),
   sku: z.string().nullable(),
   productName: z.string().nullable(),
   variantLabel: z.string().nullable(),
@@ -235,6 +238,7 @@ export const countScanRecordSchema = z.object({
   round: z.number(),
   code: z.string(),
   source: z.enum(['SCAN', 'MANUAL']),
+  variantId: z.uuid().nullable(),
   sku: z.string().nullable(),
   productName: z.string().nullable(),
   findingCode: z.string().nullable(),

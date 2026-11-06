@@ -19,6 +19,7 @@ import {
   useCreateAdjustment,
   useInventorySearch,
 } from './use-adjustments.ts';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 const toLine = (item: InventoryItem, delta = ''): FormLine => ({
   variantId: item.variantId,
@@ -98,6 +99,7 @@ function VariantPicker({
         <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
           {found.map((item) => (
             <li key={item.variantId} className="flex flex-wrap items-center gap-3 px-3 py-2">
+              <PieceImage variantId={item.variantId} />
               <div className="min-w-0 flex-1 text-sm">
                 <span className="font-medium">{item.productName}</span>
                 {item.variantLabel && item.variantLabel !== 'Única' && (
@@ -202,6 +204,10 @@ function AdjustmentForm({ initialLines }: { initialLines: FormLine[] }) {
                   return (
                     <tr key={line.variantId} className="border-b border-stone-100 align-top">
                       <td className="py-3 pr-3">
+                        <PieceImage
+                          variantId={line.variantId}
+                          className="float-left mr-3 size-12"
+                        />
                         <span className="block font-medium">{line.productName}</span>
                         <span className="block text-xs text-stone-500">
                           {line.variantLabel && line.variantLabel !== 'Única'

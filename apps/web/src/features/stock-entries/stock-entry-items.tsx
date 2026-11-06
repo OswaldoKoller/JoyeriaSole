@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import type { Line } from './lines.ts';
 import { searchVariants, useVariantSearch, variantSearchKey } from './use-stock-entries.ts';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 interface VariantPickerProps {
   existing: ReadonlySet<string>;
@@ -77,6 +78,7 @@ function VariantPicker({ existing, onAdd }: VariantPickerProps) {
         <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
           {found.map((variant) => (
             <li key={variant.variantId} className="flex flex-wrap items-center gap-3 px-3 py-2">
+              <PieceImage variantId={variant.variantId} />
               <div className="min-w-0 flex-1 text-sm">
                 <span className="font-medium">{variant.productName}</span>
                 {variant.variantLabel && variant.variantLabel !== 'Única' && (
@@ -192,6 +194,10 @@ export function StockEntryItems({
                   return (
                     <tr key={line.variantId} className="border-b border-stone-100 align-top">
                       <td className="py-3 pr-3">
+                        <PieceImage
+                          variantId={line.variantId}
+                          className="float-left mr-3 size-12"
+                        />
                         <span className="block font-medium">{line.productName}</span>
                         <span className="block text-xs font-normal text-stone-500">
                           {line.variantLabel && line.variantLabel !== 'Única'

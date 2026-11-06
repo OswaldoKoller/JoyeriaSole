@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
 import { useInitialStock, useInventory, useInventoryMovements } from './use-inventory.ts';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 const levelLabels = { OUT: 'Sin stock', LOW: 'Bajo mínimo', OK: 'Disponible' };
 const dateTime = new Intl.DateTimeFormat('es-BO', {
@@ -139,10 +140,15 @@ export function InventoryPage() {
                 {items.map((item) => (
                   <tr key={item.variantId} className="border-b border-stone-100">
                     <td className="py-3 pr-4">
-                      {item.productName}
-                      {item.variantLabel && item.variantLabel !== 'Única'
-                        ? ` · ${item.variantLabel}`
-                        : ''}
+                      <div className="flex items-center gap-3">
+                        <PieceImage variantId={item.variantId} />
+                        <span>
+                          {item.productName}
+                          {item.variantLabel && item.variantLabel !== 'Única'
+                            ? ` · ${item.variantLabel}`
+                            : ''}
+                        </span>
+                      </div>
                     </td>
                     <td data-label="SKU" className="py-3 pr-4">
                       {item.sku}

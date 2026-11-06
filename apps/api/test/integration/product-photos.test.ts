@@ -449,4 +449,85 @@ describe('fotos de producto (S3)', () => {
       expect(await app.prisma.productPhotoBlob.count()).toBe(0);
     });
   });
+  describe('portada de una pieza por su variante (la foto aparece en todas las pantallas)', () => {
+    const coverUrl = (variantId: string) => `/api/v1/products/variants/${variantId}/cover`;
+    const firstVariant = async (productId: string) =>
+      (await app.prisma.productVariant.findFirstOrThrow({ where: { productId } })).id;
+
+    it('exige sesión (401) y un permiso de pantalla con piezas (403 sin ninguno)', async () => {
+      const productId = await newProduct();
+      const variantId = await firstVariant(productId);
+      expect((await app.inject({ method: 'GET', url: coverUrl(variantId) })).statusCode).toBe(401);
+      const nobody = await session([PERMISSIONS.USERS_READ]);
+      expect((await get(coverUrl(variantId), nobody.cookie)).statusCode).toBe(403);
+      for (const permission of [
+        PERMISSIONS.INVENTORY_READ,
+        PERMISSIONS.STOCK_ENTRIES_READ,
+        PERMISSIONS.INVENTORY_COUNTS_READ,
+        PERMISSIONS.PRICES_PROPOSE,
+      ]) {
+        const viewer = await session([permission]);
+        expect((await get(coverUrl(variantId), viewer.cookie)).statusCode, permission).toBe(200);
+      }
+    });
+
+    it('rechaza una variante con formato inválido (400)', async () => {
+      expect((await get(coverUrl('no-es-un-uuid'))).statusCode).toBe(400);
+    });
+
+    it('sin fotos sirve la imagen «Sin foto» (200) para no dejar imágenes rotas', async () => {
+      const variantId = await firstVariant(await newProduct());
+      const res = await get(coverUrl(variantId));
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('image/svg+xml');
+      expect(res.headers['content-security-policy']).toContain("default-src 'none'");
+      expect(res.body).toContain('Sin foto');
+      const etag = String(res.headers.etag);
+      const again = await get(coverUrl(variantId), manager.cookie, { 'if-none-match': etag });
+      expect(again.statusCode).toBe(304);
+    });
+
+    it('una variante inexistente también recibe la imagen de reemplazo', async () => {
+      const res = await get(coverUrl(MISSING));
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('image/svg+xml');
+    });
+
+    it('sirve la portada, revalida con ETag y sigue a la nueva portada al cambiarla', async () => {
+      const productId = await newProduct();
+      const variantId = await firstVariant(productId);
+      const first = await uploadOk(productId, 'jpeg', 400, 300);
+      const second = await uploadOk(productId, 'png', 300, 300);
+
+      const res = await get(coverUrl(variantId));
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('image/webp');
+      expect(res.headers['cache-control']).toBe('private, no-cache');
+      const etag = String(res.headers.etag);
+      const direct = await get(first.url);
+      expect(direct.rawPayload.equals(res.rawPayload)).toBe(true);
+      expect(
+        (await get(coverUrl(variantId), manager.cookie, { 'if-none-match': etag })).statusCode,
+      ).toBe(304);
+
+      const change = await app.inject({
+        method: 'PUT',
+        url: `/api/v1/products/${productId}/photos/${second.id}/cover`,
+        headers: { cookie: manager.cookie },
+      });
+      expect(change.statusCode).toBe(200);
+      const after = await get(coverUrl(variantId), manager.cookie, { 'if-none-match': etag });
+      expect(after.statusCode).toBe(200);
+      expect(after.headers.etag).not.toBe(etag);
+    });
+
+    it('quien ve inventario puede abrir la foto directa sin catalog:read', async () => {
+      const productId = await newProduct();
+      const photo = await uploadOk(productId);
+      const viewer = await session([PERMISSIONS.INVENTORY_READ]);
+      expect((await get(photo.url, viewer.cookie)).statusCode).toBe(200);
+      const nobody = await session([PERMISSIONS.USERS_READ]);
+      expect((await get(photo.url, nobody.cookie)).statusCode).toBe(403);
+    });
+  });
 });

@@ -12,6 +12,7 @@ import {
   useCancelAdjustment,
   useRejectAdjustment,
 } from './use-adjustments.ts';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
 const unitCurrency = new Intl.NumberFormat('es-BO', {
@@ -180,6 +181,7 @@ function Detail({ adjustment }: { adjustment: AdjustmentDetail }) {
               {adjustment.items.map((item) => (
                 <tr key={item.id} className="border-b border-stone-100 align-top">
                   <td className="py-3 pr-3">
+                    <PieceImage variantId={item.variantId} className="float-left mr-3 size-12" />
                     <span className="block font-medium">{item.productName}</span>
                     <span className="block text-xs text-stone-500">
                       {item.variantLabel && item.variantLabel !== 'Única'

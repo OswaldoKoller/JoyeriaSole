@@ -8,6 +8,7 @@ import { formatBs, parsePriceInput } from './price-math.ts';
 import { ProfitDisplay } from './profit-display.tsx';
 import { useApplyPrices, usePricingVariants, useRequestPrices } from './use-pricing.ts';
 import { PriceHistoryPanel } from './variant-price-history.tsx';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 /**
  * Panel de precios (Q-04, Q-06): por variante muestra el panel de costos (solo con `costs:read`),
@@ -351,6 +352,7 @@ function PriceRow({
             className="mt-1 size-4"
           />
           <span>
+            <PieceImage variantId={row.variantId} className="float-left mr-3 size-12" />
             <span className="block font-medium">{row.productName}</span>
             <span className="block text-xs font-normal text-stone-500">
               {row.variantLabel && row.variantLabel !== 'Única' ? `${row.variantLabel} · ` : ''}

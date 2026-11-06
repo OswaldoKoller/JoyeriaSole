@@ -15,6 +15,7 @@ import {
   useCountTransition,
   useRegularizeFinding,
 } from './use-inventory-counts.ts';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
 const dateTime = new Intl.DateTimeFormat('es-BO', {
@@ -255,6 +256,7 @@ export function ReviewScreen({ count }: { count: InventoryCountReviewDetail }) {
               {rows.map((item) => (
                 <tr key={item.variantId} className="border-b border-stone-100 align-top">
                   <td className="py-3 pr-3">
+                    <PieceImage variantId={item.variantId} className="float-left mr-3 size-12" />
                     <span className="block font-medium">{item.productName}</span>
                     <span className="block text-xs text-stone-500">
                       {item.variantLabel && item.variantLabel !== 'Única'

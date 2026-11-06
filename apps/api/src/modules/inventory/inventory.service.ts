@@ -131,6 +131,7 @@ export class InventoryService {
     return {
       data: rows.map((row) => ({
         id: row.id.toString(),
+        variantId: row.variantId,
         sku: row.variant.sku,
         productName: row.variant.product.name,
         variantLabel: row.variant.label,

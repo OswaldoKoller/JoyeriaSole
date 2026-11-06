@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { useAllInventoryMovements } from './use-inventory.ts';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 const dateTime = new Intl.DateTimeFormat('es-BO', {
   timeZone: 'America/La_Paz',
@@ -53,19 +54,22 @@ export function MovementsPage() {
                   <tr key={movement.id} className="border-b border-stone-100">
                     <td className="py-3 pr-4">{dateTime.format(new Date(movement.createdAt))}</td>
                     <td data-label="Producto" className="py-3 pr-4">
-                      <div className="min-w-0">
-                        {movement.productName}
-                        <span className="block text-stone-500">
-                          {movement.variantLabel && movement.variantLabel !== 'Única'
-                            ? `${movement.variantLabel} · `
-                            : ''}
-                          <Link
-                            to={`/inventario?sku=${encodeURIComponent(movement.sku)}`}
-                            className="inline-block py-1 whitespace-nowrap text-brand-700 underline"
-                          >
-                            {movement.sku}
-                          </Link>
-                        </span>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <PieceImage variantId={movement.variantId} />
+                        <div className="min-w-0">
+                          {movement.productName}
+                          <span className="block text-stone-500">
+                            {movement.variantLabel && movement.variantLabel !== 'Única'
+                              ? `${movement.variantLabel} · `
+                              : ''}
+                            <Link
+                              to={`/inventario?sku=${encodeURIComponent(movement.sku)}`}
+                              className="inline-block py-1 whitespace-nowrap text-brand-700 underline"
+                            >
+                              {movement.sku}
+                            </Link>
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td data-label="Tipo" className="py-3 pr-4">

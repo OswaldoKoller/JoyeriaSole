@@ -1,5 +1,6 @@
 import type { StockEntryCurrency } from '@joyeria/shared';
 import type { Preview } from './lines.ts';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 const bob = new Intl.NumberFormat('es-BO', {
   style: 'currency',
@@ -81,6 +82,7 @@ export function CostPanel({ preview, currency, exchangeRate, confirmed }: Props)
               {preview.rows.map((row) => (
                 <tr key={row.variantId} className="border-b border-stone-100 align-top">
                   <td className="py-3 pr-3">
+                    <PieceImage variantId={row.variantId} className="float-left mr-3 size-12" />
                     <span className="block font-medium">{row.productName}</span>
                     <span className="block text-xs font-normal text-stone-500">
                       {row.variantLabel && row.variantLabel !== 'Única'

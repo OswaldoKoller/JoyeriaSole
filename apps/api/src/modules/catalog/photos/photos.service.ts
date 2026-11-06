@@ -211,6 +211,14 @@ export class ProductPhotosService {
     return photo;
   }
 
+  /** Portada del producto de una variante (la marcada o, si no hay, la primera); null si no tiene fotos. */
+  async coverOfVariant(variantId: string) {
+    return this.prisma.productPhoto.findFirst({
+      where: { product: { variants: { some: { id: variantId } } } },
+      orderBy: [{ isCover: 'desc' }, { position: 'asc' }],
+    });
+  }
+
   async readBytes(photoId: string) {
     const bytes = await this.storage.get(photoId);
     if (!bytes) throw new NotFoundError('Foto no encontrada');

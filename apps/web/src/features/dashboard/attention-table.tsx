@@ -10,6 +10,7 @@ import {
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Skeleton } from '../../components/ui/skeleton.tsx';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 type SortKey = 'product' | 'sku' | 'quantity' | 'minStock' | 'level';
 type Direction = 'asc' | 'desc';
@@ -237,6 +238,10 @@ export function AttentionTable({
                       className="border-b border-stone-100 transition-colors duration-200 ease-out last:border-0 hover:bg-stone-50"
                     >
                       <td className="py-3 pr-3">
+                        <PieceImage
+                          variantId={item.variantId}
+                          className="float-left mr-3 size-12"
+                        />
                         <span className="block font-medium text-stone-900">{item.productName}</span>
                         {item.variantLabel && item.variantLabel !== 'Única' && (
                           <span className="block text-xs text-stone-500">{item.variantLabel}</span>

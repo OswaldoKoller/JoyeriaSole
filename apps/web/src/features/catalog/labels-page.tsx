@@ -17,16 +17,24 @@ import {
   totalLabels,
   type LabelSize,
 } from './label-settings.ts';
+import { PieceImage } from './photos/piece-image.tsx';
 import { lookupVariant, searchCatalog } from './use-products.ts';
 
-type Item = { sku: string; productName: string; label: string | null; copies: number };
-type Candidate = { sku: string; productName: string; label: string | null };
+type Item = {
+  variantId: string;
+  sku: string;
+  productName: string;
+  label: string | null;
+  copies: number;
+};
+type Candidate = { variantId: string; sku: string; productName: string; label: string | null };
 
 const PREVIEW_LIMIT = 12;
 
 function candidatesOf(products: Product[]): Candidate[] {
   return products.flatMap((product) =>
     product.variants.map((variant) => ({
+      variantId: variant.id,
       sku: variant.sku,
       productName: product.name,
       label: variant.label,
@@ -65,7 +73,12 @@ export function LabelsPage() {
   }
 
   function fromLookup(found: VariantLookup): Candidate {
-    return { sku: found.sku, productName: found.productName, label: found.label };
+    return {
+      variantId: found.variantId,
+      sku: found.sku,
+      productName: found.productName,
+      label: found.label,
+    };
   }
 
   // Desde la ficha del producto o de una variante: ?codes=SKU-000001,SKU-000002
@@ -185,12 +198,15 @@ export function LabelsPage() {
           <ul aria-label="Resultados de la búsqueda" className="divide-y divide-stone-100 text-sm">
             {candidates.map((candidate) => (
               <li key={candidate.sku} className="flex items-center justify-between gap-2 py-2">
-                <span>
-                  {candidate.productName}
-                  {candidate.label && candidate.label !== 'Única'
-                    ? ` · ${candidate.label}`
-                    : ''}{' '}
-                  <span className="text-stone-600">({candidate.sku})</span>
+                <span className="flex items-center gap-3">
+                  <PieceImage variantId={candidate.variantId} />
+                  <span>
+                    {candidate.productName}
+                    {candidate.label && candidate.label !== 'Única'
+                      ? ` · ${candidate.label}`
+                      : ''}{' '}
+                    <span className="text-stone-600">({candidate.sku})</span>
+                  </span>
                 </span>
                 <Button
                   variant="secondary"
@@ -233,8 +249,13 @@ export function LabelsPage() {
               {items.map((item) => (
                 <tr key={item.sku} className="border-b border-stone-100">
                   <td className="py-2 pr-2">
-                    {item.productName}
-                    {item.label && item.label !== 'Única' ? ` · ${item.label}` : ''}
+                    <div className="flex items-center gap-3">
+                      <PieceImage variantId={item.variantId} className="size-10" />
+                      <span>
+                        {item.productName}
+                        {item.label && item.label !== 'Única' ? ` · ${item.label}` : ''}
+                      </span>
+                    </div>
                   </td>
                   <td className="py-2 pr-2 font-mono">{item.sku}</td>
                   <td className="py-2 pr-2">

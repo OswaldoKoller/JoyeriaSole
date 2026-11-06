@@ -6,6 +6,7 @@ import {
 } from '@joyeria/shared';
 import { formatBs, formatDateTime } from './price-math.ts';
 import { ProfitDisplay } from './profit-display.tsx';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 const STATUS_STYLES: Record<PriceChangeStatus, string> = {
   PENDING: 'bg-amber-50 text-amber-800',
@@ -61,6 +62,7 @@ export function ChangesTable({
               <td className="py-3 pr-3">
                 {showProduct ? (
                   <>
+                    <PieceImage variantId={row.variantId} className="float-left mr-3 size-12" />
                     <span className="block font-medium">{row.productName}</span>
                     <span className="block text-xs font-normal text-stone-500">
                       {row.variantLabel && row.variantLabel !== 'Única'

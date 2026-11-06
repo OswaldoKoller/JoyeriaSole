@@ -141,6 +141,7 @@ export function toFinding(row: FindingRow): CountFinding {
     round: row.round,
     code: row.code,
     type: row.type,
+    variantId: row.variantId ?? null,
     sku: row.variant?.sku ?? null,
     productName: row.variant?.product.name ?? null,
     quantity: row.quantity,
@@ -180,6 +181,7 @@ export function toLastScan(row: ScanRow): LastCountScan {
   return {
     kind: row.variantId ? 'ITEM' : 'FINDING',
     code: row.code,
+    variantId: row.variantId ?? null,
     sku: row.variant?.sku ?? null,
     productName: row.variant?.product.name ?? null,
     variantLabel: row.variant?.label ?? null,
