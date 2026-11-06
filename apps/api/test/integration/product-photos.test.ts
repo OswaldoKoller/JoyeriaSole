@@ -521,6 +521,17 @@ describe('fotos de producto (S3)', () => {
       expect(after.headers.etag).not.toBe(etag);
     });
 
+    it('las imágenes no gastan el límite global de peticiones: una lista larga no bloquea la API', async () => {
+      const variantId = await firstVariant(await newProduct());
+      const statuses = new Set<number>();
+      for (let index = 0; index < 320; index += 1) {
+        statuses.add((await get(coverUrl(variantId))).statusCode);
+      }
+      expect([...statuses]).toEqual([200]);
+      // El resto de la API sigue respondiendo después de tantas imágenes.
+      expect((await get('/api/v1/auth/me')).statusCode).toBe(200);
+    });
+
     it('quien ve inventario puede abrir la foto directa sin catalog:read', async () => {
       const productId = await newProduct();
       const photo = await uploadOk(productId);

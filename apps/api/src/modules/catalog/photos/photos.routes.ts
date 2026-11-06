@@ -119,6 +119,10 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
     '/:id/photos/:photoId',
     {
       preValidation: app.requireAnyPermission(...IMAGE_VIEW_PERMISSIONS),
+      // Una lista muestra decenas de fotos a la vez: no cuentan para el límite global por IP
+      // (300/min), que de lo contrario dejaría sin respuesta a las demás peticiones de la pantalla.
+      // Siguen exigiendo sesión y permiso.
+      config: { rateLimit: false },
       schema: { params: photoParams },
     },
     async (request, reply) => {
@@ -137,6 +141,7 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
     '/variants/:variantId/cover',
     {
       preValidation: app.requireAnyPermission(...IMAGE_VIEW_PERMISSIONS),
+      config: { rateLimit: false }, // ver la nota de la ruta de fotos por id
       schema: { params: variantParams },
     },
     async (request, reply) => {
