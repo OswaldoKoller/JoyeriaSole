@@ -6,7 +6,8 @@ export const healthRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/health',
     {
-      config: { rateLimit: false },
+      // Tope propio por IP (los health checks del hosting hacen pocas peticiones por minuto).
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
       schema: {
         response: {
           200: z.object({ status: z.literal('ok'), database: z.literal('up') }),

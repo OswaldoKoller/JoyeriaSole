@@ -11,7 +11,7 @@ Sistema de inventario de joyería en Bolivia. Leer [CLAUDE.md](CLAUDE.md) para c
 - Plan de diagnóstico: [VERIFICATION-PLAN.md](docs/engineering/VERIFICATION-PLAN.md).
 - Flujo de entregas y criterios de cierre: [ROADMAP.md](docs/engineering/ROADMAP.md).
 
-Las instrucciones del usuario prevalecen. Si documentos discrepan, registrar la discrepancia; aplicar las [resoluciones del cliente](docs/business/RESOLUCIONES-2026-10-09.md) sin confundir decisión aprobada con regla ya implementada. P-03 y P-07 siguen pendientes; P-10 aprobó solo bolivianos y P-19 aprobó 3 horas fijas, mínimo 10 caracteres y sin 2FA. Los ajustes explícitos de las skills sole-* corrigen ejemplos provisionales de sus referencias.
+Las instrucciones del usuario prevalecen. Si documentos discrepan, registrar la discrepancia; aplicar las [resoluciones del cliente](docs/business/RESOLUCIONES-2026-10-09.md) sin confundir decisión aprobada con regla ya implementada. P-03 y P-07 siguen pendientes; P-10 aprobó solo bolivianos y P-19 aprobó sesión fija (8 horas desde el 2026-11-05; antes 3), mínimo 10 caracteres y sin 2FA. Los ajustes explícitos de las skills sole-* corrigen ejemplos provisionales de sus referencias.
 
 ## Ciclo de trabajo
 

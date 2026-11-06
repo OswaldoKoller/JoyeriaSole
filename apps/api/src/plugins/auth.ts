@@ -2,7 +2,11 @@ import type { AuthUser, Permission, RoleCode } from '@joyeria/shared';
 import type { FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
 import fp from 'fastify-plugin';
 import type { Env } from '../config/env.ts';
-import { ForbiddenError, UnauthenticatedError } from '../lib/errors.ts';
+import {
+  ForbiddenError,
+  PasswordChangeRequiredError,
+  UnauthenticatedError,
+} from '../lib/errors.ts';
 import type { PrismaClient } from '../lib/prisma.ts';
 import { hashToken } from '../lib/tokens.ts';
 
@@ -13,10 +17,21 @@ export interface RequestAuth {
 
 declare module 'fastify' {
   interface FastifyInstance {
-    /** preHandler: exige sesión válida. */
+    /**
+     * preHandler: exige sesión válida. Lo usan solo las rutas `/auth/*`, que también atienden a
+     * quien tiene una clave temporal pendiente de cambio.
+     */
     authenticate: preHandlerAsyncHookHandler;
-    /** preHandler: exige sesión válida y TODOS los permisos indicados. */
+    /**
+     * preHandler: exige sesión válida y TODOS los permisos indicados. Mientras la clave sea
+     * temporal (mustChangePassword) responde 403 PASSWORD_CHANGE_REQUIRED sin evaluar permisos.
+     */
     requirePermission: (...permissions: Permission[]) => preHandlerAsyncHookHandler;
+    /**
+     * Igual que `requirePermission`, pero basta AL MENOS UNO de los permisos indicados (p. ej.
+     * solicitar o aprobar precios). También responde 403 PASSWORD_CHANGE_REQUIRED con clave temporal.
+     */
+    requireAnyPermission: (...permissions: Permission[]) => preHandlerAsyncHookHandler;
     sessionCookie: SessionCookieHelpers;
   }
   interface FastifyRequest {
@@ -39,6 +54,20 @@ export function getAuth(request: FastifyRequest): RequestAuth {
   return request.auth;
 }
 
+interface SessionRow {
+  session_id: string;
+  revoked_at: Date | null;
+  expires_at: Date;
+  last_seen_at: Date;
+  user_id: string;
+  email: string;
+  name: string;
+  is_active: boolean;
+  must_change_password: boolean;
+  roles: string[];
+  permissions: string[];
+}
+
 /** Evita escribir en BD en cada request: lastSeenAt se refresca como máximo cada 5 minutos. */
 const LAST_SEEN_THROTTLE_MS = 5 * 60 * 1000;
 
@@ -46,42 +75,39 @@ export async function loadSessionUser(
   prisma: PrismaClient,
   token: string,
 ): Promise<RequestAuth | null> {
-  const session = await prisma.session.findUnique({
-    where: { tokenHash: hashToken(token) },
-    include: {
-      user: {
-        include: {
-          roles: {
-            include: { role: { include: { permissions: { include: { permission: true } } } } },
-          },
-        },
-      },
-    },
-  });
+  // Sin caché (la revocación y los cambios de permisos rigen de inmediato) y con UNA sola consulta
+  // (sesión + usuario + roles + permisos) que devuelve únicamente las columnas necesarias:
+  // nunca se trae passwordHash. SQL con plantilla etiquetada: nada se concatena.
+  const [row] = await prisma.$queryRaw<SessionRow[]>`
+    SELECT s.id AS session_id, s.revoked_at, s.expires_at, s.last_seen_at,
+           u.id AS user_id, u.email, u.name, u.is_active, u.must_change_password,
+           COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles,
+           COALESCE(array_agg(DISTINCT p.code) FILTER (WHERE p.code IS NOT NULL), '{}') AS permissions
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id
+    LEFT JOIN user_roles ur ON ur.user_id = u.id
+    LEFT JOIN roles r ON r.id = ur.role_id
+    LEFT JOIN role_permissions rp ON rp.role_id = r.id
+    LEFT JOIN permissions p ON p.id = rp.permission_id
+    WHERE s.token_hash = ${hashToken(token)}
+    GROUP BY s.id, u.id`;
 
   const now = new Date();
-  if (!session || session.revokedAt || session.expiresAt <= now || !session.user.isActive) {
-    return null;
-  }
+  if (!row || row.revoked_at || row.expires_at <= now || !row.is_active) return null;
 
-  if (now.getTime() - session.lastSeenAt.getTime() > LAST_SEEN_THROTTLE_MS) {
-    await prisma.session.update({ where: { id: session.id }, data: { lastSeenAt: now } });
-  }
-
-  const roles = session.user.roles.map((userRole) => userRole.role.code as RoleCode);
-  const permissions = new Set<Permission>();
-  for (const { role } of session.user.roles) {
-    for (const { permission } of role.permissions) permissions.add(permission.code as Permission);
+  if (now.getTime() - row.last_seen_at.getTime() > LAST_SEEN_THROTTLE_MS) {
+    await prisma.session.update({ where: { id: row.session_id }, data: { lastSeenAt: now } });
   }
 
   return {
-    sessionId: session.id,
+    sessionId: row.session_id,
     user: {
-      id: session.user.id,
-      email: session.user.email,
-      name: session.user.name,
-      roles,
-      permissions: [...permissions].sort(),
+      id: row.user_id,
+      email: row.email,
+      name: row.name,
+      roles: [...row.roles].sort() as RoleCode[],
+      permissions: [...row.permissions].sort() as Permission[],
+      mustChangePassword: row.must_change_password,
     },
   };
 }
@@ -104,7 +130,15 @@ export const authPlugin = fp<{ env: Env }>(
         });
       },
       clear(reply) {
-        reply.clearCookie(cookieName, { path: '/' });
+        // Mismos atributos que al crearla: con el prefijo `__Host-` el navegador ignoraría el
+        // borrado si no lleva Secure.
+        reply.clearCookie(cookieName, {
+          httpOnly: true,
+          secure: env.COOKIE_SECURE,
+          sameSite: 'strict',
+          path: '/',
+          signed: true,
+        });
       },
     });
 
@@ -129,10 +163,27 @@ export const authPlugin = fp<{ env: Env }>(
       const handler: preHandlerAsyncHookHandler = async (request) => {
         const auth = await resolveAuth(request);
         if (!auth) throw new UnauthenticatedError();
+        if (auth.user.mustChangePassword) throw new PasswordChangeRequiredError();
         const missing = required.filter((p) => !auth.user.permissions.includes(p));
         if (missing.length > 0) {
           request.log.warn(
             { userId: auth.user.id, missing, url: request.url },
+            'security: acceso denegado por permisos',
+          );
+          throw new ForbiddenError();
+        }
+      };
+      return handler;
+    });
+
+    app.decorate('requireAnyPermission', (...allowed: Permission[]) => {
+      const handler: preHandlerAsyncHookHandler = async (request) => {
+        const auth = await resolveAuth(request);
+        if (!auth) throw new UnauthenticatedError();
+        if (auth.user.mustChangePassword) throw new PasswordChangeRequiredError();
+        if (!allowed.some((p) => auth.user.permissions.includes(p))) {
+          request.log.warn(
+            { userId: auth.user.id, required: allowed, url: request.url },
             'security: acceso denegado por permisos',
           );
           throw new ForbiddenError();

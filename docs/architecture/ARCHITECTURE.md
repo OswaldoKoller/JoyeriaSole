@@ -103,7 +103,7 @@ Request → helmet/CORS → rate limit → verificación de origen (CSRF) → va
 
 | Fase futura                        | Cómo encaja                                                                                                                                                                     |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ventas / POS                       | Nuevo módulo `sales`; genera movimientos `SALE`, `CUSTOMER_RETURN`, `EXCHANGE` (ya existen en el enum) vía el servicio de inventario. El rol Vendedor ya existe.                |
+| Ventas / POS                       | Nuevo módulo `sales`; genera `SALE` y cambios `EXCHANGE_IN`/`EXCHANGE_OUT` (ADR-019) vía el servicio de inventario. El rol Vendedor ya existe.                                  |
 | Facturación / Impuestos Nacionales | Módulo `invoicing` aislado, integrado con el SIN mediante un adaptador; no toca inventario directamente.                                                                        |
 | Múltiples sucursales               | Agregar tabla `locations` y `location_id` a saldos, movimientos, ingresos y conteos (la PK de `inventory_balances` pasa a `(variant_id, location_id)`). Migración planificable. |
 | Reportes                           | Consultas sobre `inventory_movements` (historial completo con costos) y vistas SQL.                                                                                             |

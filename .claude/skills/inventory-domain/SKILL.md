@@ -22,7 +22,7 @@ Referencias: `docs/business/DOMINIO.md`, `docs/business/PENDIENTES.md`, ADR-001,
    veces debe fallar con `BusinessRuleError`.
 6. **Inventario físico**: snapshot `system_qty` al iniciar; conteo; revisión; solo la aprobación crea
    `COUNT_ADJUSTMENT` por cada diferencia con motivo obligatorio.
-7. **Ajustes** manuales: permiso `inventory:adjust`, motivo obligatorio, auditados.
+7. **Ajustes** manuales (ADR-017): el Responsable o el Administrador solicitan (`inventory:adjust`) y ambos pueden aprobar (`inventory:adjust-approve`, regla 2026-11-05); el stock cambia únicamente al aprobar, con motivo del catálogo, sin stock negativo (revalidado al aprobar) y auditados. Toda escritura de stock usa `applyStockChanges` (`modules/inventory/stock-ledger.ts`).
 8. **Auditoría** de: cambios de producto/variante, desactivaciones, cambios de costo/precio (antes →
    después), confirmaciones, cancelaciones, ajustes, aprobaciones.
 9. **Lector de códigos**: entrada de teclado; búsqueda por `barcode` exacto y luego `sku` exacto.
@@ -50,7 +50,7 @@ Si la tarea toca uno de estos puntos: **detenerse, explicar las alternativas de 
 ## Tipos de movimiento
 
 `INITIAL_STOCK`, `STOCK_ENTRY`, `ADJUSTMENT`, `COUNT_ADJUSTMENT`, `LOSS` (Fase 1).
-`SALE`, `CUSTOMER_RETURN`, `EXCHANGE`: reservados para ventas, **no usar** en Fase 1.
+`EXCHANGE_IN` / `EXCHANGE_OUT`: cambios de pieza, un solo `applyStockChanges` con dos líneas (ADR-019); no hay devoluciones. `SALE`, `CUSTOMER_RETURN`, `EXCHANGE`: reservados, **no usar** en Fase 1.
 
 ## Consultas de control
 

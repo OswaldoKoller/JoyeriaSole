@@ -1,21 +1,91 @@
-import { createSupplierSchema, type CreateSupplierInput, type Supplier } from '@joyeria/shared';
+import {
+  SUPPLIER_CURRENCIES,
+  SUPPLIER_CURRENCY_LABELS,
+  SUPPLIER_TYPES,
+  SUPPLIER_TYPE_LABELS,
+  createSupplierSchema,
+  type CreateSupplierInput,
+  type Supplier,
+} from '@joyeria/shared';
 import { useState, type SyntheticEvent } from 'react';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 
-type Field = 'name' | 'taxId' | 'contactName' | 'phone' | 'email' | 'address' | 'notes';
+type Field =
+  | 'name'
+  | 'type'
+  | 'country'
+  | 'taxId'
+  | 'contactName'
+  | 'phone'
+  | 'whatsapp'
+  | 'email'
+  | 'address'
+  | 'defaultCurrency'
+  | 'paymentTerms'
+  | 'notes';
 type Values = Record<Field, string>;
 
 function valuesFrom(supplier?: Supplier): Values {
   return {
     name: supplier?.name ?? '',
+    type: supplier?.type ?? 'NATIONAL',
+    country: supplier?.country ?? '',
     taxId: supplier?.taxId ?? '',
     contactName: supplier?.contactName ?? '',
     phone: supplier?.phone ?? '',
+    whatsapp: supplier?.whatsapp ?? '',
     email: supplier?.email ?? '',
     address: supplier?.address ?? '',
+    defaultCurrency: supplier?.defaultCurrency ?? 'BOB',
+    paymentTerms: supplier?.paymentTerms ?? '',
     notes: supplier?.notes ?? '',
   };
+}
+
+function SelectField({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+  error,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  error?: string | undefined;
+}) {
+  return (
+    <div className="space-y-1">
+      <label htmlFor={id} className="block text-sm font-medium text-stone-700">
+        {label}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
+        aria-invalid={!!error}
+        aria-describedby={error ? `${id}-error` : undefined}
+        className="block min-h-10 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm shadow-xs focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {error && (
+        <p id={`${id}-error`} className="text-xs text-red-600">
+          {error}
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function SupplierForm({
@@ -41,11 +111,16 @@ export function SupplierForm({
     event.preventDefault();
     const result = createSupplierSchema.safeParse({
       name: values.name,
+      type: values.type,
+      country: values.country || null,
       taxId: values.taxId || null,
       contactName: values.contactName || null,
       phone: values.phone || null,
+      whatsapp: values.whatsapp || null,
       email: values.email || null,
       address: values.address || null,
+      defaultCurrency: values.defaultCurrency,
+      paymentTerms: values.paymentTerms || null,
       notes: values.notes || null,
     });
     if (!result.success) {
@@ -81,6 +156,25 @@ export function SupplierForm({
           }}
           error={errors.name}
         />
+        <SelectField
+          id="supplier-type"
+          label="Tipo de proveedor"
+          value={values.type}
+          options={SUPPLIER_TYPES.map((value) => ({ value, label: SUPPLIER_TYPE_LABELS[value] }))}
+          onChange={(value) => {
+            set('type', value);
+          }}
+          error={errors.type}
+        />
+        <Input
+          label="País"
+          maxLength={80}
+          value={values.country}
+          onChange={(e) => {
+            set('country', e.target.value);
+          }}
+          error={errors.country}
+        />
         <Input
           label="NIT o identificador"
           maxLength={30}
@@ -109,6 +203,15 @@ export function SupplierForm({
           error={errors.phone}
         />
         <Input
+          label="WhatsApp"
+          maxLength={40}
+          value={values.whatsapp}
+          onChange={(e) => {
+            set('whatsapp', e.target.value);
+          }}
+          error={errors.whatsapp}
+        />
+        <Input
           label="Correo electrónico"
           type="email"
           maxLength={254}
@@ -127,6 +230,30 @@ export function SupplierForm({
           }}
           error={errors.address}
         />
+        <SelectField
+          id="supplier-currency"
+          label="Moneda habitual de compra"
+          value={values.defaultCurrency}
+          options={SUPPLIER_CURRENCIES.map((value) => ({
+            value,
+            label: SUPPLIER_CURRENCY_LABELS[value],
+          }))}
+          onChange={(value) => {
+            set('defaultCurrency', value);
+          }}
+          error={errors.defaultCurrency}
+        />
+        <div className="sm:col-span-2">
+          <Input
+            label="Condiciones de pago"
+            maxLength={300}
+            value={values.paymentTerms}
+            onChange={(e) => {
+              set('paymentTerms', e.target.value);
+            }}
+            error={errors.paymentTerms}
+          />
+        </div>
       </div>
       <div className="space-y-1">
         <label htmlFor="supplier-notes" className="block text-sm font-medium text-stone-700">

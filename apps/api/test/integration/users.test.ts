@@ -280,7 +280,7 @@ describe('consulta de usuarios', () => {
     expect(created.statusCode).toBe(201);
     expect(created.json().data.roles).toHaveLength(2);
     expect(JSON.stringify(created.json())).not.toMatch(/passwordHash|clave-inicial-123|sessions/i);
-    expect((await login(app, payload.email, payload.password)).response.statusCode).toBe(204);
+    expect((await login(app, payload.email, payload.password)).response.statusCode).toBe(200);
     expect(
       await app.prisma.auditLog.count({
         where: { action: 'user.created', entityId: created.json().data.id },
@@ -347,5 +347,337 @@ describe('consulta de usuarios', () => {
         })
       ).statusCode,
     ).toBe(400);
+  });
+});
+
+describe('restablecimiento de contraseña por el Administrador (F2)', () => {
+  let app: App;
+  beforeEach(async () => {
+    app = await buildTestApp();
+    await resetDatabase(app.prisma);
+  });
+  afterEach(() => app.close());
+
+  const TEMPORARY = 'clave-temporal-9876';
+  const resetUrl = (id: string) => `${url}/${id}/reset-password`;
+
+  async function adminAndTarget() {
+    const admin = await createTestUser(app.prisma, { permissions: [PERMISSIONS.USERS_MANAGE] });
+    const target = await createTestUser(app.prisma, { permissions: [PERMISSIONS.CATALOG_READ] });
+    const { cookie } = await login(app, admin.user.email, admin.password);
+    return { admin, target, cookie };
+  }
+
+  it('un rol con users:manage no puede modificar ni restablecer la clave de un Administrador', async () => {
+    const { target, cookie } = await adminAndTarget();
+    // El objetivo pasa a tener el rol ADMIN; quien llama solo tiene users:manage (rol ad-hoc).
+    await app.prisma.role.updateMany({
+      where: { users: { some: { userId: target.user.id } } },
+      data: { code: 'ADMIN' },
+    });
+    const reset = await app.inject({
+      method: 'POST',
+      url: resetUrl(target.user.id),
+      headers: { cookie },
+      payload: { temporaryPassword: TEMPORARY },
+    });
+    expect(reset.statusCode).toBe(403);
+    const patch = await app.inject({
+      method: 'PATCH',
+      url: `${url}/${target.user.id}`,
+      headers: { cookie },
+      payload: { name: 'Otro nombre' },
+    });
+    expect(patch.statusCode).toBe(403);
+  });
+
+  it('exige sesión (401) y users:manage (403)', async () => {
+    const { target } = await adminAndTarget();
+    const payload = { temporaryPassword: TEMPORARY };
+    expect(
+      (await app.inject({ method: 'POST', url: resetUrl(target.user.id), payload })).statusCode,
+    ).toBe(401);
+    const reader = await createTestUser(app.prisma, { permissions: [PERMISSIONS.USERS_READ] });
+    const session = await login(app, reader.user.email, reader.password);
+    const denied = await app.inject({
+      method: 'POST',
+      url: resetUrl(target.user.id),
+      headers: { cookie: session.cookie },
+      payload,
+    });
+    expect(denied.statusCode).toBe(403);
+    const unchanged = await app.prisma.user.findUniqueOrThrow({ where: { id: target.user.id } });
+    expect(unchanged.mustChangePassword).toBe(false);
+  });
+
+  it('valida la clave temporal (mínimo 10 caracteres) y el identificador', async () => {
+    const { target, cookie } = await adminAndTarget();
+    for (const payload of [
+      {},
+      { temporaryPassword: 'corta' },
+      { temporaryPassword: 'x'.repeat(201) },
+    ]) {
+      const res = await app.inject({
+        method: 'POST',
+        url: resetUrl(target.user.id),
+        headers: { cookie },
+        payload,
+      });
+      expect(res.statusCode).toBe(400);
+    }
+    const badId = await app.inject({
+      method: 'POST',
+      url: resetUrl('no-uuid'),
+      headers: { cookie },
+      payload: { temporaryPassword: TEMPORARY },
+    });
+    expect(badId.statusCode).toBe(400);
+    const missing = await app.inject({
+      method: 'POST',
+      url: resetUrl('00000000-0000-4000-8000-000000000000'),
+      headers: { cookie },
+      payload: { temporaryPassword: TEMPORARY },
+    });
+    expect(missing.statusCode).toBe(404);
+  });
+
+  it('asigna la clave temporal, cierra las sesiones y audita sin registrar secretos', async () => {
+    const { admin, target, cookie } = await adminAndTarget();
+    const previous = await login(app, target.user.email, target.password);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: resetUrl(target.user.id),
+      headers: { cookie },
+      payload: { temporaryPassword: TEMPORARY },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({ id: target.user.id, mustChangePassword: true });
+    expect(JSON.stringify(res.json())).not.toMatch(/passwordHash|tokenHash|clave-temporal/i);
+
+    // La sesión anterior queda revocada y la clave anterior deja de funcionar.
+    const me = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      headers: { cookie: previous.cookie },
+    });
+    expect(me.statusCode).toBe(401);
+    expect((await login(app, target.user.email, target.password)).response.statusCode).toBe(401);
+
+    const audit = await app.prisma.auditLog.findFirstOrThrow({
+      where: { action: 'user.password_reset', entityId: target.user.id },
+    });
+    expect(audit.userId).toBe(admin.user.id);
+    const serialized = JSON.stringify({
+      before: audit.before,
+      after: audit.after,
+      metadata: audit.metadata,
+    });
+    expect(serialized).not.toContain(TEMPORARY);
+    expect(serialized).not.toMatch(/argon2|passwordHash/i);
+  });
+
+  it('con la clave temporal solo se puede cambiarla; luego el acceso es normal', async () => {
+    const { target, cookie } = await adminAndTarget();
+    await app.inject({
+      method: 'POST',
+      url: resetUrl(target.user.id),
+      headers: { cookie },
+      payload: { temporaryPassword: TEMPORARY },
+    });
+
+    const forced = await login(app, target.user.email, TEMPORARY);
+    expect(forced.response.statusCode).toBe(200);
+    expect(forced.response.json()).toEqual({ data: { mustChangePassword: true } });
+
+    const me = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      headers: { cookie: forced.cookie },
+    });
+    expect(me.json().data.mustChangePassword).toBe(true);
+
+    // Cualquier otra ruta protegida por permiso queda bloqueada con un código estable.
+    const blocked = await app.inject({
+      method: 'GET',
+      url: '/api/v1/products',
+      headers: { cookie: forced.cookie },
+    });
+    expect(blocked.statusCode).toBe(403);
+    expect(blocked.json().error.code).toBe('PASSWORD_CHANGE_REQUIRED');
+
+    const changeUrl = '/api/v1/auth/change-password';
+    const same = await app.inject({
+      method: 'POST',
+      url: changeUrl,
+      headers: { cookie: forced.cookie },
+      payload: { currentPassword: TEMPORARY, newPassword: TEMPORARY },
+    });
+    expect(same.statusCode).toBe(400);
+    const changed = await app.inject({
+      method: 'POST',
+      url: changeUrl,
+      headers: { cookie: forced.cookie },
+      payload: { currentPassword: TEMPORARY, newPassword: 'clave-definitiva-4321' },
+    });
+    expect(changed.statusCode).toBe(204);
+
+    const normal = await login(app, target.user.email, 'clave-definitiva-4321');
+    expect(normal.response.json()).toEqual({ data: { mustChangePassword: false } });
+    const products = await app.inject({
+      method: 'GET',
+      url: '/api/v1/products',
+      headers: { cookie: normal.cookie },
+    });
+    expect(products.statusCode).toBe(200);
+  });
+
+  it('con la clave temporal también se puede cerrar sesión', async () => {
+    const { target, cookie } = await adminAndTarget();
+    await app.inject({
+      method: 'POST',
+      url: resetUrl(target.user.id),
+      headers: { cookie },
+      payload: { temporaryPassword: TEMPORARY },
+    });
+    const forced = await login(app, target.user.email, TEMPORARY);
+    const logout = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/logout',
+      headers: { cookie: forced.cookie },
+    });
+    expect(logout.statusCode).toBe(204);
+  });
+
+  it('un administrador no puede restablecer su propia clave (se queda con acceso)', async () => {
+    const { admin, cookie } = await adminAndTarget();
+    const res = await app.inject({
+      method: 'POST',
+      url: resetUrl(admin.user.id),
+      headers: { cookie },
+      payload: { temporaryPassword: TEMPORARY },
+    });
+    expect(res.statusCode).toBe(422);
+    const stored = await app.prisma.user.findUniqueOrThrow({ where: { id: admin.user.id } });
+    expect(stored.mustChangePassword).toBe(false);
+    expect(await app.prisma.auditLog.count({ where: { action: 'user.password_reset' } })).toBe(0);
+    // La sesión sigue viva: sin users:read recibe 403, no 401.
+    expect((await app.inject({ method: 'GET', url, headers: { cookie } })).statusCode).toBe(403);
+  });
+
+  it('restablecer a un administrador no deja al sistema sin administradores activos', async () => {
+    const { admin, cookie } = await adminAndTarget();
+    const role = await app.prisma.role.create({ data: { code: 'ADMIN', name: 'Administrador' } });
+    const other = await createTestUser(app.prisma);
+    await app.prisma.userRole.createMany({
+      data: [admin.user.id, other.user.id].map((userId) => ({ userId, roleId: role.id })),
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: resetUrl(other.user.id),
+      headers: { cookie },
+      payload: { temporaryPassword: TEMPORARY },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(
+      await app.prisma.user.count({
+        where: { isActive: true, roles: { some: { role: { code: 'ADMIN' } } } },
+      }),
+    ).toBe(2);
+    expect((await login(app, other.user.email, TEMPORARY)).response.statusCode).toBe(200);
+  });
+});
+
+describe('escalada de privilegios con el rol ADMIN (S-01/S-02)', () => {
+  let app: App;
+  beforeEach(async () => {
+    app = await buildTestApp();
+    await resetDatabase(app.prisma);
+  });
+  afterEach(() => app.close());
+
+  async function setup() {
+    // Rol personalizado con users:manage + roles:manage, sin ser Administrador.
+    const manager = await createTestUser(app.prisma, {
+      permissions: [PERMISSIONS.USERS_READ, PERMISSIONS.USERS_MANAGE, PERMISSIONS.ROLES_MANAGE],
+    });
+    const target = await createTestUser(app.prisma, { permissions: [PERMISSIONS.CATALOG_READ] });
+    const adminRole = await app.prisma.role.create({
+      data: { code: 'ADMIN', name: 'Administrador' },
+    });
+    const { cookie } = await login(app, manager.user.email, manager.password);
+    return { manager, target, adminRole, cookie };
+  }
+
+  it('un rol personalizado no puede asignar el rol ADMIN a otra persona ni a sí mismo', async () => {
+    const { manager, target, adminRole, cookie } = await setup();
+    for (const id of [target.user.id, manager.user.id]) {
+      const own = await app.prisma.userRole.findFirstOrThrow({ where: { userId: id } });
+      const res = await app.inject({
+        method: 'PUT',
+        url: `${url}/${id}/roles`,
+        headers: { cookie },
+        payload: { roleIds: [own.roleId, adminRole.id] },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json().error.message).toMatch(/Administrador/);
+    }
+    expect(await app.prisma.userRole.count({ where: { roleId: adminRole.id } })).toBe(0);
+  });
+
+  it('un rol personalizado no puede crear un usuario con el rol ADMIN', async () => {
+    const { adminRole, cookie } = await setup();
+    const res = await app.inject({
+      method: 'POST',
+      url,
+      headers: { cookie },
+      payload: {
+        email: 'intruso@test.local',
+        name: 'Intruso',
+        password: 'clave-inicial-123',
+        roleIds: [adminRole.id],
+      },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(await app.prisma.user.count({ where: { email: 'intruso@test.local' } })).toBe(0);
+  });
+
+  it('un rol personalizado no puede quitar el rol ADMIN a un Administrador', async () => {
+    const { target, adminRole, cookie } = await setup();
+    await app.prisma.userRole.create({ data: { userId: target.user.id, roleId: adminRole.id } });
+    const other = await app.prisma.role.create({ data: { code: 'OTRO', name: 'Otro' } });
+    const res = await app.inject({
+      method: 'PUT',
+      url: `${url}/${target.user.id}/roles`,
+      headers: { cookie },
+      payload: { roleIds: [other.id] },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(await app.prisma.userRole.count({ where: { userId: target.user.id } })).toBe(2);
+  });
+
+  it('un Administrador sí puede asignar y crear con el rol ADMIN', async () => {
+    const { manager, target, adminRole } = await setup();
+    await app.prisma.userRole.create({ data: { userId: manager.user.id, roleId: adminRole.id } });
+    const { cookie } = await login(app, manager.user.email, manager.password);
+    const assigned = await app.inject({
+      method: 'PUT',
+      url: `${url}/${target.user.id}/roles`,
+      headers: { cookie },
+      payload: { roleIds: [adminRole.id] },
+    });
+    expect(assigned.statusCode).toBe(200);
+    const created = await app.inject({
+      method: 'POST',
+      url,
+      headers: { cookie },
+      payload: {
+        email: 'otro-admin@test.local',
+        name: 'Otro admin',
+        password: 'clave-inicial-123',
+        roleIds: [adminRole.id],
+      },
+    });
+    expect(created.statusCode).toBe(201);
   });
 });

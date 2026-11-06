@@ -12,6 +12,8 @@ export const userSummarySchema = z.object({
   email: z.email(),
   name: z.string(),
   isActive: z.boolean(),
+  /** Tiene una clave temporal asignada por el Administrador y aún no la cambió. */
+  mustChangePassword: z.boolean(),
   roles: z.array(z.object({ code: z.string(), name: z.string() })),
   lastLoginAt: z.string().nullable(),
   createdAt: z.string(),
@@ -34,9 +36,15 @@ export const createUserSchema = z.object({
   roleIds: roleIdsSchema,
 });
 
+/** Restablecimiento por el Administrador (F2): clave temporal que la persona debe cambiar al entrar. */
+export const resetPasswordSchema = z.object({
+  temporaryPassword: z.string().min(PASSWORD_MIN_LENGTH).max(200),
+});
+
 export const roleSummarySchema = z.object({ id: z.uuid(), code: z.string(), name: z.string() });
 
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type AssignUserRolesInput = z.infer<typeof assignUserRolesSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type RoleSummary = z.infer<typeof roleSummarySchema>;

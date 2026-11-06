@@ -12,7 +12,15 @@ export const ERROR_CODES = {
   NOT_FOUND: 'NOT_FOUND', // 404
   CONFLICT: 'CONFLICT', // 409 — duplicados (SKU, código de barras...), estado inconsistente
   BUSINESS_RULE_VIOLATION: 'BUSINESS_RULE_VIOLATION', // 422 — regla de negocio incumplida
+  /** 403 — la clave es temporal: solo se permite cambiarla (o cerrar sesión) hasta hacerlo (F2). */
+  PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',
+  /** 422 — no se desactiva un producto o variante con stock disponible (P-22). */
+  STOCK_BLOCKS_DEACTIVATION: 'STOCK_BLOCKS_DEACTIVATION',
+  /** 413 — el archivo subido supera el tamaño permitido (p. ej. fotos de producto, 5 MB). */
+  PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
   RATE_LIMITED: 'RATE_LIMITED', // 429
+  /** 503 — conflicto transitorio de la base (bloqueo, tiempo agotado): reintentar en unos segundos. */
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR', // 500 — nunca expone detalles internos
 } as const;
 

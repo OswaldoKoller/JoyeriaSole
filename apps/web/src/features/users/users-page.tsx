@@ -6,8 +6,11 @@ import { useHasPermission } from '../auth/use-auth.ts';
 import { UserCreateForm } from './user-create-form.tsx';
 import { UserEditor } from './user-editor.tsx';
 import { useUpdateUser, useUsers } from './use-users.ts';
+import { Pagination } from '../../components/ui/pagination.tsx';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 export function UsersPage() {
+  useDocumentTitle('Usuarios');
   const canManage = useHasPermission(PERMISSIONS.USERS_MANAGE);
   const canManageRoles = useHasPermission(PERMISSIONS.ROLES_MANAGE);
   const [page, setPage] = useState(1);
@@ -133,14 +136,14 @@ export function UsersPage() {
           <p className="py-6 text-sm text-stone-600">No se encontraron usuarios.</p>
         )}
         {list.isSuccess && users.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          <div aria-busy={list.isPlaceholderData} className="mt-4 overflow-x-auto">
+            <table className="table-cards w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
                   <th className="py-2 pr-4">Nombre</th>
                   <th className="py-2 pr-4">Correo</th>
                   <th className="py-2 pr-4">Roles</th>
-                  <th className="py-2">Estado</th>
+                  <th className="py-2 pr-4">Estado</th>
                   {canManage && <th className="py-2">Acciones</th>}
                 </tr>
               </thead>
@@ -148,11 +151,18 @@ export function UsersPage() {
                 {users.map((user) => (
                   <tr key={user.id} className="border-b border-stone-100">
                     <td className="py-3 pr-4 font-medium">{user.name}</td>
-                    <td className="py-3 pr-4">{user.email}</td>
-                    <td className="py-3 pr-4">
+                    <td data-label="Correo" className="py-3 pr-4">
+                      {user.email}
+                    </td>
+                    <td data-label="Roles" className="py-3 pr-4">
                       {user.roles.map((role) => role.name).join(', ') || 'Sin rol'}
                     </td>
-                    <td className="py-3">{user.isActive ? 'Activo' : 'Inactivo'}</td>
+                    <td data-label="Estado" className="py-3 pr-4">
+                      {user.isActive ? 'Activo' : 'Inactivo'}
+                      {user.mustChangePassword && (
+                        <span className="block text-xs text-amber-800">Debe cambiar su clave</span>
+                      )}
+                    </td>
                     {canManage && (
                       <td className="flex gap-2 py-2">
                         <Button
@@ -179,30 +189,8 @@ export function UsersPage() {
             </table>
           </div>
         )}
-        {list.isSuccess && total > 25 && (
-          <div className="mt-4 flex items-center gap-3 text-sm">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {page} · {total} usuarios
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page * 25 >= total}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-            >
-              Siguiente
-            </Button>
-          </div>
+        {list.isSuccess && (
+          <Pagination page={page} total={total} noun="usuarios" onPageChange={setPage} />
         )}
       </div>
     </section>

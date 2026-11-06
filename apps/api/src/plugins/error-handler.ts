@@ -8,6 +8,37 @@ import {
 import { Prisma } from '../generated/prisma/client.ts';
 import { AppError } from '../lib/errors.ts';
 
+/** Segundos sugeridos al cliente (cabecera Retry-After) ante un conflicto transitorio de la base. */
+const TRANSIENT_RETRY_AFTER_SECONDS = 2;
+
+/** SQLSTATE de conflictos transitorios: deadlock_detected y serialization_failure. */
+const TRANSIENT_SQLSTATES = new Set(['40P01', '40001']);
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * Conflictos transitorios de la base: conflicto de escritura/deadlock (P2034, 40P01, 40001) o
+ * transacción interactiva sin tiempo/conexión (P2028). Reintentar suele funcionar; no es un bug.
+ */
+export function isTransientDatabaseError(error: unknown): boolean {
+  const record = asRecord(error);
+  if (!record) return false;
+  const code = record.code;
+  if (code === 'P2034' || code === 'P2028') return true;
+  if (typeof code === 'string' && TRANSIENT_SQLSTATES.has(code)) return true;
+  const meta = asRecord(record.meta);
+  if (typeof meta?.code === 'string' && TRANSIENT_SQLSTATES.has(meta.code)) return true;
+  const cause = asRecord(asRecord(meta?.driverAdapterError)?.cause);
+  return (
+    cause?.kind === 'TransactionWriteConflict' ||
+    (typeof cause?.originalCode === 'string' && TRANSIENT_SQLSTATES.has(cause.originalCode))
+  );
+}
+
 /**
  * Manejo centralizado de errores. Garantiza:
  *   - Formato único: { error: { code, message, details?, requestId } }.
@@ -42,17 +73,48 @@ export const errorHandlerPlugin = fp(
         });
       }
 
+      if (isTransientDatabaseError(error)) {
+        request.log.warn({ err: error }, 'Conflicto transitorio de base de datos');
+        reply.header('retry-after', String(TRANSIENT_RETRY_AFTER_SECONDS));
+        return send(503, {
+          code: ERROR_CODES.SERVICE_UNAVAILABLE,
+          message:
+            'El sistema está ocupado procesando otra operación. Espere unos segundos y vuelva a intentarlo.',
+        });
+      }
+
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
           return send(409, {
             code: ERROR_CODES.CONFLICT,
             message: 'Ya existe un registro con esos datos únicos',
-            details: { fields: error.meta?.target },
+          });
+        }
+        if (error.code === 'P2003') {
+          // Clave foránea: otro registro depende de este (p. ej. eliminar algo con historial).
+          return send(422, {
+            code: ERROR_CODES.BUSINESS_RULE_VIOLATION,
+            message: 'No se puede completar la operación: hay registros que dependen de este.',
           });
         }
         if (error.code === 'P2025') {
           return send(404, { code: ERROR_CODES.NOT_FOUND, message: 'Recurso no encontrado' });
         }
+      }
+
+      // Subidas de archivos (@fastify/multipart): archivo o cuerpo demasiado grande, demasiadas partes.
+      if (
+        error.statusCode === 413 ||
+        error.code === 'FST_REQ_FILE_TOO_LARGE' ||
+        error.code === 'FST_FILES_LIMIT' ||
+        error.code === 'FST_PARTS_LIMIT' ||
+        error.code === 'FST_FIELDS_LIMIT'
+      ) {
+        return send(413, {
+          code: ERROR_CODES.PAYLOAD_TOO_LARGE,
+          message:
+            'El archivo supera el tamaño máximo permitido o la solicitud es demasiado grande.',
+        });
       }
 
       if (error.statusCode === 429) {

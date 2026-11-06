@@ -35,19 +35,52 @@ servidores. La imagen Docker es portable: migrar a Railway o a un VPS no requier
 
 ## Variables de entorno de producción
 
-| Variable                      | Valor                                                                           |
-| ----------------------------- | ------------------------------------------------------------------------------- |
-| `NODE_ENV`                    | `production`                                                                    |
-| `DATABASE_URL`                | URL interna de la BD administrada, con `sslmode=require` si es externa          |
-| `AUTH_SECRET`                 | Aleatorio ≥ 48 bytes, **distinto** al de desarrollo                             |
-| `CORS_ORIGIN`, `FRONTEND_URL` | `https://inventario.<dominio>`                                                  |
-| `TRUST_PROXY`                 | `true` (Render/Railway ponen un proxy delante)                                  |
-| `LOG_LEVEL`                   | `info`                                                                          |
-| `SESSION_TTL_HOURS`           | `3` (política aprobada P-19)                                                    |
-| `API_PORT`                    | No definir: la API usa `PORT` si el hosting lo inyecta (Render/Railway), o 3000 |
+| Variable                      | Valor                                                                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                    | `production`                                                                                                                                                        |
+| `DATABASE_URL`                | URL interna de la BD administrada, con `sslmode=require` si es externa                                                                                              |
+| `AUTH_SECRET`                 | Aleatorio ≥ 48 bytes, **distinto** al de desarrollo                                                                                                                 |
+| `CORS_ORIGIN`, `FRONTEND_URL` | `https://inventario.<dominio>`                                                                                                                                      |
+| `TRUST_PROXY_HOPS`            | `1` si hay UN proxy/balanceador propio delante (Render/Railway); `0` (por defecto) si la API recibe tráfico directo. Con Cloudflare delante de Render suele ser `2` |
+| `LOG_LEVEL`                   | `info`                                                                                                                                                              |
+| `SESSION_TTL_HOURS`           | `8` (sesión fija; política P-19 actualizada el 2026-11-05)                                                                                                          |
+| `API_PORT`                    | No definir: la API usa `PORT` si el hosting lo inyecta (Render/Railway), o 3000                                                                                     |
 
-`COOKIE_SECURE` no se define (por defecto `true` en producción). `SEED_ADMIN_*` solo se definen
-temporalmente para el primer seed y luego se eliminan.
+`COOKIE_SECURE` no se define (por defecto `true` en producción; con `false` en producción la API
+registra un aviso al arrancar). `SEED_ADMIN_*` solo se definen temporalmente para el primer seed y luego
+se eliminan.
+
+**`TRUST_PROXY_HOPS` (ruptura de compatibilidad).** Reemplaza al booleano `TRUST_PROXY`, que confiaba en
+toda la cadena `X-Forwarded-For` y dejaba a un atacante falsear su IP para evadir el límite de intentos de
+login. Ahora se indica **cuántos proxies propios** hay delante de la API y solo se acepta ese número de
+saltos contados desde el final de la cabecera. Si el entorno todavía define `TRUST_PROXY=true`, la API
+**no arranca** y muestra cómo migrar. Cómo fijarlo: dejar `0`, desplegar, enviar una petición con
+`X-Forwarded-For: 1.2.3.4` y comprobar en los logs de la API qué IP se registra; subir el valor de a uno
+hasta que se vea la IP real del cliente (nunca más alto de lo necesario: un valor excesivo vuelve a permitir
+falsear la IP). Los health checks del hosting no deben superar 60 peticiones por minuto (límite de `/health`).
+
+La imagen elimina los mapas de código (`.map`) y arranca la API con `exec node` (la señal `SIGTERM` del
+hosting llega a Node para un apagado ordenado). En desarrollo, `docker-compose.yml` publica PostgreSQL solo
+en `127.0.0.1`.
+
+## Extensiones de PostgreSQL (pg_trgm)
+
+La migración `20261106040000_performance_indexes` ejecuta `CREATE EXTENSION IF NOT EXISTS pg_trgm`
+(índices de trigramas para las búsquedas con `ILIKE '%texto%'`). `pg_trgm` es una extensión **de
+confianza** desde PostgreSQL 13: la puede crear el **dueño de la base de datos** sin ser superusuario,
+por lo que funciona con el rol que ejecuta `prisma migrate deploy` en Render PostgreSQL, Railway y
+similares (el rol que crea la base suele ser su dueño). Si el hosting restringe extensiones:
+
+1. Verificar antes de desplegar: `SELECT name, trusted FROM pg_available_extensions WHERE name = 'pg_trgm';`
+   debe existir y la migración fallará con `permission denied to create extension` si el rol no es
+   dueño de la base.
+2. Si falla, que un superusuario o el panel del hosting ejecute **una vez** `CREATE EXTENSION pg_trgm;`
+   en la base de datos de la aplicación y volver a desplegar (la migración usa `IF NOT EXISTS`).
+3. Si la migración quedó a medias, `prisma migrate resolve` solo tras revisar el estado: la migración
+   corre en una transacción, así que un fallo no deja índices parciales.
+
+El rol de la aplicación en tiempo de ejecución no necesita ningún privilegio especial sobre la extensión
+(solo usa los índices).
 
 ## Primer despliegue (paso a paso)
 

@@ -31,6 +31,7 @@
     "@joyeria/shared": "*",
     "@tanstack/react-query": "^5.104.1",
     "jsbarcode": "^3.12.3",
+    "lucide-react": "^1.55.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router": "^8.4.0",

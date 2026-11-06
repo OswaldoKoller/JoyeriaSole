@@ -9,6 +9,10 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
+/** Respuesta de `POST /auth/login`: indica si la clave es temporal y debe cambiarse antes de seguir. */
+export const loginResultSchema = z.object({ mustChangePassword: z.boolean() });
+export type LoginResult = z.infer<typeof loginResultSchema>;
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(200),
   newPassword: z.string().min(PASSWORD_MIN_LENGTH).max(200),
@@ -23,4 +27,6 @@ export interface AuthUser {
   name: string;
   roles: RoleCode[];
   permissions: Permission[];
+  /** Clave temporal (F2): hasta cambiarla, la API solo atiende `/auth/*`. */
+  mustChangePassword: boolean;
 }

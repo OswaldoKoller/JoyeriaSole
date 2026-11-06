@@ -38,10 +38,10 @@ Referencia: `docs/security/SECURITY.md`.
 ```
 [ALTA] apps/api/src/modules/x/x.routes.ts:42 — El endpoint PATCH /x/:id no tiene requirePermission.
 Escenario: un vendedor autenticado puede cambiar precios enviando PATCH directo.
-Corrección: preHandler: app.requirePermission(PERMISSIONS.PRICES_MANAGE)
+Corrección: preHandler: app.requirePermission(PERMISSIONS.PRICES_APPROVE)
 ```
 
 ## Cambios sensibles que requieren aprobación del usuario
 
 Relajar CSP/CORS/SameSite, cambiar parámetros de Argon2 o duración de sesión, cambiar permisos de
-roles (P-01/P-02), exponer nuevos datos personales, activar `TRUST_PROXY`.
+roles (P-01/P-02), exponer nuevos datos personales, cambiar `TRUST_PROXY_HOPS`.

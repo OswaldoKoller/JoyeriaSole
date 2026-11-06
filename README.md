@@ -26,6 +26,15 @@ Ingresar con `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` de tu `.env`.
 
 Guía completa: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## Quién autoriza (regla del cliente, 2026-11-05)
+
+El **Administrador** y el **Responsable de inventario** pueden autorizar: aprobar o rechazar ajustes de
+inventario, aprobar o cambiar precios de venta, cargar el stock inicial y aprobar conteos físicos. El
+Responsable puede aprobar sus propias solicitudes; todo queda en la auditoría. Siguen siendo solo del
+Administrador la auditoría, los usuarios y roles, el borrado físico de productos y la configuración. Detalle
+en [`docs/security/SECURITY.md`](docs/security/SECURITY.md) y
+[`docs/business/RESOLUCIONES-2026-11-05.md`](docs/business/RESOLUCIONES-2026-11-05.md).
+
 Preparación actual y entregas: [Fase 1](docs/engineering/PHASE-1-PREPARATION.md).
 Orden y criterios de aceptación: [roadmap de Fase 1](docs/engineering/ROADMAP.md).
 Para validar sin usar datos de desarrollo: Docker iniciado, `npx playwright install chromium`

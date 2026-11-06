@@ -18,12 +18,13 @@ export default defineConfig({
     },
   },
   build: {
-    sourcemap: true,
+    // Sin mapas de código en producción: se servirían sin autenticación junto al frontend (S-09).
+    sourcemap: false,
   },
   test: {
-    // En Windows, arrancar un worker por archivo puede agotar el plazo de Vitest.
-    // Los tests limpian el DOM y restauran mocks tras cada caso; comparten un solo worker.
-    pool: 'threads',
+    // En Windows el pool de threads agotó dos veces el arranque sin ejecutar pruebas.
+    // Un único fork pasó los 16 casos; conserva la misma suite y aserciones.
+    pool: 'forks',
     maxWorkers: 1,
     isolate: false,
     environment: 'jsdom',

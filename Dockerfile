@@ -24,7 +24,8 @@ COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 COPY apps/web apps/web
-RUN npm run build -w @joyeria/api && npm run build -w @joyeria/web
+RUN npm run build -w @joyeria/api && npm run build -w @joyeria/web \
+    && find apps/api/dist apps/web/dist -name '*.map' -delete
 
 # ---- 3. Dependencias de producción ------------------------------------------
 FROM node:${NODE_VERSION}-alpine AS prod-deps
@@ -58,4 +59,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/api/v1/health || exit 1
 
 # Aplica migraciones pendientes y arranca. `migrate deploy` es idempotente y no destructivo.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+# `exec` reemplaza al shell por Node: SIGTERM llega a la API y el apagado ordenado funciona.
+CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/server.js"]

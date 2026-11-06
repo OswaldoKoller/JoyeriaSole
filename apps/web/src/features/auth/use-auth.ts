@@ -1,4 +1,10 @@
-import type { AuthUser, ChangePasswordInput, LoginInput, Permission } from '@joyeria/shared';
+import type {
+  AuthUser,
+  ChangePasswordInput,
+  LoginInput,
+  LoginResult,
+  Permission,
+} from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../lib/api-client.ts';
 
@@ -27,7 +33,7 @@ export function useHasPermission(...required: Permission[]): boolean {
 export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: LoginInput) => api.post<undefined>('/auth/login', input),
+    mutationFn: (input: LoginInput) => api.post<{ data: LoginResult }>('/auth/login', input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: authKeys.me }),
   });
 }
