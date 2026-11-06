@@ -625,7 +625,10 @@ describe('ajustes manuales con solicitud y aprobación', () => {
       expect(await ids(`?variantId=${v2.id}`)).toEqual([b.id]);
       expect(await ids(`?variantId=${v1.id}`)).toEqual([c.id, a.id]);
 
-      const today = new Date().toISOString().slice(0, 10);
+      // La API interpreta las fechas en La Paz (UTC-4): «hoy» no es el día UTC después de las 20:00.
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz' }).format(
+        new Date(),
+      );
       expect(await ids(`?from=${today}&to=${today}`)).toHaveLength(3);
       expect(await ids('?from=2999-01-01')).toEqual([]);
       expect(await ids('?to=2000-01-01')).toEqual([]);
