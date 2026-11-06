@@ -50,7 +50,26 @@ export class ConflictError extends AppError {
 
 /** Una regla de negocio impide la operación (p. ej. confirmar un ingreso ya confirmado). */
 export class BusinessRuleError extends AppError {
+  /** `code` permite un código estable propio (p. ej. STOCK_BLOCKS_DEACTIVATION) para que la web reaccione. */
+  constructor(
+    message: string,
+    details?: unknown,
+    code: ErrorCode = ERROR_CODES.BUSINESS_RULE_VIOLATION,
+  ) {
+    super(422, code, message, details);
+  }
+}
+
+/** El cuerpo o el archivo subido supera el tamaño permitido (413). */
+export class PayloadTooLargeError extends AppError {
   constructor(message: string, details?: unknown) {
-    super(422, ERROR_CODES.BUSINESS_RULE_VIOLATION, message, details);
+    super(413, ERROR_CODES.PAYLOAD_TOO_LARGE, message, details);
+  }
+}
+
+/** Sesión válida, pero con clave temporal: solo puede cambiarla o cerrar sesión (F2). */
+export class PasswordChangeRequiredError extends AppError {
+  constructor(message = 'Debe cambiar su contraseña temporal antes de continuar') {
+    super(403, ERROR_CODES.PASSWORD_CHANGE_REQUIRED, message);
   }
 }

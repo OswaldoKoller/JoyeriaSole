@@ -17,7 +17,18 @@ import { usersRoutes } from './modules/users/users.routes.ts';
 import { categoriesRoutes } from './modules/catalog/categories.routes.ts';
 import { attributesRoutes } from './modules/catalog/attributes.routes.ts';
 import { productsRoutes } from './modules/catalog/products.routes.ts';
+import { adjustmentsRoutes } from './modules/inventory/adjustments.routes.ts';
+import { productPhotosRoutes } from './modules/catalog/photos/photos.routes.ts';
+import { catalogVariantsRoutes } from './modules/catalog/variants.routes.ts';
+import { exchangesRoutes } from './modules/inventory/exchanges.routes.ts';
 import { inventoryRoutes } from './modules/inventory/inventory.routes.ts';
+import { approvalsRoutes } from './modules/approvals/approvals.routes.ts';
+import { auditRoutes } from './modules/audit/audit.routes.ts';
+import { pricingRoutes } from './modules/pricing/pricing.routes.ts';
+import { costHistoryRoutes } from './modules/stock-entries/cost-history.routes.ts';
+import { costTypesRoutes } from './modules/stock-entries/cost-types.routes.ts';
+import { inventoryCountsRoutes } from './modules/inventory-counts/inventory-counts.routes.ts';
+import { stockEntriesRoutes } from './modules/stock-entries/stock-entries.routes.ts';
 import { authPlugin } from './plugins/auth.ts';
 import { errorHandlerPlugin } from './plugins/error-handler.ts';
 import { prismaPlugin } from './plugins/prisma.ts';
@@ -53,7 +64,7 @@ export async function buildApp(env: Env) {
     genReqId: () => randomUUID(),
     requestIdHeader: false,
     trustProxy: env.TRUST_PROXY ?? false,
-    bodyLimit: 1024 * 1024, // 1 MiB: la API solo recibe JSON. Archivos: PENDIENTE (P-14).
+    bodyLimit: 1024 * 1024, // 1 MiB: JSON. Las fotos (multipart, 5 MB) tienen sus propios límites: ADR-020.
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
@@ -72,13 +83,28 @@ export async function buildApp(env: Env) {
   await app.register(
     async (api) => {
       await api.register(healthRoutes);
-      await api.register(authRoutes, { prefix: '/auth', sessionTtlHours: env.SESSION_TTL_HOURS });
+      await api.register(authRoutes, {
+        prefix: '/auth',
+        sessionTtlHours: env.SESSION_TTL_HOURS,
+        loginRateLimitMax: env.LOGIN_RATE_LIMIT_MAX,
+      });
       await api.register(suppliersRoutes, { prefix: '/suppliers' });
       await api.register(usersRoutes, { prefix: '/users' });
       await api.register(categoriesRoutes, { prefix: '/categories' });
       await api.register(attributesRoutes, { prefix: '/attributes' });
       await api.register(productsRoutes, { prefix: '/products' });
+      await api.register(productPhotosRoutes, { prefix: '/products' });
+      await api.register(catalogVariantsRoutes, { prefix: '/catalog/variants' });
       await api.register(inventoryRoutes, { prefix: '/inventory' });
+      await api.register(adjustmentsRoutes, { prefix: '/inventory/adjustments' });
+      await api.register(exchangesRoutes, { prefix: '/inventory/exchanges' });
+      await api.register(inventoryCountsRoutes, { prefix: '/inventory/counts' });
+      await api.register(stockEntriesRoutes, { prefix: '/stock-entries' });
+      await api.register(costTypesRoutes, { prefix: '/stock-entry-cost-types' });
+      await api.register(costHistoryRoutes, { prefix: '/products' });
+      await api.register(pricingRoutes, { prefix: '/pricing' });
+      await api.register(approvalsRoutes, { prefix: '/approvals' });
+      await api.register(auditRoutes, { prefix: '/audit' });
     },
     { prefix: API_PREFIX },
   );

@@ -1,8 +1,19 @@
-import { assignUserRolesSchema, updateUserSchema, type UserSummary } from '@joyeria/shared';
+import {
+  assignUserRolesSchema,
+  resetPasswordSchema,
+  updateUserSchema,
+  type UserSummary,
+} from '@joyeria/shared';
 import { useId, useState, type SyntheticEvent } from 'react';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
-import { useAssignUserRoles, useAvailableRoles, useUpdateUser } from './use-users.ts';
+import { useCurrentUser } from '../auth/use-auth.ts';
+import {
+  useAssignUserRoles,
+  useAvailableRoles,
+  useResetUserPassword,
+  useUpdateUser,
+} from './use-users.ts';
 
 export function UserEditor({
   user,
@@ -20,6 +31,10 @@ export function UserEditor({
   const update = useUpdateUser();
   const assign = useAssignUserRoles();
   const roles = useAvailableRoles(canManageRoles);
+  const reset = useResetUserPassword();
+  const { data: currentUser } = useCurrentUser();
+  const [temporaryPassword, setTemporaryPassword] = useState('');
+  const [resetDone, setResetDone] = useState(false);
   const assignedRoleCodes = new Set(user.roles.map((role) => role.code));
   const roleIds =
     selectedRoles ??
@@ -54,6 +69,31 @@ export function UserEditor({
       onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No se pudieron asignar los roles');
+    }
+  }
+
+  async function resetPassword(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setResetDone(false);
+    const result = resetPasswordSchema.safeParse({ temporaryPassword });
+    if (!result.success) {
+      setError(result.error.issues[0]?.message ?? 'Contraseña temporal inválida');
+      return;
+    }
+    if (
+      !window.confirm(
+        `¿Restablecer la contraseña de ${user.name}? Se cerrarán sus sesiones y deberá cambiarla al entrar.`,
+      )
+    ) {
+      return;
+    }
+    setError('');
+    try {
+      await reset.mutateAsync({ id: user.id, input: result.data });
+      setTemporaryPassword('');
+      setResetDone(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'No se pudo restablecer la contraseña');
     }
   }
 
@@ -101,6 +141,43 @@ export function UserEditor({
           Guardar nombre
         </Button>
       </form>
+      {currentUser?.id !== user.id && (
+        <form
+          onSubmit={(event) => void resetPassword(event)}
+          aria-label="Restablecer contraseña"
+          className="space-y-3 border-t border-stone-200 pt-4"
+        >
+          <h3 className="font-medium">Restablecer contraseña</h3>
+          <p className="text-sm text-stone-600">
+            Asigna una contraseña temporal (mínimo 10 caracteres) y comuníquela a la persona. Al
+            iniciar sesión estará obligada a cambiarla.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-52 flex-1">
+              <Input
+                label="Contraseña temporal"
+                type="text"
+                autoComplete="off"
+                value={temporaryPassword}
+                onChange={(event) => {
+                  setTemporaryPassword(event.target.value);
+                  setResetDone(false);
+                }}
+                maxLength={200}
+                required
+              />
+            </div>
+            <Button type="submit" variant="danger" disabled={reset.isPending}>
+              {reset.isPending ? 'Restableciendo…' : 'Restablecer contraseña'}
+            </Button>
+          </div>
+          {resetDone && (
+            <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">
+              Contraseña restablecida. La persona deberá cambiarla al iniciar sesión.
+            </p>
+          )}
+        </form>
+      )}
       {canManageRoles && (
         <div className="space-y-3 border-t border-stone-200 pt-4">
           <h3 className="font-medium">Roles</h3>
@@ -120,7 +197,7 @@ export function UserEditor({
                 <label
                   key={role.id}
                   htmlFor={`${roleIdPrefix}-${role.id}`}
-                  className="inline-flex items-center gap-2 text-sm"
+                  className="inline-flex min-h-10 items-center gap-2 pr-3 text-sm"
                 >
                   <input
                     id={`${roleIdPrefix}-${role.id}`}

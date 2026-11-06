@@ -1,5 +1,6 @@
 import {
   PERMISSIONS,
+  globalInventoryMovementSchema,
   initialStockSchema,
   inventoryItemSchema,
   inventoryMovementSchema,
@@ -18,13 +19,28 @@ const meta = z.object({ page: z.number(), pageSize: z.number(), total: z.number(
 export const inventoryRoutes: FastifyPluginAsyncZod = async (app) => {
   const service = new InventoryService(app.prisma);
   app.get(
+    '/movements',
+    {
+      preValidation: app.requirePermission(PERMISSIONS.INVENTORY_READ),
+      schema: {
+        querystring: pageQuery,
+        response: { 200: z.object({ data: z.array(globalInventoryMovementSchema), meta }) },
+      },
+    },
+    async (request) => service.allMovements(request.query),
+  );
+  app.get(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.INVENTORY_READ),
+      preValidation: app.requirePermission(PERMISSIONS.INVENTORY_READ),
       schema: {
         querystring: pageQuery.extend({
           q: z.string().trim().max(100).default(''),
           level: z.enum(['all', 'OUT', 'LOW', 'OK']).default('all'),
+          initialOnly: z
+            .enum(['true', 'false'])
+            .default('false')
+            .transform((value) => value === 'true'),
         }),
         response: { 200: z.object({ data: z.array(inventoryItemSchema), meta }) },
       },
@@ -34,7 +50,7 @@ export const inventoryRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/:variantId/movements',
     {
-      preHandler: app.requirePermission(PERMISSIONS.INVENTORY_READ),
+      preValidation: app.requirePermission(PERMISSIONS.INVENTORY_READ),
       schema: {
         params,
         querystring: pageQuery,
@@ -46,7 +62,7 @@ export const inventoryRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/:variantId/initial',
     {
-      preHandler: app.requirePermission(PERMISSIONS.INVENTORY_ADJUST),
+      preValidation: app.requirePermission(PERMISSIONS.INVENTORY_INITIAL_STOCK),
       schema: {
         params,
         body: initialStockSchema,

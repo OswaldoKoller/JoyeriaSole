@@ -16,7 +16,7 @@ Los roles iniciales (Administrador, Responsable de inventario, Vendedor) son pre
 - Catálogo de permisos en `packages/shared/src/permissions.ts`, compartido con la UI para mostrar u
   ocultar acciones.
 - Asignación inicial preliminar en el seed. Las acciones sensibles tienen permiso propio:
-  `costs:read`, `prices:manage`, `stock-entries:confirm`, `inventory-counts:approve`, `inventory:adjust`.
+  `costs:read`, `prices:propose`, `prices:approve`, `stock-entries:confirm`, `inventory-counts:approve`, `inventory:adjust`.
 
 ## Alternativas consideradas
 

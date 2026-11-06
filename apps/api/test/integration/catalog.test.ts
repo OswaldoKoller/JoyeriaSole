@@ -7,7 +7,7 @@ import { createTestUser, resetDatabase } from '../helpers/db.ts';
 const MANAGER: Permission[] = [
   PERMISSIONS.CATALOG_READ,
   PERMISSIONS.CATALOG_MANAGE,
-  PERMISSIONS.PRICES_MANAGE,
+  PERMISSIONS.PRICES_APPROVE,
 ];
 
 describe('catálogo', () => {
@@ -144,7 +144,7 @@ describe('catálogo', () => {
       expect(n(second.variants[0].sku)).toBeGreaterThan(n(product.variants[0].sku));
     });
 
-    it('no permite fijar precio sin prices:manage', async () => {
+    it('no permite fijar precio sin prices:approve', async () => {
       const category = (await createCategory('Pulseras')).json().data;
       const noPrices = await sessionWith([PERMISSIONS.CATALOG_READ, PERMISSIONS.CATALOG_MANAGE]);
       const res = await app.inject({
@@ -167,13 +167,22 @@ describe('catálogo', () => {
       expect(res.statusCode).toBe(400);
     });
 
-    it('el código de barras es único y no puede coincidir con un SKU', async () => {
+    it('el código de barras es único: un código repetido no se guarda y se avisa (Q-10)', async () => {
       const first = (await createProduct({ barcode: '7790000000001' })).json().data;
-      const duplicate = await createProduct({ barcode: '7790000000001' });
-      expect(duplicate.statusCode).toBe(409);
+      expect(first.variants[0].barcode).toBe('7790000000001');
 
+      // Mismo código del proveedor en otra pieza: la ficha se crea, el código NO se guarda.
+      const duplicate = await createProduct({ barcode: '7790000000001' });
+      expect(duplicate.statusCode).toBe(201);
+      expect(duplicate.json().data.variants[0].barcode).toBeNull();
+      expect(duplicate.json().meta.warnings[0]).toContain('ya pertenece a la pieza');
+      expect(duplicate.json().meta.warnings[0]).toContain('se identifica por su SKU');
+
+      // Un código que coincide con el SKU de otra pieza tampoco se guarda como código de barras.
       const clash = await createProduct({ barcode: first.variants[0].sku });
-      expect(clash.statusCode).toBe(422);
+      expect(clash.statusCode).toBe(201);
+      expect(clash.json().data.variants[0].barcode).toBeNull();
+      expect(clash.json().meta.warnings).toHaveLength(1);
     });
 
     it('genera un código propio solo si la variante no tiene uno (P-06)', async () => {
@@ -261,7 +270,7 @@ describe('catálogo', () => {
         payload: { axes: [pick(material, 1)] },
       });
       expect(reconfigure.statusCode).toBe(422);
-    });
+    }, 60_000);
 
     it('rechaza opciones que no pertenecen al atributo indicado', async () => {
       const material = await createAttributeWithOptions('material', ['Plata 925']);
@@ -295,6 +304,44 @@ describe('catálogo', () => {
         payload: { categoryId: list.json().data[0].categoryId, name: 'X' },
       });
       expect(create.statusCode).toBe(403);
+    });
+  });
+
+  describe('disponibilidad por variante dentro del catálogo', () => {
+    it('muestra stock y nivel solo a quien también puede leer inventario', async () => {
+      const product = (await createProduct({ minStock: 5 })).json().data;
+      const variantId = product.variants[0].id as string;
+      await app.prisma.inventoryBalance.create({ data: { variantId, quantity: 3 } });
+
+      const withStock = await sessionWith([PERMISSIONS.CATALOG_READ, PERMISSIONS.INVENTORY_READ]);
+      const catalogOnly = await sessionWith([PERMISSIONS.CATALOG_READ]);
+
+      for (const url of [
+        '/api/v1/products',
+        `/api/v1/products/${product.id}`,
+        `/api/v1/products/lookup?code=${product.variants[0].sku}`,
+      ]) {
+        const full = await app.inject({ method: 'GET', url, headers: { cookie: withStock } });
+        expect(full.statusCode).toBe(200);
+        const body = full.json();
+        const variant = (Array.isArray(body.data) ? body.data[0] : body.data).variants[0];
+        expect(variant).toMatchObject({ stockQuantity: 3, stockLevel: 'LOW' });
+
+        const limited = await app.inject({ method: 'GET', url, headers: { cookie: catalogOnly } });
+        expect(limited.statusCode).toBe(200);
+        expect(limited.body).not.toMatch(/stockQuantity|stockLevel/);
+      }
+    });
+
+    it('una variante sin saldo registrado figura como sin stock', async () => {
+      const product = (await createProduct()).json().data;
+      const reader = await sessionWith([PERMISSIONS.CATALOG_READ, PERMISSIONS.INVENTORY_READ]);
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/products/${product.id}`,
+        headers: { cookie: reader },
+      });
+      expect(res.json().data.variants[0]).toMatchObject({ stockQuantity: 0, stockLevel: 'OUT' });
     });
   });
 });

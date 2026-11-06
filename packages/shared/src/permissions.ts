@@ -13,10 +13,14 @@ export const PERMISSIONS = {
 
   CATALOG_READ: 'catalog:read',
   CATALOG_MANAGE: 'catalog:manage',
+  /** Eliminar físicamente una ficha sin movimientos ni referencias (B11). Solo Administrador. */
+  CATALOG_DELETE: 'catalog:delete',
   /** Ver costos de compra. Separado de catalog:read porque puede ser información sensible. */
   COSTS_READ: 'costs:read',
-  /** Cambiar costo o precio de venta. Toda modificación queda en auditoría. */
-  PRICES_MANAGE: 'prices:manage',
+  /** Solicitar cambios de precio de venta (el Administrador los aprueba). ADR-018. */
+  PRICES_PROPOSE: 'prices:propose',
+  /** Aprobar o rechazar solicitudes de precio, cambiar precios directamente y fijar el precio inicial. */
+  PRICES_APPROVE: 'prices:approve',
 
   SUPPLIERS_READ: 'suppliers:read',
   SUPPLIERS_MANAGE: 'suppliers:manage',
@@ -27,14 +31,24 @@ export const PERMISSIONS = {
   STOCK_ENTRIES_CONFIRM: 'stock-entries:confirm',
 
   INVENTORY_READ: 'inventory:read',
+  /** Solicitar ajustes manuales. El stock NO cambia hasta que se aprueba. */
   INVENTORY_ADJUST: 'inventory:adjust',
+  /** Cargar el stock inicial de una pieza (cambia el stock sin aprobación previa). ADMIN y Responsable. */
+  INVENTORY_INITIAL_STOCK: 'inventory:initial-stock',
+  /** Aprobar o rechazar ajustes: es lo único que mueve stock en un ajuste (ADR-017). ADMIN y Responsable (regla 2026-11-05). */
+  INVENTORY_ADJUST_APPROVE: 'inventory:adjust-approve',
+  /** Registrar un cambio de pieza (entra la devuelta, sale la entregada). Mueve stock (ADR-019). */
+  INVENTORY_EXCHANGE: 'inventory:exchange',
 
   INVENTORY_COUNTS_READ: 'inventory-counts:read',
   INVENTORY_COUNTS_MANAGE: 'inventory-counts:manage',
-  /** Aprobar diferencias de un inventario físico (genera ajustes). */
+  /** Aprobar un conteo físico: es lo único que genera los ajustes de stock del conteo (ADR-021). */
   INVENTORY_COUNTS_APPROVE: 'inventory-counts:approve',
 
   AUDIT_READ: 'audit:read',
+
+  /** Configuración del sistema (p. ej. tipos de costo de ingreso). Solo el Administrador. */
+  SETTINGS_MANAGE: 'settings:manage',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -47,19 +61,25 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'roles:manage': 'Administrar roles y sus permisos',
   'catalog:read': 'Ver catálogo (categorías, atributos, productos, variantes)',
   'catalog:manage': 'Crear y editar catálogo',
+  'catalog:delete': 'Eliminar fichas de producto sin movimientos',
   'costs:read': 'Ver costos de compra',
-  'prices:manage': 'Modificar costos y precios de venta',
+  'prices:propose': 'Solicitar cambios de precio de venta',
+  'prices:approve': 'Aprobar o rechazar cambios de precio y cambiar precios directamente',
   'suppliers:read': 'Ver proveedores',
   'suppliers:manage': 'Crear y editar proveedores',
   'stock-entries:read': 'Ver ingresos de mercadería',
   'stock-entries:manage': 'Registrar y editar ingresos en borrador',
   'stock-entries:confirm': 'Confirmar ingresos (actualiza stock)',
   'inventory:read': 'Ver stock y movimientos',
-  'inventory:adjust': 'Registrar ajustes de inventario',
-  'inventory-counts:read': 'Ver inventarios físicos',
-  'inventory-counts:manage': 'Crear inventarios físicos y registrar conteos',
-  'inventory-counts:approve': 'Aprobar diferencias de inventario físico',
+  'inventory:adjust': 'Solicitar ajustes de inventario',
+  'inventory:initial-stock': 'Cargar el stock inicial de una pieza (modifica el stock)',
+  'inventory:adjust-approve': 'Aprobar o rechazar ajustes de inventario (modifica el stock)',
+  'inventory:exchange': 'Registrar cambios de pieza (modifica el stock de dos variantes)',
+  'inventory-counts:read': 'Ver conteos físicos',
+  'inventory-counts:manage': 'Crear conteos físicos y capturar piezas',
+  'inventory-counts:approve': 'Aprobar conteos físicos (ajusta el stock) y regularizar hallazgos',
   'audit:read': 'Ver registro de auditoría',
+  'settings:manage': 'Administrar la configuración del sistema (tipos de costo de ingreso)',
 };
 
 export const ROLES = {
@@ -74,8 +94,9 @@ export type RoleCode = (typeof ROLES)[keyof typeof ROLES];
  * Asignación PRELIMINAR de permisos por rol.
  *
  * Respuestas del cliente (2026-10-09): vendedor sin costos (P-02), responsable de almacén
- * puede aprobar sus propios conteos físicos (P-01 parcial). Falta decidir ajustes manuales;
- * el seed aún no agrega inventory-counts:approve al responsable hasta implementar el conteo.
+ * puede aprobar sus propios conteos físicos (P-01 parcial). Reunión 2026-11-05 (Q-01 B): los
+ * ajustes manuales los solicita el responsable y solo los aprueba el administrador.
+ * Conteo físico (E6/Q-01 B, ADR-021): el Responsable también aprueba los conteos.
  * Solo se usa en el seed inicial; luego los roles se administran en base de datos.
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<
@@ -94,14 +115,26 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
       PERMISSIONS.CATALOG_READ,
       PERMISSIONS.CATALOG_MANAGE,
       PERMISSIONS.COSTS_READ,
+      PERMISSIONS.PRICES_PROPOSE,
       PERMISSIONS.SUPPLIERS_READ,
       PERMISSIONS.SUPPLIERS_MANAGE,
       PERMISSIONS.STOCK_ENTRIES_READ,
       PERMISSIONS.STOCK_ENTRIES_MANAGE,
       PERMISSIONS.STOCK_ENTRIES_CONFIRM,
       PERMISSIONS.INVENTORY_READ,
+      // Regla 2026-11-05 (tras Q-01 B): el Responsable también autoriza —ajustes, precios, stock
+      // inicial y conteos—, para que ningún trámite quede bloqueado esperando solo al Administrador.
+      // Lo único exclusivo del Administrador sigue siendo auditoría, usuarios/roles y borrado físico.
+      PERMISSIONS.INVENTORY_ADJUST,
+      PERMISSIONS.INVENTORY_ADJUST_APPROVE,
+      PERMISSIONS.INVENTORY_INITIAL_STOCK,
+      PERMISSIONS.PRICES_APPROVE,
+      // Registra cambios de pieza (ADR-019). El Vendedor NO: quién los registra en el punto de venta
+      // futuro está pendiente (P-30).
+      PERMISSIONS.INVENTORY_EXCHANGE,
       PERMISSIONS.INVENTORY_COUNTS_READ,
       PERMISSIONS.INVENTORY_COUNTS_MANAGE,
+      PERMISSIONS.INVENTORY_COUNTS_APPROVE,
     ],
   },
   SELLER: {

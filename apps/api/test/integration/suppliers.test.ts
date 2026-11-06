@@ -76,7 +76,123 @@ describe('proveedores', () => {
         })
       ).statusCode,
     ).toBe(400);
+    for (const payload of [
+      { name: 'Sol', type: 'OTRO' },
+      { name: 'Sol', defaultCurrency: 'EUR' },
+      { name: 'Sol', country: 'x'.repeat(81) },
+      { name: 'Sol', paymentTerms: 'x'.repeat(301) },
+    ]) {
+      expect((await app.inject({ method: 'POST', url, headers, payload })).statusCode).toBe(400);
+    }
+    expect((await app.inject({ method: 'GET', url: `${url}?type=OTRO`, headers })).statusCode).toBe(
+      400,
+    );
     expect(await app.prisma.supplier.count()).toBe(0);
+  });
+
+  it('aplica valores por defecto (nacional, bolivianos) y expone los campos nuevos', async () => {
+    const cookie = await session([PERMISSIONS.SUPPLIERS_READ, PERMISSIONS.SUPPLIERS_MANAGE]);
+    const headers = { cookie };
+    const minimal = await app.inject({ method: 'POST', url, headers, payload: { name: 'Mínimo' } });
+    expect(minimal.statusCode).toBe(201);
+    expect(minimal.json().data).toMatchObject({
+      name: 'Mínimo',
+      type: 'NATIONAL',
+      defaultCurrency: 'BOB',
+      country: null,
+      whatsapp: null,
+      paymentTerms: null,
+    });
+    const foreign = await app.inject({
+      method: 'POST',
+      url,
+      headers,
+      payload: {
+        name: 'Importadora Sol',
+        type: 'FOREIGN',
+        country: '  China ',
+        whatsapp: '+86 130 0000 0000',
+        defaultCurrency: 'USD',
+        paymentTerms: '50% anticipo, 50% contra embarque',
+      },
+    });
+    expect(foreign.statusCode).toBe(201);
+    expect(foreign.json().data).toMatchObject({
+      type: 'FOREIGN',
+      country: 'China',
+      whatsapp: '+86 130 0000 0000',
+      defaultCurrency: 'USD',
+      paymentTerms: '50% anticipo, 50% contra embarque',
+    });
+  });
+
+  it('una edición parcial no reinicia tipo ni moneda y audita el valor anterior y el nuevo', async () => {
+    const cookie = await session([PERMISSIONS.SUPPLIERS_READ, PERMISSIONS.SUPPLIERS_MANAGE]);
+    const headers = { cookie };
+    const created = (
+      await app.inject({
+        method: 'POST',
+        url,
+        headers,
+        payload: { name: 'Importadora', type: 'FOREIGN', country: 'China', defaultCurrency: 'USD' },
+      })
+    ).json().data;
+    const edited = await app.inject({
+      method: 'PATCH',
+      url: `${url}/${created.id}`,
+      headers,
+      payload: { contactName: 'Li', country: 'Hong Kong', paymentTerms: '30 días' },
+    });
+    expect(edited.statusCode).toBe(200);
+    expect(edited.json().data).toMatchObject({
+      type: 'FOREIGN',
+      defaultCurrency: 'USD',
+      country: 'Hong Kong',
+    });
+    const back = await app.inject({
+      method: 'PATCH',
+      url: `${url}/${created.id}`,
+      headers,
+      payload: { type: 'NATIONAL', defaultCurrency: 'BOB', country: null },
+    });
+    expect(back.json().data).toMatchObject({
+      type: 'NATIONAL',
+      defaultCurrency: 'BOB',
+      country: null,
+    });
+    const logs = await app.prisma.auditLog.findMany({
+      where: { entityId: created.id, action: 'supplier.updated' },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(logs).toHaveLength(2);
+    expect(logs[0]?.before).toMatchObject({ country: 'China', paymentTerms: null });
+    expect(logs[0]?.after).toMatchObject({ country: 'Hong Kong', paymentTerms: '30 días' });
+    expect(logs[1]?.before).toMatchObject({ type: 'FOREIGN', defaultCurrency: 'USD' });
+    expect(logs[1]?.after).toMatchObject({ type: 'NATIONAL', defaultCurrency: 'BOB' });
+  });
+
+  it('filtra por tipo y busca por país y persona de contacto además de nombre y NIT', async () => {
+    const cookie = await session([PERMISSIONS.SUPPLIERS_READ]);
+    const headers = { cookie };
+    await app.prisma.supplier.createMany({
+      data: [
+        { name: 'Alfa', taxId: '111', contactName: 'Rosa Quispe' },
+        { name: 'Beta', type: 'FOREIGN', country: 'China', defaultCurrency: 'USD' },
+        { name: 'Gamma', type: 'FOREIGN', country: 'Turquía', contactName: 'Mehmet' },
+      ],
+    });
+    const names = async (query: string): Promise<string[]> => {
+      const response = await app.inject({ method: 'GET', url: `${url}?${query}`, headers });
+      return response.json<{ data: { name: string }[] }>().data.map((item) => item.name);
+    };
+    expect(await names('type=FOREIGN')).toEqual(['Beta', 'Gamma']);
+    expect(await names('type=NATIONAL')).toEqual(['Alfa']);
+    expect(await names('type=all')).toEqual(['Alfa', 'Beta', 'Gamma']);
+    expect(await names('q=chin')).toEqual(['Beta']);
+    expect(await names('q=quispe')).toEqual(['Alfa']);
+    expect(await names('q=turq&type=FOREIGN')).toEqual(['Gamma']);
+    expect(await names('q=turq&type=NATIONAL')).toEqual([]);
+    expect(await names('q=111')).toEqual(['Alfa']);
   });
 
   it('crea, consulta, edita y desactiva dejando auditoría íntegra', async () => {

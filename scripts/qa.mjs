@@ -5,7 +5,17 @@ import process from 'node:process';
 import { setTimeout } from 'node:timers/promises';
 
 const mode = process.argv[2] ?? 'all';
-if (!['all', 'e2e'].includes(mode)) throw new Error('Modo permitido: all o e2e');
+if (!['all', 'check', 'api', 'e2e'].includes(mode))
+  throw new Error('Modo permitido: all, check, api o e2e');
+const specFilters = process.argv.slice(3);
+if (
+  specFilters.length &&
+  ((mode === 'e2e' && specFilters.some((spec) => !/^[a-z0-9-]+\.spec\.ts$/.test(spec))) ||
+    (mode === 'api' && specFilters.some((spec) => !/^[a-z0-9-]+\.test\.ts$/.test(spec))) ||
+    (mode !== 'e2e' && mode !== 'api'))
+) {
+  throw new Error('Filtro permitido: archivos *.spec.ts para E2E o *.test.ts para API');
+}
 const npmCli = process.env.npm_execpath;
 if (!npmCli) throw new Error('Ejecutar mediante npm run qa o npm run qa:e2e');
 
@@ -71,22 +81,31 @@ try {
     ...process.env,
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
-    SESSION_TTL_HOURS: '3',
+    SESSION_TTL_HOURS: '8',
     DATABASE_URL: url,
     TEST_DATABASE_URL: url,
     AUTH_SECRET: randomBytes(48).toString('hex'),
     SEED_ADMIN_EMAIL: 'qa-admin@example.invalid',
     SEED_ADMIN_PASSWORD: randomBytes(24).toString('hex'),
     SEED_ADMIN_NAME: 'Administrador de pruebas',
+    DEMO_USER_PASSWORD: randomBytes(24).toString('hex'),
     COOKIE_SECURE: 'false',
     TRUST_PROXY: 'false',
     WEB_DIST_DIR: '',
   };
   npm(['run', 'db:generate'], env);
-  if (mode === 'all') npm(['run', 'check'], env);
-  npm(['run', 'db:deploy'], env);
-  npm(['run', 'db:seed'], env);
-  npm(['run', 'test:e2e'], env);
+  if (mode === 'all' || mode === 'check') npm(['run', 'check'], env);
+  if (mode === 'api')
+    npm(
+      ['run', 'test', '-w', '@joyeria/api', ...(specFilters.length ? ['--', ...specFilters] : [])],
+      env,
+    );
+  if (mode === 'all' || mode === 'e2e') {
+    npm(['run', 'db:deploy'], env);
+    npm(['run', 'db:seed'], env);
+    npm(['run', 'db:seed:demo'], env);
+    npm(['run', 'test:e2e', ...(specFilters.length ? ['--', ...specFilters] : [])], env);
+  }
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Falló la verificación');
   process.exitCode = 1;

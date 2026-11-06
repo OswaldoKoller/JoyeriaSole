@@ -8,6 +8,7 @@ import { useState, type SyntheticEvent } from 'react';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
+import { sortBySuggestedUse } from './attribute-values.ts';
 import { useAttributes } from './use-attributes.ts';
 import { useConfigureAxes, useCreateVariant } from './use-products.ts';
 
@@ -16,10 +17,13 @@ export function ConfigureAxesForm({ product, onClose }: { product: Product; onCl
   const configure = useConfigureAxes();
   const [axes, setAxes] = useState([{ attributeId: '', optionId: '' }]);
   const [error, setError] = useState('');
-  const choices =
+  // Primero los atributos sugeridos como eje de variante (B2); cualquier lista puede usarse.
+  const choices = sortBySuggestedUse(
     attributes.data?.data.filter(
       (item) => item.dataType === 'OPTION' && item.options.some((option) => option.isActive),
-    ) ?? [];
+    ) ?? [],
+    'VARIANT_AXIS',
+  );
 
   function update(index: number, attributeId: string, optionId: string) {
     setAxes((current) =>
@@ -137,7 +141,12 @@ export function ConfigureAxesForm({ product, onClose }: { product: Product; onCl
             Quitar último eje
           </Button>
         )}
-        <Button variant="secondary" onClick={onClose}>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            onClose();
+          }}
+        >
           Cancelar
         </Button>
       </div>
@@ -145,8 +154,15 @@ export function ConfigureAxesForm({ product, onClose }: { product: Product; onCl
   );
 }
 
-export function CreateVariantForm({ product, onClose }: { product: Product; onClose: () => void }) {
-  const canPrice = useHasPermission(PERMISSIONS.PRICES_MANAGE);
+export function CreateVariantForm({
+  product,
+  onClose,
+}: {
+  product: Product;
+  /** `warnings`: avisos no bloqueantes (p. ej. código del proveedor repetido). */
+  onClose: (warnings?: string[]) => void;
+}) {
+  const canPrice = useHasPermission(PERMISSIONS.PRICES_APPROVE);
   const create = useCreateVariant();
   const [options, setOptions] = useState<Record<string, string>>({});
   const [barcode, setBarcode] = useState('');
@@ -171,8 +187,8 @@ export function CreateVariantForm({ product, onClose }: { product: Product; onCl
     }
     setError('');
     try {
-      await create.mutateAsync({ productId: product.id, input: parsed.data });
-      onClose();
+      const result = await create.mutateAsync({ productId: product.id, input: parsed.data });
+      onClose(result.meta.warnings);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No se pudo crear la variante');
     }
@@ -219,7 +235,7 @@ export function CreateVariantForm({ product, onClose }: { product: Product; onCl
           maxLength={64}
         />
         <Input
-          label="Stock mínimo en piezas"
+          label="Stock mínimo en piezas (0 = sin alerta)"
           type="number"
           min={0}
           step={1}
@@ -230,7 +246,7 @@ export function CreateVariantForm({ product, onClose }: { product: Product; onCl
         />
         {canPrice && (
           <Input
-            label="Precio de venta de la variante (Bs, opcional)"
+            label="Precio de venta inicial de la variante (neto, Bs)"
             inputMode="decimal"
             value={salePrice}
             onChange={(event) => {
@@ -248,7 +264,12 @@ export function CreateVariantForm({ product, onClose }: { product: Product; onCl
         <Button type="submit" disabled={create.isPending}>
           Guardar variante
         </Button>
-        <Button variant="secondary" onClick={onClose}>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            onClose();
+          }}
+        >
           Cancelar
         </Button>
       </div>

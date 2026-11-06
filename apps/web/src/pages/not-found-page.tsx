@@ -6,7 +6,7 @@ export function NotFoundPage() {
     <FullPageMessage>
       <span>
         Página no encontrada.{' '}
-        <Link to="/" className="text-brand-600 underline">
+        <Link to="/" className="inline-flex min-h-10 items-center text-brand-600 underline">
           Volver al inicio
         </Link>
       </span>

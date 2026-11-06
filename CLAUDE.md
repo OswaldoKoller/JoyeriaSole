@@ -8,7 +8,7 @@
 Sistema web de inventario para una tienda de joyería y productos de moda (Bolivia). Pyme, pocos
 usuarios, acceso desde Internet.
 
-**Fase actual:** F1-01 Proveedores implementado y F1-02 Usuarios en desarrollo tras indicación del cliente el 2026-10-09; ver `docs/engineering/PHASE-1-PREPARATION.md`. **Alcance de Fase 1:** catálogo (categorías,
+**Fase actual:** Fase 1 implementada en la rama de integración tras las reuniones del 2026-11-05 (catálogo, ingresos, precios, inventario, ajustes, conteos, usuarios); ver `docs/engineering/PLAN-DESARROLLO-F1-2026-11.md` §12. **Alcance de Fase 1:** catálogo (categorías,
 atributos, productos, variantes, SKU, códigos de barras, proveedores, costos, precios, stock mínimo,
 estado), ingresos de mercadería, inventario (saldos, movimientos, ajustes, inventario físico),
 control (sin stock, bajo mínimo, historial) y usuarios/roles/permisos.
@@ -63,18 +63,29 @@ Shell en Windows: Git Bash/PowerShell. `.env` está en la **raíz** del repo.
 3. El stock **nunca se edita directamente**: todo cambio es un movimiento en `inventory_movements`
    (append-only) y actualiza `inventory_balances` en la **misma transacción** (ADR-007).
 4. Un **ingreso** no cambia el stock hasta ser **confirmado** (ADR-008).
-5. Los **ajustes** requieren autorización y dejan trazabilidad completa (quién, cuándo, variante,
+5. Los **ajustes** requieren autorización (la dan el Administrador **o** el Responsable de inventario,
+   regla del cliente 2026-11-05; el flujo solicitar → aprobar sigue para roles con solo
+   `inventory:adjust`) y dejan trazabilidad completa (quién, cuándo, variante,
    cantidad anterior/nueva, diferencia, motivo, observación) (ADR-009).
 6. Acciones importantes quedan en **auditoría** (`audit_logs`) en la misma transacción (ADR-010).
-7. Roles iniciales preliminares: Administrador, Responsable de inventario, Vendedor.
+7. Roles iniciales preliminares: Administrador, Responsable de inventario, Vendedor. Autorizan
+   (ajustes, precios, stock inicial, conteos) el Administrador y el Responsable; exclusivos del
+   Administrador: auditoría, usuarios/roles, borrado físico y configuración.
+8. **Sesión fija de 8 horas** desde el login, sin extensión por actividad (P-19, Q-02; ADR-003).
+9. **Sin stock negativo** (P-08): `CHECK (quantity >= 0)` en `inventory_balances` además de la validación del servicio.
+10. **No se desactiva un producto o variante con stock > 0** (P-22): error `STOCK_BLOCKS_DEACTIVATION`; primero un ajuste de salida a cero.
+11. La contraseña olvidada la restablece el Administrador con una clave **temporal** que debe cambiarse al entrar (F2); mientras tanto la API responde `PASSWORD_CHANGE_REQUIRED`.
+12. El Vendedor no ve costos ni valorizaciones en ninguna respuesta (P-02, Q-15.2); la auditoría es solo del Administrador.
 
 ## Decisiones PENDIENTES — no convertir en reglas
 
 Ver `docs/business/PENDIENTES.md` y `docs/business/RESOLUCIONES-2026-10-09.md`. Las más sensibles que siguen pendientes o parciales:
 
-- **P-03: "Costo total × 2 = precio de venta" — PENDIENTE DE CONFIRMACIÓN.** No implementar como regla.
-- P-06 detalles de códigos/QR · P-07 prorrateo y método de costeo ·
-  P-01 ajustes manuales · P-13 alcance del inventario físico.
+- **P-03: SUSTITUIDA (2026-11-05).** El cliente fija el precio de venta de cada ítem a mano; NO hay
+  multiplicador ni redondeo ni sugerencia (ADR-018). No implementar "costo × 2".
+- Resueltas e implementadas: P-01 (ajustes, precios y conteos: solicita y autoriza el Responsable o el
+  Administrador), P-07 (prorrateo exacto, ADR-015/016), P-13 (conteo a ciegas por
+  categoría, ADR-021). Siguen abiertas las de `docs/business/PENDIENTES.md` (p. ej. P-06 detalles de QR).
 
 Si una tarea depende de una decisión pendiente: **detenerse y preguntar**, proponer alternativas, no asumir.
 Si se descubre una decisión no listada: agregarla a PENDIENTES.md.

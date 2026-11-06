@@ -2,6 +2,7 @@ import {
   PERMISSIONS,
   createSupplierSchema,
   supplierSchema,
+  supplierTypeSchema,
   updateSupplierSchema,
 } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -14,6 +15,7 @@ const listQuery = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
   q: z.string().trim().max(100).default(''),
   status: z.enum(['all', 'active', 'inactive']).default('all'),
+  type: z.union([z.literal('all'), supplierTypeSchema]).default('all'),
 });
 const itemResponse = z.object({ data: supplierSchema });
 
@@ -23,7 +25,7 @@ export const suppliersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.SUPPLIERS_READ),
+      preValidation: app.requirePermission(PERMISSIONS.SUPPLIERS_READ),
       schema: {
         querystring: listQuery,
         response: {
@@ -40,7 +42,7 @@ export const suppliersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.SUPPLIERS_READ),
+      preValidation: app.requirePermission(PERMISSIONS.SUPPLIERS_READ),
       schema: { params: idParams, response: { 200: itemResponse } },
     },
     async (request) => ({ data: await service.get(request.params.id) }),
@@ -49,7 +51,7 @@ export const suppliersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
       schema: { body: createSupplierSchema, response: { 201: itemResponse } },
     },
     async (request, reply) =>
@@ -59,7 +61,7 @@ export const suppliersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
       schema: { params: idParams, body: updateSupplierSchema, response: { 200: itemResponse } },
     },
     async (request) => ({ data: await service.update(request.params.id, request.body, request) }),

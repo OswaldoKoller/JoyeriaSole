@@ -47,12 +47,33 @@ export const errorHandlerPlugin = fp(
           return send(409, {
             code: ERROR_CODES.CONFLICT,
             message: 'Ya existe un registro con esos datos únicos',
-            details: { fields: error.meta?.target },
+          });
+        }
+        if (error.code === 'P2003') {
+          // Clave foránea: otro registro depende de este (p. ej. eliminar algo con historial).
+          return send(422, {
+            code: ERROR_CODES.BUSINESS_RULE_VIOLATION,
+            message: 'No se puede completar la operación: hay registros que dependen de este.',
           });
         }
         if (error.code === 'P2025') {
           return send(404, { code: ERROR_CODES.NOT_FOUND, message: 'Recurso no encontrado' });
         }
+      }
+
+      // Subidas de archivos (@fastify/multipart): archivo o cuerpo demasiado grande, demasiadas partes.
+      if (
+        error.statusCode === 413 ||
+        error.code === 'FST_REQ_FILE_TOO_LARGE' ||
+        error.code === 'FST_FILES_LIMIT' ||
+        error.code === 'FST_PARTS_LIMIT' ||
+        error.code === 'FST_FIELDS_LIMIT'
+      ) {
+        return send(413, {
+          code: ERROR_CODES.PAYLOAD_TOO_LARGE,
+          message:
+            'El archivo supera el tamaño máximo permitido o la solicitud es demasiado grande.',
+        });
       }
 
       if (error.statusCode === 429) {

@@ -1,4 +1,4 @@
-import { changePasswordSchema, loginSchema } from '@joyeria/shared';
+import { changePasswordSchema, loginResultSchema, loginSchema } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { getAuth } from '../../plugins/auth.ts';
@@ -10,28 +10,29 @@ const authUserSchema = z.object({
   name: z.string(),
   roles: z.array(z.string()),
   permissions: z.array(z.string()),
+  mustChangePassword: z.boolean(),
 });
 
-export const authRoutes: FastifyPluginAsyncZod<{ sessionTtlHours: number }> = async (
-  app,
-  { sessionTtlHours },
-) => {
+export const authRoutes: FastifyPluginAsyncZod<{
+  sessionTtlHours: number;
+  loginRateLimitMax: number;
+}> = async (app, { sessionTtlHours, loginRateLimitMax }) => {
   const service = new AuthService(app.prisma, sessionTtlHours);
 
   app.post(
     '/login',
     {
       // Límite estricto contra fuerza bruta (además del límite global).
-      config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+      config: { rateLimit: { max: loginRateLimitMax, timeWindow: '15 minutes' } },
       schema: {
         body: loginSchema,
-        response: { 204: z.null() },
+        response: { 200: z.object({ data: loginResultSchema }) },
       },
     },
     async (request, reply) => {
-      const { token, expiresAt } = await service.login(request.body, request);
+      const { token, expiresAt, mustChangePassword } = await service.login(request.body, request);
       app.sessionCookie.set(reply, token, expiresAt);
-      return reply.status(204).send(null);
+      return reply.status(200).send({ data: { mustChangePassword } });
     },
   );
 
@@ -59,7 +60,7 @@ export const authRoutes: FastifyPluginAsyncZod<{ sessionTtlHours: number }> = as
     '/change-password',
     {
       preHandler: app.authenticate,
-      config: { rateLimit: { max: 10, timeWindow: '15 minutes' } },
+      config: { rateLimit: { max: loginRateLimitMax, timeWindow: '15 minutes' } },
       schema: { body: changePasswordSchema, response: { 204: z.null() } },
     },
     async (request, reply) => {

@@ -1,9 +1,16 @@
-import { PERMISSIONS, initialStockSchema, type InventoryItem } from '@joyeria/shared';
+import {
+  PERMISSIONS,
+  initialStockSchema,
+  movementTypeLabel,
+  type InventoryItem,
+} from '@joyeria/shared';
 import { useState, type SyntheticEvent } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
 import { useInitialStock, useInventory, useInventoryMovements } from './use-inventory.ts';
+import { PieceImage } from '../catalog/photos/piece-image.tsx';
 
 const levelLabels = { OUT: 'Sin stock', LOW: 'Bajo mínimo', OK: 'Disponible' };
 const dateTime = new Intl.DateTimeFormat('es-BO', {
@@ -13,17 +20,21 @@ const dateTime = new Intl.DateTimeFormat('es-BO', {
 });
 
 export function InventoryPage() {
+  const [searchParams] = useSearchParams();
+  const requestedSku = searchParams.get('sku') ?? '';
+  const initialOnly = searchParams.get('accion') === 'inicial';
   const canAdjust = useHasPermission(PERMISSIONS.INVENTORY_ADJUST);
+  const canInitialize = useHasPermission(PERMISSIONS.INVENTORY_INITIAL_STOCK);
   const [page, setPage] = useState(1);
-  const [draftSearch, setDraftSearch] = useState('');
-  const [search, setSearch] = useState('');
+  const [draftSearch, setDraftSearch] = useState(requestedSku);
+  const [search, setSearch] = useState(requestedSku);
   const [level, setLevel] = useState('all');
   const [selected, setSelected] = useState<InventoryItem | null>(null);
   const [initialFor, setInitialFor] = useState<string | null>(null);
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState('Stock inicial');
   const [error, setError] = useState('');
-  const list = useInventory(page, search, level);
+  const list = useInventory(page, search, level, initialOnly);
   const movements = useInventoryMovements(selected?.variantId ?? null);
   const initial = useInitialStock();
   const items = list.data?.data ?? [];
@@ -56,7 +67,7 @@ export function InventoryPage() {
   return (
     <section className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Inventario</h1>
+        <h1 className="text-2xl font-semibold">{initialOnly ? 'Stock inicial' : 'Inventario'}</h1>
         <p className="text-sm text-stone-600">
           Saldos por variante, alertas e historial de movimientos.
         </p>
@@ -114,7 +125,7 @@ export function InventoryPage() {
         )}
         {list.isSuccess && items.length > 0 && (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="table-cards w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
                   <th className="py-2 pr-4">Producto / variante</th>
@@ -129,15 +140,28 @@ export function InventoryPage() {
                 {items.map((item) => (
                   <tr key={item.variantId} className="border-b border-stone-100">
                     <td className="py-3 pr-4">
-                      {item.productName}
-                      {item.variantLabel && item.variantLabel !== 'Única'
-                        ? ` · ${item.variantLabel}`
-                        : ''}
+                      <div className="flex items-center gap-3">
+                        <PieceImage variantId={item.variantId} />
+                        <span>
+                          {item.productName}
+                          {item.variantLabel && item.variantLabel !== 'Única'
+                            ? ` · ${item.variantLabel}`
+                            : ''}
+                        </span>
+                      </div>
                     </td>
-                    <td className="py-3 pr-4">{item.sku}</td>
-                    <td className="py-3 pr-4 font-semibold">{item.quantity}</td>
-                    <td className="py-3 pr-4">{item.minStock}</td>
-                    <td className="py-3 pr-4">{levelLabels[item.level]}</td>
+                    <td data-label="SKU" className="py-3 pr-4">
+                      {item.sku}
+                    </td>
+                    <td data-label="Piezas" className="py-3 pr-4 font-semibold">
+                      {item.quantity}
+                    </td>
+                    <td data-label="Mínimo" className="py-3 pr-4">
+                      {item.minStock}
+                    </td>
+                    <td data-label="Estado" className="py-3 pr-4">
+                      {levelLabels[item.level]}
+                    </td>
                     <td className="flex flex-wrap gap-2 py-2">
                       <Button
                         variant="secondary"
@@ -147,7 +171,16 @@ export function InventoryPage() {
                       >
                         Historial de {item.sku}
                       </Button>
-                      {canAdjust && item.canInitialize && (
+                      {canAdjust && item.quantity > 0 && (
+                        <Link
+                          to={`/inventario/ajustes/nuevo?sku=${encodeURIComponent(item.sku)}&cero=1`}
+                          aria-label={`Ajustar a cero ${item.sku}`}
+                          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+                        >
+                          Ajustar a cero
+                        </Link>
+                      )}
+                      {canInitialize && item.canInitialize && (
                         <Button
                           variant="secondary"
                           onClick={() => {
@@ -259,8 +292,8 @@ export function InventoryPage() {
             <ol className="space-y-2">
               {movements.data.data.map((movement) => (
                 <li key={movement.id} className="border-t border-stone-100 pt-2 text-sm">
-                  {dateTime.format(new Date(movement.createdAt))} · {movement.type} ·{' '}
-                  {movement.quantity > 0 ? '+' : ''}
+                  {dateTime.format(new Date(movement.createdAt))} ·{' '}
+                  {movementTypeLabel(movement.type)} · {movement.quantity > 0 ? '+' : ''}
                   {movement.quantity} piezas · saldo {movement.balanceBefore} →{' '}
                   {movement.balanceAfter}
                   {movement.reason ? ` · ${movement.reason}` : ''}

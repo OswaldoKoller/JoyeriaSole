@@ -1,6 +1,7 @@
 import type {
   AssignUserRolesInput,
   CreateUserInput,
+  ResetPasswordInput,
   RoleSummary,
   UpdateUserInput,
   UserSummary,
@@ -53,6 +54,15 @@ export function useCreateUser() {
   const refresh = useRefreshUsers();
   return useMutation({
     mutationFn: (input: CreateUserInput) => api.post<{ data: UserSummary }>('/users', input),
+    onSuccess: refresh,
+  });
+}
+
+export function useResetUserPassword() {
+  const refresh = useRefreshUsers();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ResetPasswordInput }) =>
+      api.post<{ data: UserSummary }>(`/users/${id}/reset-password`, input),
     onSuccess: refresh,
   });
 }

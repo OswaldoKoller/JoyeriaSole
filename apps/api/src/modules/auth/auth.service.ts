@@ -60,7 +60,7 @@ export class AuthService {
       await recordAudit(tx, { action: 'auth.login', userId: user.id }, request);
     });
 
-    return { token, expiresAt };
+    return { token, expiresAt, mustChangePassword: user.mustChangePassword };
   }
 
   async logout(sessionId: string, userId: string, request: FastifyRequest) {
@@ -82,9 +82,13 @@ export class AuthService {
       if (!(await verifyPassword(user.passwordHash, input.currentPassword))) {
         throw new ValidationError('Contraseña actual incorrecta');
       }
+      // Con clave temporal (F2) la nueva debe ser distinta: si no, el restablecimiento no serviría.
+      if (user.mustChangePassword && input.newPassword === input.currentPassword) {
+        throw new ValidationError('La nueva contraseña debe ser distinta de la temporal');
+      }
       await tx.user.update({
         where: { id: userId },
-        data: { passwordHash: await hashPassword(input.newPassword) },
+        data: { passwordHash: await hashPassword(input.newPassword), mustChangePassword: false },
       });
       await tx.session.updateMany({
         where: { userId, revokedAt: null },

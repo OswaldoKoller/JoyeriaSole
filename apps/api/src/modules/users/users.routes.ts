@@ -2,6 +2,7 @@ import {
   PERMISSIONS,
   assignUserRolesSchema,
   createUserSchema,
+  resetPasswordSchema,
   roleSummarySchema,
   updateUserSchema,
   userSummarySchema,
@@ -23,7 +24,7 @@ export const usersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/roles',
     {
-      preHandler: app.requirePermission(PERMISSIONS.USERS_READ, PERMISSIONS.ROLES_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.USERS_READ, PERMISSIONS.ROLES_MANAGE),
       schema: { response: { 200: z.object({ data: z.array(roleSummarySchema) }) } },
     },
     async () => ({ data: await service.roles() }),
@@ -32,7 +33,7 @@ export const usersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.USERS_READ),
+      preValidation: app.requirePermission(PERMISSIONS.USERS_READ),
       schema: {
         querystring: listQuery,
         response: {
@@ -49,7 +50,7 @@ export const usersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/',
     {
-      preHandler: app.requirePermission(PERMISSIONS.USERS_MANAGE, PERMISSIONS.ROLES_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.USERS_MANAGE, PERMISSIONS.ROLES_MANAGE),
       schema: { body: createUserSchema, response: { 201: z.object({ data: userSummarySchema }) } },
     },
     async (request, reply) =>
@@ -59,7 +60,7 @@ export const usersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.USERS_READ),
+      preValidation: app.requirePermission(PERMISSIONS.USERS_READ),
       schema: {
         params: z.object({ id: z.uuid() }),
         response: { 200: z.object({ data: userSummarySchema }) },
@@ -71,7 +72,7 @@ export const usersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.patch(
     '/:id',
     {
-      preHandler: app.requirePermission(PERMISSIONS.USERS_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.USERS_MANAGE),
       schema: {
         params: z.object({ id: z.uuid() }),
         body: updateUserSchema,
@@ -81,10 +82,25 @@ export const usersRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => ({ data: await service.update(request.params.id, request.body, request) }),
   );
 
+  app.post(
+    '/:id/reset-password',
+    {
+      preValidation: app.requirePermission(PERMISSIONS.USERS_MANAGE),
+      schema: {
+        params: z.object({ id: z.uuid() }),
+        body: resetPasswordSchema,
+        response: { 200: z.object({ data: userSummarySchema }) },
+      },
+    },
+    async (request) => ({
+      data: await service.resetPassword(request.params.id, request.body, request),
+    }),
+  );
+
   app.put(
     '/:id/roles',
     {
-      preHandler: app.requirePermission(PERMISSIONS.USERS_MANAGE, PERMISSIONS.ROLES_MANAGE),
+      preValidation: app.requirePermission(PERMISSIONS.USERS_MANAGE, PERMISSIONS.ROLES_MANAGE),
       schema: {
         params: z.object({ id: z.uuid() }),
         body: assignUserRolesSchema,

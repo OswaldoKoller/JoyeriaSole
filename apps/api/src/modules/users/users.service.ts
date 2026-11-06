@@ -1,9 +1,20 @@
-import type { AssignUserRolesInput, CreateUserInput, UpdateUserInput } from '@joyeria/shared';
+import type {
+  AssignUserRolesInput,
+  CreateUserInput,
+  ResetPasswordInput,
+  UpdateUserInput,
+} from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import type { Prisma } from '../../generated/prisma/client.ts';
-import { BusinessRuleError, NotFoundError, ValidationError } from '../../lib/errors.ts';
+import {
+  BusinessRuleError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../../lib/errors.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { hashPassword } from '../../lib/password.ts';
+import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 
 const withRoles = { roles: { include: { role: true } } } satisfies Prisma.UserInclude;
@@ -15,6 +26,7 @@ function toResponse(user: UserWithRoles) {
     email: user.email,
     name: user.name,
     isActive: user.isActive,
+    mustChangePassword: user.mustChangePassword,
     roles: user.roles.map(({ role }) => ({ code: role.code, name: role.name })),
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
@@ -105,9 +117,21 @@ export class UsersService {
       throw new BusinessRuleError('No se puede quitar el último administrador activo');
   }
 
+  /**
+   * Una cuenta con rol ADMIN solo la modifica otro Administrador: evita que un rol personalizado con
+   * `users:manage` (sin `roles:manage`) restablezca la clave de un Administrador y escale privilegios.
+   */
+  private assertCanTouch(target: UserWithRoles, request: FastifyRequest) {
+    const targetIsAdmin = target.roles.some(({ role }) => role.code === 'ADMIN');
+    if (targetIsAdmin && !getAuth(request).user.roles.includes('ADMIN')) {
+      throw new ForbiddenError('Solo un Administrador puede modificar a otro Administrador');
+    }
+  }
+
   async update(id: string, input: UpdateUserInput, request: FastifyRequest) {
     return this.prisma.$transaction(async (tx) => {
       const previous = await this.lockedUser(tx, id);
+      this.assertCanTouch(previous, request);
       if (input.isActive === false && previous.isActive) await this.protectLastAdmin(tx, previous);
       const next = await tx.user.update({ where: { id }, data: input, include: withRoles });
       if (input.isActive === false && previous.isActive) {
@@ -135,6 +159,44 @@ export class UsersService {
         request,
       );
       return after;
+    });
+  }
+
+  /**
+   * Restablecimiento por el Administrador (F2): asigna una clave TEMPORAL que la persona debe
+   * cambiar en su siguiente inicio de sesión, y cierra todas sus sesiones. Ni la clave ni su hash
+   * se registran en la auditoría.
+   */
+  async resetPassword(id: string, input: ResetPasswordInput, request: FastifyRequest) {
+    if (id === getAuth(request).user.id) {
+      // Un administrador no se deja sin acceso por error: su propia clave se cambia en «Mi cuenta».
+      throw new BusinessRuleError('Para cambiar su propia contraseña use «Mi cuenta»');
+    }
+    const passwordHash = await hashPassword(input.temporaryPassword);
+    return this.prisma.$transaction(async (tx) => {
+      const previous = await this.lockedUser(tx, id);
+      this.assertCanTouch(previous, request);
+      const next = await tx.user.update({
+        where: { id },
+        data: { passwordHash, mustChangePassword: true },
+        include: withRoles,
+      });
+      await tx.session.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await recordAudit(
+        tx,
+        {
+          action: 'user.password_reset',
+          entityType: 'User',
+          entityId: id,
+          before: { mustChangePassword: previous.mustChangePassword },
+          after: { mustChangePassword: true },
+        },
+        request,
+      );
+      return toResponse(next);
     });
   }
 

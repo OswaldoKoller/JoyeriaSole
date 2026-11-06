@@ -13,7 +13,7 @@ describe('configuración de entorno', () => {
     expect(env.API_PORT).toBe(3000);
     expect(env.COOKIE_SECURE).toBe(false);
     expect(env.CORS_ORIGIN).toEqual(['http://localhost:5173']);
-    expect(env.SESSION_TTL_HOURS).toBe(3);
+    expect(env.SESSION_TTL_HOURS).toBe(8);
   });
 
   it('en producción las cookies son Secure por defecto', () => {
@@ -23,6 +23,12 @@ describe('configuración de entorno', () => {
   it('usa PORT del hosting si API_PORT no está definido', () => {
     expect(loadEnv({ ...base, PORT: '10000' }).API_PORT).toBe(10000);
     expect(loadEnv({ ...base, PORT: '10000', API_PORT: '4000' }).API_PORT).toBe(4000);
+  });
+
+  it('el límite de login es 10 por defecto y configurable', () => {
+    expect(loadEnv(base).LOGIN_RATE_LIMIT_MAX).toBe(10);
+    expect(loadEnv({ ...base, LOGIN_RATE_LIMIT_MAX: '500' }).LOGIN_RATE_LIMIT_MAX).toBe(500);
+    expect(() => loadEnv({ ...base, LOGIN_RATE_LIMIT_MAX: '0' })).toThrow(/LOGIN_RATE_LIMIT_MAX/);
   });
 
   it('acepta varios orígenes CORS separados por coma', () => {
@@ -39,7 +45,7 @@ describe('configuración de entorno', () => {
     expect(() => loadEnv({ ...base, DATABASE_URL: 'mysql://u:p@h/db' })).toThrow(/DATABASE_URL/);
   });
 
-  it('rechaza una duración distinta de las tres horas aprobadas', () => {
-    expect(() => loadEnv({ ...base, SESSION_TTL_HOURS: '12' })).toThrow(/SESSION_TTL_HOURS/);
+  it('rechaza una duración distinta de las ocho horas aprobadas', () => {
+    expect(() => loadEnv({ ...base, SESSION_TTL_HOURS: '3' })).toThrow(/SESSION_TTL_HOURS/);
   });
 });

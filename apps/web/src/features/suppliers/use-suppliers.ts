@@ -9,10 +9,10 @@ type SupplierList = {
 
 const keys = { all: ['suppliers'] as const };
 
-export function useSuppliers(page: number, q: string, status: string) {
-  const query = new URLSearchParams({ page: String(page), pageSize: '25', q, status });
+export function useSuppliers(page: number, q: string, status: string, type = 'all') {
+  const query = new URLSearchParams({ page: String(page), pageSize: '25', q, status, type });
   return useQuery({
-    queryKey: [...keys.all, page, q, status],
+    queryKey: [...keys.all, page, q, status, type],
     queryFn: () => api.get<SupplierList>(`/suppliers?${query}`),
   });
 }
