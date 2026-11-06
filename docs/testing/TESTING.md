@@ -93,6 +93,31 @@ Se conservan aserciones y plazos de las pruebas.
 - E2E `s3-product-photos.spec.ts`: el Responsable sube (archivo falso rechazado por contenido), marca portada,
   reordena, elimina con confirmación y llega al límite de 5; el Vendedor solo ve y la API le niega la subida.
 
+## Seguridad y endurecimiento (transversal)
+
+- Integración `security-hardening.test.ts`:
+  - **Cobertura de autenticación en todas las rutas**: un hook `onRoute` (suscrito al canal
+    `fastify.initialization`) enumera cada ruta registrada; sin sesión TODAS responden 401 salvo
+    `GET /health` y `POST /auth/login`, y con una sesión sin permisos todas las rutas de negocio responden 403. Una ruta nueva sin guarda hace fallar la prueba.
+  - **Producción**: cabeceras de las respuestas JSON (CSP, `frame-ancestors 'none'`, `nosniff`, HSTS, sin
+    `x-powered-by`), `Cache-Control: no-store` en la API, cookie `__Host-` con `HttpOnly`, `Secure`,
+    `SameSite=Strict` y sin `Domain`, borrado de la cookie con los mismos atributos (también con
+    `COOKIE_SECURE=true` fuera de producción) y tiempos de petición/conexión/keep-alive.
+  - **CSRF**: `Origin: null`, orígenes ajenos y subida multipart entre orígenes → 403 antes de procesar;
+    sin `Origin` se exige igualmente la sesión.
+  - **Límites**: login 429 (`RATE_LIMITED`); un `X-Forwarded-For` falsificado **no** evade el límite con
+    `TRUST_PROXY_HOPS=0` ni con `=1` (solo cuenta la IP añadida por el proxy propio); `/health` 429 a la
+    petición 61.
+  - **Sesión por petición**: los cambios de permisos, la desactivación y la revocación rigen en la petición
+    siguiente (sin caché); las transacciones toleran más de 5 s.
+- Unitarias: `error-handler.test.ts` (P2034, P2028, P2010 con `40P01`/`40001`, error del adaptador y error de
+  `pg` → 503 con `Retry-After` y sin detalles internos), `env.test.ts` (`TRUST_PROXY_HOPS`, rechazo del antiguo
+  `TRUST_PROXY=true`, avisos de arranque), `dates.test.ts` (`dayRangeLaPaz`, borde 20:00/00:00 de La Paz),
+  `sku.test.ts`.
+- `users.test.ts`: un rol personalizado con `users:manage` + `roles:manage` no puede asignar, crear con ni
+  quitar el rol `ADMIN` (403); el Administrador sí. `cost-visibility.test.ts`: `notes` de los movimientos solo
+  con `inventory:adjust`, `stock-entries:read` o `audit:read`, y orden por `id` descendente.
+
 ## Qué debe probarse en la Fase 1 (obligatorio)
 
 - Cada endpoint: 401 sin sesión, 403 sin permiso, 400 con datos inválidos, caso feliz.
