@@ -14,7 +14,7 @@ type Props = {
  * Foto de portada de una pieza para identificarla de un vistazo en cualquier pantalla (pedido del
  * cliente). Es decorativa (alt vacío): el nombre de la pieza siempre va como texto al lado.
  */
-export function PieceImage({ variantId, className = 'size-12' }: Props) {
+export function PieceImage({ variantId, className = 'size-14' }: Props) {
   if (!variantId) {
     return (
       <span

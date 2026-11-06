@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openProduct, productTile } from './product-pages.ts';
 
 /**
  * S2 · Catálogo completo, con los usuarios DEMO de `npm run db:seed:demo` (se ejecuta dentro de
@@ -87,10 +88,8 @@ test.describe('Responsable de inventario', () => {
     await page.getByLabel('Código del proveedor (si tiene)').fill('E2E-PROV-001');
     await page.getByRole('button', { name: 'Guardar producto' }).click();
 
+    await openProduct(page, 'E2E Anillo corazón con circonia');
     const ring = card(page, 'E2E Anillo corazón con circonia');
-    await ring
-      .getByRole('button', { name: 'Ver detalle de E2E Anillo corazón con circonia' })
-      .click();
     await expect(ring).toContainText('Piedra:');
     await expect(ring).toContainText('E2E Circonia');
     await expect(ring).toContainText('E2E Plata 925 / E2E 16');
@@ -140,11 +139,12 @@ test.describe('Responsable de inventario', () => {
     await expect(
       page.getByRole('status').filter({ hasText: 'ya pertenece a la pieza' }),
     ).toContainText('esta pieza se identifica por su SKU');
+    await openProduct(page, 'E2E Anillo repetido');
     const repeated = card(page, 'E2E Anillo repetido');
-    await repeated.getByRole('button', { name: 'Ver detalle de E2E Anillo repetido' }).click();
     await expect(repeated).toContainText('Sin código');
     // Sin descripción ni características: ficha incompleta.
     await expect(repeated.getByText('Ficha incompleta')).toBeVisible();
+    await page.getByRole('link', { name: '← Volver a Productos' }).click();
 
     // La búsqueda unificada encuentra la pieza original por el código del proveedor.
     await page.getByLabel('Buscar por nombre, SKU o código de barras').fill('E2E-PROV-001');
@@ -152,14 +152,14 @@ test.describe('Responsable de inventario', () => {
     await expect(
       page.getByRole('status').filter({ hasText: 'Encontrada por el código de barras' }),
     ).toBeVisible();
-    await expect(card(page, 'E2E Anillo corazón con circonia')).toBeVisible();
+    await expect(productTile(page, 'E2E Anillo corazón con circonia')).toBeVisible();
 
     // Filtro de fichas incompletas.
     await page.getByLabel('Buscar por nombre, SKU o código de barras').fill('');
     await page.getByRole('button', { name: 'Buscar' }).click();
     await page.getByLabel('Estado de la ficha').selectOption('incomplete');
-    await expect(card(page, 'E2E Anillo repetido')).toBeVisible();
-    await expect(card(page, 'E2E Anillo corazón con circonia')).toHaveCount(0);
+    await expect(productTile(page, 'E2E Anillo repetido')).toBeVisible();
+    await expect(productTile(page, 'E2E Anillo corazón con circonia')).toHaveCount(0);
   });
 
   test('imprime la vista previa de etiquetas: @page y un SVG por etiqueta', async ({ page }) => {
@@ -171,9 +171,7 @@ test.describe('Responsable de inventario', () => {
     });
     await login(page, USERS.inventario);
     await menu(page).getByRole('link', { name: 'Productos' }).click();
-    await page
-      .getByRole('button', { name: 'Ver detalle de E2E Anillo corazón con circonia' })
-      .click();
+    await openProduct(page, 'E2E Anillo corazón con circonia');
     await page
       .getByRole('link', { name: 'Imprimir etiquetas de E2E Anillo corazón con circonia' })
       .click();
@@ -229,7 +227,7 @@ test.describe('Responsable de inventario', () => {
     await notice.getByRole('link', { name: 'Ver fichas incompletas' }).click();
     await expect(page).toHaveURL(/incomplete=1/);
     await expect(page.getByLabel('Estado de la ficha')).toHaveValue('incomplete');
-    await expect(card(page, 'E2E Anillo repetido')).toBeVisible();
+    await expect(productTile(page, 'E2E Anillo repetido')).toBeVisible();
   });
 
   test('gestiona categorías de dos niveles', async ({ page }) => {
@@ -286,6 +284,7 @@ test.describe('Administrador', () => {
       .getByLabel('Buscar por nombre, SKU o código de barras')
       .fill('E2E Ficha para eliminar');
     await page.getByRole('button', { name: 'Buscar' }).click();
+    await openProduct(page, 'E2E Ficha para eliminar');
     const target = card(page, 'E2E Ficha para eliminar');
     await target.getByRole('button', { name: 'Eliminar E2E Ficha para eliminar' }).click();
     // Confirmación explícita: cancelar no elimina.
@@ -294,6 +293,8 @@ test.describe('Administrador', () => {
     await expect(target).toBeVisible();
     await target.getByRole('button', { name: 'Eliminar E2E Ficha para eliminar' }).click();
     await page.getByRole('button', { name: 'Sí, eliminar definitivamente' }).click();
+    // Tras eliminar vuelve al listado.
+    await expect(page).toHaveURL(/\/productos$/);
     await expect(target).toHaveCount(0);
     await page.reload();
     await page
@@ -307,6 +308,7 @@ test.describe('Administrador', () => {
       .getByLabel('Buscar por nombre, SKU o código de barras')
       .fill('Anillo Solitario Circona');
     await page.getByRole('button', { name: 'Buscar' }).click();
+    await openProduct(page, 'DEMO Anillo Solitario Circona');
     const stocked = card(page, 'DEMO Anillo Solitario Circona');
     await stocked.getByRole('button', { name: 'Eliminar DEMO Anillo Solitario Circona' }).click();
     await page.getByRole('button', { name: 'Sí, eliminar definitivamente' }).click();
@@ -324,9 +326,10 @@ test.describe('Vendedor', () => {
     await menu(page).getByRole('link', { name: 'Productos' }).click();
     await expect(page.getByRole('heading', { name: 'Productos' })).toBeVisible();
     await page
-      .getByRole('button', { name: /^Ver detalle de / })
+      .getByRole('link', { name: /^Ver ficha de / })
       .first()
       .click();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Nuevo producto' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Editar / })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Eliminar / })).toHaveCount(0);

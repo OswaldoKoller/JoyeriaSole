@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openProduct } from './product-pages.ts';
 
 /**
  * Precios de venta (S7, ADR-018): desde la regla de 2026-11-05 el Responsable y el Administrador
@@ -92,6 +93,7 @@ test('el Vendedor ve el precio nuevo en el catálogo, sin costos ni acceso a Pre
   await menu(page).getByRole('link', { name: 'Productos' }).click();
   await page.getByLabel('Buscar por nombre, SKU o código de barras').fill(RING);
   await page.getByRole('button', { name: 'Buscar' }).click();
+  await openProduct(page, RING);
   const card = page.getByRole('article').filter({ hasText: RING });
   await expect(card).toContainText('Precio de venta (neto)');
   await expect(card).toContainText('120,50');
@@ -139,6 +141,7 @@ test('el Administrador cambia un precio directamente y queda en el historial', a
   await menu(page).getByRole('link', { name: 'Productos' }).click();
   await page.getByLabel('Buscar por nombre, SKU o código de barras').fill(NECKLACE);
   await page.getByRole('button', { name: 'Buscar' }).click();
+  await openProduct(page, NECKLACE);
   const card = page.getByRole('article').filter({ hasText: NECKLACE });
   await expect(card).toContainText('95,00');
   await card.getByRole('button', { name: `Ver historial de precios de ${skus[NECKLACE]}` }).click();

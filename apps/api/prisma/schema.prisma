@@ -277,6 +277,8 @@ model Product {
   @@index([categoryId])
   @@index([status])
   @@index([name])
+  // Búsqueda ILIKE '%q%' del listado y del tipeo rápido (pg_trgm, migración 20261106040000).
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_name_trgm_idx")
   @@map("products")
 }
 
@@ -393,6 +395,10 @@ model ProductVariant {
 
   @@index([productId])
   @@index([status])
+  // Búsqueda ILIKE '%q%' por SKU, código de barras y etiqueta (pg_trgm, migración 20261106040000).
+  @@index([sku(ops: raw("gin_trgm_ops"))], type: Gin, map: "product_variants_sku_trgm_idx")
+  @@index([barcode(ops: raw("gin_trgm_ops"))], type: Gin, map: "product_variants_barcode_trgm_idx")
+  @@index([label(ops: raw("gin_trgm_ops"))], type: Gin, map: "product_variants_label_trgm_idx")
   @@map("product_variants")
 }
 
@@ -454,6 +460,8 @@ model PriceChange {
   @@index([requestedById])
   @@index([decidedById])
   @@index([batchId])
+  // Listado/exportación del historial global por fecha, paginado de forma estable (migración 20261106040000).
+  @@index([createdAt(sort: Desc), id(sort: Desc)], map: "price_changes_created_at_id_idx")
   @@map("price_changes")
 }
 
@@ -537,6 +545,7 @@ model SupplierProduct {
   @@unique([supplierId, supplierCode])
   @@index([variantId])
   @@index([supplierCode])
+  @@index([supplierCode(ops: raw("gin_trgm_ops"))], type: Gin, map: "supplier_products_supplier_code_trgm_idx")
   @@map("supplier_products")
 }
 
@@ -597,6 +606,7 @@ model StockEntry {
   @@index([supplierId, documentNumber])
   @@index([status])
   @@index([receivedAt])
+  @@index([documentNumber(ops: raw("gin_trgm_ops"))], type: Gin, map: "stock_entries_document_number_trgm_idx")
   @@map("stock_entries")
 }
 
@@ -725,6 +735,11 @@ model InventoryMovement {
   @@index([referenceType, referenceId])
   @@index([type, createdAt])
   @@index([userId])
+  // Kardex global ordenado por fecha e id (migración 20261106040000).
+  @@index([createdAt(sort: Desc), id(sort: Desc)], map: "inventory_movements_created_at_id_idx")
+  // Historial/conciliación por variante (migración 20261106040000). Sin INCLUDE (quantity): Prisma no
+  // lo expresa y lo vería como deriva (ver docs/database/DATABASE.md, "Índices de rendimiento").
+  @@index([variantId, id(sort: Desc)], map: "inventory_movements_variant_id_id_idx")
   @@map("inventory_movements")
 }
 
@@ -871,6 +886,8 @@ model InventoryCountScan {
   user           User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([inventoryCountId, round, id])
+  // Deshacer: última lectura vigente de una variante en la ronda (migración 20261106040000).
+  @@index([inventoryCountId, variantId, round, id], map: "inventory_count_scans_count_variant_round_id_idx")
   @@index([variantId])
   @@index([findingId])
   @@map("inventory_count_scans")
@@ -1013,6 +1030,7 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([userId, createdAt])
   @@index([action, createdAt])
-  @@index([createdAt])
+  // Reemplaza al índice solo por created_at (lo cubre por lectura inversa); migración 20261106040000.
+  @@index([createdAt(sort: Desc), id(sort: Desc)], map: "audit_logs_created_at_id_idx")
   @@map("audit_logs")
 }

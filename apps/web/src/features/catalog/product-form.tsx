@@ -10,7 +10,7 @@ import { Link } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
-import { useSuppliers } from '../suppliers/use-suppliers.ts';
+import { useActiveSuppliers } from '../suppliers/use-suppliers.ts';
 import { AttributeFields } from './attribute-fields.tsx';
 import {
   attributeLabel,
@@ -124,7 +124,7 @@ export function ProductForm({
   const canPrice = useHasPermission(PERMISSIONS.PRICES_APPROVE);
   const categories = useCategories();
   const attributes = useAttributes();
-  const suppliers = useSuppliers(1, '', 'active');
+  const canReadSuppliers = useHasPermission(PERMISSIONS.SUPPLIERS_READ);
   const create = useCreateProduct();
   const update = useUpdateProduct();
   const [categoryId, setCategoryId] = useState(editing?.categoryId ?? '');
@@ -139,6 +139,8 @@ export function ProductForm({
   const [axisValues, setAxisValues] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<AttributeDraft>(editing ? draftFromProduct(editing) : {});
   const [error, setError] = useState('');
+  // Proveedores solo cuando el selector está visible y la persona puede leerlos (Q-05).
+  const suppliers = useActiveSuppliers(canReadSuppliers && !editing && barcode.trim() !== '');
 
   const allCategories = useMemo(() => categories.data?.data ?? [], [categories.data]);
   const activeCategories = allCategories.filter((item) => item.isActive);
@@ -343,7 +345,7 @@ export function ProductForm({
               className={select}
             >
               <option value="">Sin proveedor</option>
-              {suppliers.data?.data.map((supplier) => (
+              {suppliers.data?.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.name}
                 </option>

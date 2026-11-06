@@ -13,6 +13,7 @@ import {
   useCountTransition,
   useInventoryCount,
 } from './use-inventory-counts.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 function messageOf(error: unknown) {
   if (error instanceof ApiError) return error.message;
@@ -97,6 +98,7 @@ function PlainScreen({ count }: { count: InventoryCountBlindDetail }) {
 }
 
 export function CountPage() {
+  useDocumentTitle('Conteo físico');
   const { id = '' } = useParams();
   const query = useInventoryCount(id);
 

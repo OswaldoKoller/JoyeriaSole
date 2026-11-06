@@ -130,6 +130,146 @@ Definidas en la migración inicial (SQL) y en las migraciones posteriores, adem�
 
 Estas garantías están cubiertas por `apps/api/test/integration/database-integrity.test.ts`.
 
+## Índices de rendimiento
+
+Migración `20261106040000_performance_indexes` (auditoría de BD del 2026-11-06). **Solo índices:** no
+agrega restricciones ni cambia el comportamiento. Cobertura en
+`apps/api/test/integration/performance-indexes.test.ts`.
+
+| Índice                                                                                                                                                                                                                  | Tabla / columnas                              | Consulta que sirve                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `products_name_trgm_idx`, `product_variants_sku_trgm_idx`, `product_variants_barcode_trgm_idx`, `product_variants_label_trgm_idx`, `supplier_products_supplier_code_trgm_idx`, `stock_entries_document_number_trgm_idx` | GIN `gin_trgm_ops` (extensión `pg_trgm`)      | `ILIKE '%q%'` de listados y búsquedas (Prisma `contains` + `mode: insensitive`)        |
+| `inventory_movements_created_at_id_idx`                                                                                                                                                                                 | `(created_at DESC, id DESC)`                  | Kardex global paginado (`ORDER BY created_at DESC, id DESC`)                           |
+| `inventory_movements_variant_id_id_idx`                                                                                                                                                                                 | `(variant_id, id DESC)`                       | Historial y conciliación por variante (cursor = id); cursor de conciliación del conteo |
+| `audit_logs_created_at_id_idx`                                                                                                                                                                                          | `(created_at DESC, id DESC)`                  | Listado global de auditoría. **Reemplaza** a `audit_logs_created_at_idx` (eliminado)   |
+| `price_changes_created_at_id_idx`                                                                                                                                                                                       | `(created_at DESC, id DESC)`                  | Historial global de precios                                                            |
+| `inventory_count_scans_count_variant_round_id_idx`                                                                                                                                                                      | `(inventory_count_id, variant_id, round, id)` | Deshacer: última lectura vigente de una variante en la ronda                           |
+
+Notas:
+
+- **Trigramas:** un índice GIN solo ayuda con términos de **3 o más caracteres** (con menos, PostgreSQL
+  recorre la tabla). `CREATE EXTENSION pg_trgm` requiere privilegios: ver
+  [DEPLOYMENT.md](../deployment/DEPLOYMENT.md#extensiones-de-postgresql-pg_trgm). Los índices btree
+  `products_name_idx` y `supplier_products_supplier_code_idx` se conservan (orden e igualdad).
+- **Prisma y la deriva:** `schema.prisma` declara los GIN con `type: Gin` + `ops: raw("gin_trgm_ops")` y
+  los índices descendentes con `sort: Desc`, por lo que `prisma migrate diff` no muestra diferencias.
+  Se descartó `INCLUDE (quantity)` (índice de cobertura para sumar cantidades sin leer la tabla)
+  porque Prisma no lo expresa y `migrate diff` lo marca como deriva: el siguiente `migrate dev`
+  intentaría recrear el índice sin la cláusula. Si la medición lo justifica, se evalúa en una
+  migración nueva (por ejemplo un índice adicional `(variant_id, id DESC) INCLUDE (quantity)`),
+  verificando antes con `prisma migrate diff` cómo lo trata Prisma.
+- **Creación:** Prisma aplica cada migración en una transacción, así que no se usa
+  `CREATE INDEX CONCURRENTLY`; cada índice bloquea las escrituras de su tabla mientras se construye
+  (milisegundos con el volumen actual). Todos llevan `IF NOT EXISTS` por si una tabla creciera y hubiera
+  que crearlos antes a mano con `CONCURRENTLY`.
+- **Costo de escritura:** los GIN encarecen los `INSERT`/`UPDATE` del texto indexado (se acumulan en la
+  `pending list` y se funden en `VACUUM`/autovacuum). Para el volumen de esta pyme es irrelevante.
+- **No eliminado, pendiente de medir:** `inventory_balances_quantity_idx` (`quantity`) parece no usarse;
+  eliminarlo solo tras comprobar `idx_scan = 0` en producción (ver abajo).
+
+### Cómo medir cuando haya volumen real
+
+```sql
+-- Uso real de cada índice (idx_scan = 0 tras semanas de operación => candidato a eliminar).
+SELECT relname, indexrelname, idx_scan, pg_size_pretty(pg_relation_size(indexrelid)) AS size
+FROM pg_stat_user_indexes WHERE schemaname = 'public' ORDER BY idx_scan, relname;
+
+-- Búsqueda de productos/inventario: se espera "Bitmap Index Scan on products_name_trgm_idx" (y los de
+-- SKU/código/etiqueta) combinados con BitmapOr, en lugar de "Seq Scan on products".
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT p.id FROM products p JOIN product_variants v ON v.product_id = p.id
+WHERE p.name ILIKE '%anillo%' OR v.sku ILIKE '%anillo%' OR v.barcode ILIKE '%anillo%';
+
+-- Kardex global: se espera "Index Scan using inventory_movements_created_at_id_idx ... Limit"
+-- (sin Sort) para ORDER BY created_at DESC, id DESC LIMIT 20 OFFSET n.
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM inventory_movements ORDER BY created_at DESC, id DESC LIMIT 20 OFFSET 0;
+
+-- Historial/conciliación por variante: se espera "Index Scan (Backward) using
+-- inventory_movements_variant_id_id_idx"; con INCLUDE (quantity) pasaría a "Index Only Scan".
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT COALESCE(SUM(quantity), 0) FROM inventory_movements WHERE variant_id = '<uuid>';
+
+-- Auditoría global: "Index Scan using audit_logs_created_at_id_idx" sin Sort.
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT 20;
+```
+
+Con tablas pequeñas (< unos miles de filas) el planificador preferirá un `Seq Scan` aunque el índice
+exista: es correcto. Comparar con `SET enable_seqscan = off` solo para diagnosticar. Observaciones que
+**no** resuelve un índice: el `count(*)` sin filtro de `allMovements`/auditoría sigue recorriendo el
+índice completo (usar total aproximado o `hasMore` si crece) y `OFFSET` grande se degrada linealmente
+(pasar a paginación por cursor `id`).
+
+### Garantías de integridad propuestas (NO implementadas, requieren aprobación)
+
+La auditoría propuso las siguientes garantías. **No están en ninguna migración**; cada una cambia el
+comportamiento ante datos inválidos o puede romper flujos/pruebas existentes. Scripts listos para
+cuando se aprueben (migración separada, p. ej. `..._ledger_integrity`):
+
+| Id   | Garantía                                                          | Riesgo principal                                                                                                                                                                                                                                               |
+| ---- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I-01 | Saldo == `balance_after` del último movimiento (trigger diferido) | Falla si ya hay desfases históricos: **ejecutar antes la consulta de reconciliación**. Los tests que insertan saldos o movimientos sueltos con Prisma (`database-integrity`, `negative-stock-guard`) deberían pasar por el servicio.                           |
+| I-02 | Índice único parcial `(reference_type, reference_id, variant_id)` | Rechaza dos movimientos de la misma variante bajo el mismo documento: confirmar que ningún flujo legítimo lo hace (p. ej. un ajuste con la misma variante dos veces, o un cambio de pieza).                                                                    |
+| I-03 | Ingreso `CONFIRMED` e ítems inmutables (triggers)                 | El flujo de confirmación actualiza ítems (`unit_extra_cost`, `total_cost`) en la misma transacción que cambia el estado: el trigger debe permitir esa transición.                                                                                              |
+| I-04 | FK `movement_id` de ajustes/conteos hacia `inventory_movements`   | `inventory_adjustment_items.movement_id` e `inventory_count_items.movement_id` ya son `BIGINT` (mismo tipo que `inventory_movements.id`): la FK es directa, con `ON DELETE RESTRICT` (compatible con el append-only). Validar antes que no haya ids huérfanos. |
+| I-05 | CHECK de signo por tipo de movimiento                             | Confirmar antes el signo de `LOSS` (¿siempre negativo?) y `ADJUSTMENT`/`COUNT_ADJUSTMENT` (ambos signos). `NOT VALID` + `VALIDATE` para no bloquear.                                                                                                           |
+| I-06 | `products.remove` debe contar `price_changes` e ítems de ajuste   | Es de servicio (mensaje claro en vez de error de FK 500), no de esquema.                                                                                                                                                                                       |
+
+**Riesgo transversal de las pruebas:** `resetDatabase` (`apps/api/test/helpers/db.ts`) y el
+`globalSetup` usan `TRUNCATE ... CASCADE` sobre todas las tablas. Un trigger `BEFORE TRUNCATE` que
+bloquee el vaciado de `inventory_movements`/`audit_logs` rompería **toda** la suite de integración; si se
+quisiera esa protección habría que cambiar el helper (p. ej. rol de pruebas con `session_replication_role
+= replica` o `ALTER TABLE ... DISABLE TRIGGER` solo en la BD de pruebas) y aun así el `TRUNCATE` requiere
+privilegios del dueño: en producción conviene revocar `TRUNCATE`/`DELETE`/`UPDATE` al rol de la app sobre
+esas tablas (`REVOKE TRUNCATE, DELETE ON inventory_movements, audit_logs FROM <rol_app>`), sin trigger.
+
+```sql
+-- I-01 · Reconciliación previa (debe devolver 0 filas antes de crear el trigger):
+SELECT b.variant_id, b.quantity AS saldo,
+       COALESCE((SELECT m.balance_after FROM inventory_movements m
+                 WHERE m.variant_id = b.variant_id ORDER BY m.id DESC LIMIT 1), 0) AS ultimo
+FROM inventory_balances b
+WHERE b.quantity <> COALESCE((SELECT m.balance_after FROM inventory_movements m
+                              WHERE m.variant_id = b.variant_id ORDER BY m.id DESC LIMIT 1), 0);
+
+-- I-01 · Trigger diferido (se evalúa al COMMIT, cuando movimiento y saldo ya están escritos):
+CREATE FUNCTION check_balance_matches_ledger() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE last_after integer;
+BEGIN
+  SELECT balance_after INTO last_after FROM inventory_movements
+   WHERE variant_id = NEW.variant_id ORDER BY id DESC LIMIT 1;
+  IF NEW.quantity <> COALESCE(last_after, 0) THEN
+    RAISE EXCEPTION 'El saldo de la variante % no coincide con el libro de movimientos', NEW.variant_id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NULL;
+END $$;
+CREATE CONSTRAINT TRIGGER inventory_balances_match_ledger
+  AFTER INSERT OR UPDATE ON inventory_balances
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION check_balance_matches_ledger();
+-- (cubre cambios de saldo; un movimiento sin tocar el saldo se detecta con un segundo trigger
+--  equivalente sobre inventory_movements.)
+
+-- I-02 · Un movimiento por (documento, variante):
+--   verificación previa (0 filas):
+SELECT reference_type, reference_id, variant_id, count(*) FROM inventory_movements
+WHERE reference_id IS NOT NULL GROUP BY 1, 2, 3 HAVING count(*) > 1;
+CREATE UNIQUE INDEX inventory_movements_reference_variant_key
+  ON inventory_movements (reference_type, reference_id, variant_id) WHERE reference_id IS NOT NULL;
+
+-- I-05 · Signo por tipo (tras confirmar LOSS y los tipos con ambos signos):
+ALTER TABLE inventory_movements ADD CONSTRAINT inventory_movements_sign_check CHECK (
+  (type IN ('INITIAL_STOCK', 'STOCK_ENTRY', 'CUSTOMER_RETURN', 'EXCHANGE_IN') AND quantity > 0)
+  OR (type IN ('SALE', 'EXCHANGE_OUT') AND quantity < 0)
+  OR type IN ('ADJUSTMENT', 'COUNT_ADJUSTMENT', 'LOSS', 'EXCHANGE')   -- LOSS: confirmar signo
+) NOT VALID;
+ALTER TABLE inventory_movements VALIDATE CONSTRAINT inventory_movements_sign_check;
+```
+
+La propuesta I-03 (inmutabilidad del ingreso confirmado) y I-04 (FK `movement_id`) se redactan al
+aprobarse, porque dependen de las columnas exactas que actualiza cada flujo.
+
 ## Migraciones
 
 ```bash

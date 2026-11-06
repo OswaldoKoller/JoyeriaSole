@@ -12,8 +12,11 @@ import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
 import { SupplierForm } from './supplier-form.tsx';
 import { useCreateSupplier, useSuppliers, useUpdateSupplier } from './use-suppliers.ts';
+import { Pagination } from '../../components/ui/pagination.tsx';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 export function SuppliersPage() {
+  useDocumentTitle('Proveedores');
   const canManage = useHasPermission(PERMISSIONS.SUPPLIERS_MANAGE);
   const [page, setPage] = useState(1);
   const [draftSearch, setDraftSearch] = useState('');
@@ -171,7 +174,7 @@ export function SuppliersPage() {
           <p className="py-6 text-sm text-stone-600">No se encontraron proveedores.</p>
         )}
         {list.isSuccess && items.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
+          <div aria-busy={list.isPlaceholderData} className="mt-4 overflow-x-auto">
             <table className="table-cards w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
@@ -240,30 +243,8 @@ export function SuppliersPage() {
             </table>
           </div>
         )}
-        {list.isSuccess && total > 25 && (
-          <div className="mt-4 flex items-center gap-3 text-sm">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {page} · {total} proveedores
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page * 25 >= total}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-            >
-              Siguiente
-            </Button>
-          </div>
+        {list.isSuccess && (
+          <Pagination page={page} total={total} noun="proveedores" onPageChange={setPage} />
         )}
       </div>
     </section>

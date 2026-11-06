@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { ApiError } from '../../lib/api-client.ts';
 import { useCostTypes, useCreateCostType, useUpdateCostType } from './use-stock-entries.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 /**
  * Tipos de costo adicional de un ingreso (Q-08). Solo el Administrador (`settings:manage`) agrega
@@ -11,6 +12,7 @@ import { useCostTypes, useCreateCostType, useUpdateCostType } from './use-stock-
  * ingresos nuevos pero se conserva en los que ya lo usan.
  */
 export function CostTypesPage() {
+  useDocumentTitle('Tipos de costo');
   const types = useCostTypes();
   const create = useCreateCostType();
   const update = useUpdateCostType();

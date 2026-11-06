@@ -1,4 +1,5 @@
-import { formatBs, formatPercent, profitView } from './price-math.ts';
+import { formatBsPrecise, formatPercent } from '../../lib/format.ts';
+import { profitView } from './price-math.ts';
 
 /**
  * Ganancia en Bs y % sobre el costo total para un precio (Q-06). Se actualiza en vivo mientras se
@@ -20,11 +21,11 @@ export function ProfitDisplay({
   return (
     <span
       className={`tabular-nums ${loss ? 'text-red-700' : ''}`}
-      aria-label={`Ganancia ${label}: ${formatBs(profit)}, ${formatPercent(percent)} sobre el costo total${
+      aria-label={`Ganancia ${label}: ${formatBsPrecise(profit)}, ${formatPercent(percent)} sobre el costo total${
         loss ? ', menor al costo' : ''
       }`}
     >
-      <span className="block font-medium">{formatBs(profit)}</span>
+      <span className="block font-medium">{formatBsPrecise(profit)}</span>
       <span className="block text-xs">{formatPercent(percent)}</span>
       {loss && <span className="block text-xs font-medium">Precio menor al costo</span>}
     </span>

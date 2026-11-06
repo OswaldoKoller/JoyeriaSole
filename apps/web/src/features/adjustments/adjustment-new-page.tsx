@@ -20,6 +20,7 @@ import {
   useInventorySearch,
 } from './use-adjustments.ts';
 import { PieceImage } from '../catalog/photos/piece-image.tsx';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 const toLine = (item: InventoryItem, delta = ''): FormLine => ({
   variantId: item.variantId,
@@ -363,6 +364,7 @@ function AdjustmentForm({ initialLines }: { initialLines: FormLine[] }) {
  * propone sacar todo el saldo actual (atajo «Ajustar a cero» para descontinuar, B11).
  */
 export function AdjustmentNewPage() {
+  useDocumentTitle('Nuevo ajuste');
   const [params] = useSearchParams();
   const sku = params.get('sku')?.trim() ?? '';
   const toZero = params.get('cero') === '1';

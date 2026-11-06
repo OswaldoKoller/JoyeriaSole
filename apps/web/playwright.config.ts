@@ -48,7 +48,7 @@ export default defineConfig({
         CORS_ORIGIN: webUrl,
         FRONTEND_URL: webUrl,
         COOKIE_SECURE: 'false',
-        TRUST_PROXY: 'false',
+        TRUST_PROXY_HOPS: '0',
         // La suite inicia sesión muchas veces desde una sola IP; en producción el límite es 10.
         LOGIN_RATE_LIMIT_MAX: '1000',
         WEB_DIST_DIR: '',

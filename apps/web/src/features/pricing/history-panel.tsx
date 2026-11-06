@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { ChangesTable } from './changes-table.tsx';
 import { usePriceChanges } from './use-pricing.ts';
+import { Pagination } from '../../components/ui/pagination.tsx';
 
 /** Historial global de cambios de precio (D5), con filtro por estado y búsqueda por SKU o nombre. */
 export function HistoryPanel() {
@@ -78,34 +79,12 @@ export function HistoryPanel() {
         <p className="py-6 text-sm text-stone-600">No hay cambios de precio registrados.</p>
       )}
       {list.isSuccess && rows.length > 0 && (
-        <div className="mt-4">
+        <div aria-busy={list.isPlaceholderData} className="mt-4">
           <ChangesTable rows={rows} showProduct />
         </div>
       )}
-      {list.isSuccess && total > 25 && (
-        <div className="mt-4 flex items-center gap-3 text-sm">
-          <Button
-            variant="secondary"
-            disabled={page === 1}
-            onClick={() => {
-              setPage(page - 1);
-            }}
-          >
-            Anterior
-          </Button>
-          <span>
-            Página {page} · {total} cambios
-          </span>
-          <Button
-            variant="secondary"
-            disabled={page * 25 >= total}
-            onClick={() => {
-              setPage(page + 1);
-            }}
-          >
-            Siguiente
-          </Button>
-        </div>
+      {list.isSuccess && (
+        <Pagination page={page} total={total} noun="cambios" onPageChange={setPage} />
       )}
     </div>
   );

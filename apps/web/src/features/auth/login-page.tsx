@@ -5,8 +5,10 @@ import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { ApiError } from '../../lib/api-client.ts';
 import { useCurrentUser, useLogin } from './use-auth.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 export function LoginPage() {
+  useDocumentTitle('Iniciar sesión');
   const { data: user } = useCurrentUser();
   const login = useLogin();
   const navigate = useNavigate();

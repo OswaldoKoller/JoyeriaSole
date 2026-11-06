@@ -1,34 +1,5 @@
 import { computeProfit, formatMoney, parseMoney, salePriceSchema } from '@joyeria/shared';
 
-const bob = new Intl.NumberFormat('es-BO', {
-  style: 'currency',
-  currency: 'BOB',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-const percent = new Intl.NumberFormat('es-BO', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-const dateTime = new Intl.DateTimeFormat('es-BO', {
-  timeZone: 'America/La_Paz',
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
-
-/** Dinero con coma decimal: «Bs 12,50». `null` y vacío se muestran como «—». */
-export function formatBs(value: string | null | undefined): string {
-  return value === null || value === undefined ? '—' : bob.format(Number(value));
-}
-
-export function formatPercent(value: string | null): string {
-  return value === null ? '—' : `${percent.format(Number(value))} %`;
-}
-
-export function formatDateTime(iso: string | null): string {
-  return iso ? dateTime.format(new Date(iso)) : '—';
-}
-
 export type PriceInput =
   { status: 'empty' } | { status: 'invalid'; message: string } | { status: 'valid'; value: string };
 

@@ -42,12 +42,14 @@ test.describe('Responsable de inventario', () => {
   test('sube, marca portada, reordena y elimina fotos con confirmación', async ({ page }) => {
     await login(page, USERS.inventario);
     await search(page, 'Cruz Clásica');
-    const product = card(page, 'Cruz Clásica');
-    await expect(product).toHaveCount(1);
-    const name = (await product.getByRole('heading').first().innerText()).split('\n')[0] ?? '';
+    const tile = page.getByRole('link', { name: /^Ver ficha de .*Cruz Clásica/ });
+    await expect(tile).toHaveCount(1);
+    const name = (await tile.getByRole('heading').innerText()).trim();
+    await tile.click();
+    await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+    const product = card(page, name);
 
     await expect(product.getByText('Sin foto')).toBeVisible();
-    await product.getByRole('button', { name: /^Fotos de .* \(0\)$/ }).click();
     await expect(product.getByText('Este producto todavía no tiene fotos.')).toBeVisible();
 
     // Un archivo que NO es imagen aunque se declare como JPG: la API lo rechaza por su contenido.
@@ -64,7 +66,6 @@ test.describe('Responsable de inventario', () => {
       { name: 'uno.png', mimeType: 'image/png', buffer: PNG_1X1 },
       { name: 'dos.png', mimeType: 'image/png', buffer: PNG_1X1 },
     ]);
-    await expect(product.getByRole('button', { name: /^Fotos de .* \(2\)$/ })).toBeVisible();
     const gallery = product.getByRole('region', { name: /^Fotos de / });
     await expect(gallery.getByRole('img')).toHaveCount(2);
     await expect(gallery.getByText('Portada', { exact: true })).toHaveCount(1);
@@ -127,9 +128,9 @@ test.describe('Vendedor', () => {
   }) => {
     await login(page, USERS.vendedor);
     await search(page, 'Solitario Circona');
-    const product = card(page, 'Solitario Circona');
+    await page.getByRole('link', { name: /^Ver ficha de .*Solitario Circona/ }).click();
+    const product = page.getByRole('article');
     await expect(product.getByRole('img', { name: /^Foto de portada de / })).toBeVisible();
-    await product.getByRole('button', { name: /^Fotos de .* \(1\)$/ }).click();
     const gallery = product.getByRole('region', { name: /^Fotos de / });
     await expect(gallery.getByRole('img')).toHaveCount(1);
     await expect(gallery.getByText('Portada', { exact: true })).toBeVisible();

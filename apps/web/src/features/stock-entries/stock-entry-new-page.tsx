@@ -4,9 +4,11 @@ import { Link, useNavigate } from 'react-router';
 import { ApiError } from '../../lib/api-client.ts';
 import { StockEntryHeaderForm } from './stock-entry-header-form.tsx';
 import { useCreateStockEntry } from './use-stock-entries.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 /** Paso 1: datos del proveedor y del documento. Los ítems se agregan en el borrador creado. */
 export function StockEntryNewPage() {
+  useDocumentTitle('Nuevo ingreso');
   const navigate = useNavigate();
   const create = useCreateStockEntry();
   const [error, setError] = useState('');

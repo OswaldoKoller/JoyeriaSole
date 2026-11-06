@@ -6,6 +6,7 @@ import { HistoryPanel } from './history-panel.tsx';
 import { PendingPanel } from './pending-panel.tsx';
 import { PriceGrid } from './price-grid.tsx';
 import { usePendingCount } from './use-pricing.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 type Tab = 'precios' | 'pendientes' | 'historial';
 
@@ -14,6 +15,7 @@ type Tab = 'precios' | 'pendientes' | 'historial';
  * Responsable, aprobación del Administrador e historial. Precio neto, en bolivianos.
  */
 export function PricingPage() {
+  useDocumentTitle('Precios');
   const canApprove = useHasPermission(PERMISSIONS.PRICES_APPROVE);
   const [params] = useSearchParams();
   const [tab, setTab] = useState<Tab>(
@@ -57,7 +59,7 @@ export function PricingPage() {
             }}
             className={`min-h-10 rounded-lg px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
               tab === item.id
-                ? 'bg-brand-600 text-white'
+                ? 'bg-brand-700 text-white'
                 : 'border border-stone-300 bg-white text-stone-800 hover:bg-stone-100'
             }`}
           >

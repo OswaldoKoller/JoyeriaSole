@@ -27,7 +27,7 @@ export const inventoryRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: z.object({ data: z.array(globalInventoryMovementSchema), meta }) },
       },
     },
-    async (request) => service.allMovements(request.query),
+    async (request) => service.allMovements(request.query, request),
   );
   app.get(
     '/',
@@ -57,7 +57,7 @@ export const inventoryRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: z.object({ data: z.array(inventoryMovementSchema), meta }) },
       },
     },
-    async (request) => service.movements(request.params.variantId, request.query),
+    async (request) => service.movements(request.params.variantId, request.query, request),
   );
   app.post(
     '/:variantId/initial',

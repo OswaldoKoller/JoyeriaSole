@@ -1,4 +1,4 @@
-import { BUSINESS_TIME_ZONE, type AuditEntry } from '@joyeria/shared';
+import { type AuditEntry } from '@joyeria/shared';
 import { useId, useState, type SyntheticEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
@@ -13,13 +13,10 @@ import {
   type AuditFormFilters,
 } from './audit-filters.ts';
 import { actionLabel, entityTypeLabel } from './audit-labels.ts';
-import { AUDIT_PAGE_SIZE, useAuditFilters, useAuditList } from './use-audit.ts';
-
-const dateTime = new Intl.DateTimeFormat('es-BO', {
-  timeZone: BUSINESS_TIME_ZONE,
-  dateStyle: 'short',
-  timeStyle: 'medium',
-});
+import { useAuditFilters, useAuditList } from './use-audit.ts';
+import { Pagination } from '../../components/ui/pagination.tsx';
+import { formatDateTimeSeconds } from '../../lib/format.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 const SELECT =
   'block min-h-10 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm shadow-xs focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none';
@@ -71,7 +68,7 @@ function AuditRow({ entry, onOpen }: { entry: AuditEntry; onOpen: (id: string) =
   return (
     <tr className="border-b border-stone-100">
       <td className="py-3 pr-4 whitespace-nowrap tabular-nums">
-        {dateTime.format(new Date(entry.createdAt))}
+        {formatDateTimeSeconds(entry.createdAt)}
       </td>
       <td data-label="Usuario" className="py-3 pr-4">
         {entry.user ? entry.user.name : <span className="text-stone-500">Sistema</span>}
@@ -96,7 +93,7 @@ function AuditRow({ entry, onOpen }: { entry: AuditEntry; onOpen: (id: string) =
           onClick={() => {
             onOpen(entry.id);
           }}
-          aria-label={`Ver detalle: ${actionLabel(entry.action)}, ${dateTime.format(new Date(entry.createdAt))}`}
+          aria-label={`Ver detalle: ${actionLabel(entry.action)}, ${formatDateTimeSeconds(entry.createdAt)}`}
           className="inline-flex min-h-10 items-center rounded-lg px-2 text-sm font-medium text-brand-700 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
         >
           Ver detalle
@@ -112,6 +109,7 @@ function AuditRow({ entry, onOpen }: { entry: AuditEntry; onOpen: (id: string) =
  * compartir o recargar. Solo lectura: no hay acciones que modifiquen registros.
  */
 export function AuditPage() {
+  useDocumentTitle('Auditoría');
   const [params, setParams] = useSearchParams();
   const applied = filtersFromParams(params);
   const selected = params.get('registro');
@@ -156,7 +154,6 @@ export function AuditPage() {
   }
 
   const activeCount = countActiveFilters(applied);
-  const lastPage = Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE));
 
   return (
     <section className="space-y-6">
@@ -298,7 +295,10 @@ export function AuditPage() {
           </p>
         )}
         {rows.length > 0 && (
-          <div className={`mt-2 overflow-x-auto ${list.isPlaceholderData ? 'opacity-60' : ''}`}>
+          <div
+            aria-busy={list.isPlaceholderData}
+            className={`mt-2 overflow-x-auto ${list.isPlaceholderData ? 'opacity-60' : ''}`}
+          >
             <table className="table-cards w-full text-left text-sm">
               <caption className="sr-only">
                 Registros de auditoría, del más reciente al más antiguo
@@ -334,30 +334,8 @@ export function AuditPage() {
           </div>
         )}
 
-        {list.isSuccess && total > AUDIT_PAGE_SIZE && (
-          <nav aria-label="Paginación" className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {page} de {lastPage}
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page >= lastPage}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-            >
-              Siguiente
-            </Button>
-          </nav>
+        {list.isSuccess && (
+          <Pagination page={page} total={total} noun="registros" onPageChange={setPage} />
         )}
       </div>
 

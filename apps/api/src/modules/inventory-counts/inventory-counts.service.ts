@@ -1,5 +1,5 @@
 import {
-  PERMISSIONS,
+  REFERENCE_TYPES,
   countLabel,
   type CancelInventoryCountInput,
   type CountScanRecord,
@@ -17,7 +17,9 @@ import {
   ForbiddenError,
   NotFoundError,
 } from '../../lib/errors.ts';
+import { canSeeCosts } from '../../lib/permissions.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
+import { skuCandidates } from '../../lib/sku.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { applyStockChanges } from '../inventory/stock-ledger.ts';
@@ -45,7 +47,6 @@ import {
 } from './count-views.ts';
 
 /** Tipo de documento que referencian los movimientos que genera un conteo aprobado. */
-export const COUNT_REFERENCE_TYPE = 'INVENTORY_COUNT';
 
 /** Bloqueo de aviso (advisory) que serializa la creación/inicio de conteos: evita solapamientos. */
 const SCOPE_LOCK = 680_021;
@@ -56,10 +57,6 @@ const ENDED = ['APPROVED', 'CANCELLED'];
 
 export class InventoryCountsService {
   constructor(private readonly prisma: PrismaClient) {}
-
-  private static canSeeCosts(request: FastifyRequest) {
-    return getAuth(request).user.permissions.includes(PERMISSIONS.COSTS_READ);
-  }
 
   // ------------------------------------------------------------------ lectura
 
@@ -74,7 +71,7 @@ export class InventoryCountsService {
     const row = await this.loadRow(db, id);
     const stats = (await loadStats(db, [id])).get(id);
     if (row.status === 'IN_REVIEW' || row.status === 'APPROVED') {
-      return buildReviewDetail(db, row, stats, InventoryCountsService.canSeeCosts(request));
+      return buildReviewDetail(db, row, stats, canSeeCosts(request));
     }
     return buildBlindDetail(db, row, stats);
   }
@@ -423,7 +420,7 @@ export class InventoryCountsService {
   private async resolveVariant(tx: Prisma.TransactionClient, code: string) {
     const include = { product: true } as const;
     const bySku = await tx.productVariant.findFirst({
-      where: { sku: { equals: code, mode: 'insensitive' } },
+      where: { sku: { in: skuCandidates(code) } },
       include,
     });
     if (bySku) return bySku;
@@ -902,7 +899,7 @@ export class InventoryCountsService {
           type: 'COUNT_ADJUSTMENT' as const,
           quantity: plan.difference,
           unitCost: plan.item.variant.costPrice.toFixed(4),
-          referenceType: COUNT_REFERENCE_TYPE,
+          referenceType: REFERENCE_TYPES.INVENTORY_COUNT,
           referenceId: id,
           reason: `Conteo ${countLabel(row.number)}`,
           notes:

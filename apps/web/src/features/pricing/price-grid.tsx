@@ -4,11 +4,13 @@ import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
 import { useCategories } from '../catalog/use-categories.ts';
-import { formatBs, parsePriceInput } from './price-math.ts';
+import { formatBsPrecise } from '../../lib/format.ts';
+import { parsePriceInput } from './price-math.ts';
 import { ProfitDisplay } from './profit-display.tsx';
 import { useApplyPrices, usePricingVariants, useRequestPrices } from './use-pricing.ts';
 import { PriceHistoryPanel } from './variant-price-history.tsx';
 import { PieceImage } from '../catalog/photos/piece-image.tsx';
+import { Pagination } from '../../components/ui/pagination.tsx';
 
 /**
  * Panel de precios (Q-04, Q-06): por variante muestra el panel de costos (solo con `costs:read`),
@@ -200,7 +202,7 @@ export function PriceGrid({ initialSearch }: { initialSearch: string }) {
           <p className="py-6 text-sm text-stone-600">No se encontraron variantes.</p>
         )}
         {list.isSuccess && rows.length > 0 && (
-          <div className="overflow-x-auto">
+          <div aria-busy={list.isPlaceholderData} className="overflow-x-auto">
             <table className="table-cards w-full text-left text-sm">
               <caption className="sr-only">
                 Precios de venta por variante, con costos y ganancia
@@ -258,30 +260,8 @@ export function PriceGrid({ initialSearch }: { initialSearch: string }) {
           </div>
         )}
 
-        {list.isSuccess && total > 25 && (
-          <div className="mt-4 flex items-center gap-3 text-sm">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {page} · {total} variantes
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page * 25 >= total}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-            >
-              Siguiente
-            </Button>
-          </div>
+        {list.isSuccess && (
+          <Pagination page={page} total={total} noun="variantes" onPageChange={setPage} />
         )}
       </div>
 
@@ -366,7 +346,7 @@ function PriceRow({
       </td>
       {showCosts && (
         <td data-label="Precio de compra (Bs)" className="py-3 pr-3 tabular-nums">
-          {formatBs(row.costs?.purchaseUnitCost)}
+          {formatBsPrecise(row.costs?.purchaseUnitCost)}
           {entryNumber !== null && (
             <span className="block text-xs text-stone-500">
               ING-{String(entryNumber).padStart(6, '0')}
@@ -376,7 +356,7 @@ function PriceRow({
       )}
       {showCosts && (
         <td data-label="Subtotal de compra (Bs)" className="py-3 pr-3 tabular-nums">
-          {formatBs(row.costs?.purchaseSubtotal)}
+          {formatBsPrecise(row.costs?.purchaseSubtotal)}
           {purchaseQty !== null && (
             <span className="block text-xs text-stone-500">{purchaseQty} piezas</span>
           )}
@@ -384,17 +364,17 @@ function PriceRow({
       )}
       {showCosts && (
         <td data-label="Costos adicionales por pieza" className="py-3 pr-3 tabular-nums">
-          {formatBs(row.costs?.extraUnitCost)}
+          {formatBsPrecise(row.costs?.extraUnitCost)}
         </td>
       )}
       {showCosts && (
         <td data-label="Costo total unitario" className="py-3 pr-3 font-medium tabular-nums">
-          {formatBs(cost)}
+          {formatBsPrecise(cost)}
         </td>
       )}
       <td data-label="Precio de venta (neto)" className="py-3 pr-3 tabular-nums">
         {hasPrice ? (
-          formatBs(row.salePrice)
+          formatBsPrecise(row.salePrice)
         ) : (
           <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
             Sin precio
@@ -402,7 +382,8 @@ function PriceRow({
         )}
         {row.pending && (
           <span id={pendingId} className="mt-1 block text-xs text-amber-800">
-            Pendiente: {formatBs(row.pending.newPrice)} (solicitó {row.pending.requestedByName})
+            Pendiente: {formatBsPrecise(row.pending.newPrice)} (solicitó{' '}
+            {row.pending.requestedByName})
           </span>
         )}
       </td>

@@ -56,6 +56,12 @@ export function unitsToCents(units: bigint): bigint {
   return units % 100n >= 50n ? cents + 1n : cents;
 }
 
+/** Valor de `delta` piezas a `unitCost` (4 decimales), en Bs con 2 decimales y signo. */
+export function valueOfDelta(delta: number, unitCost: string): string {
+  const magnitude = unitsToCents(BigInt(Math.abs(delta)) * parseUnitCost(unitCost));
+  return formatMoney(delta < 0 ? -magnitude : magnitude);
+}
+
 export interface AllocationInput {
   /** Identificador estable de la línea (para el desempate). */
   key: string;

@@ -1,33 +1,16 @@
 import { PERMISSIONS } from '@joyeria/shared';
 import { createBrowserRouter } from 'react-router';
-import { LoginPage } from '../features/auth/login-page.tsx';
 import { AccountPage } from '../features/auth/account-page.tsx';
+import { LoginPage } from '../features/auth/login-page.tsx';
 import { RequireAuth } from '../features/auth/require-auth.tsx';
-import { SuppliersPage } from '../features/suppliers/suppliers-page.tsx';
-import { UsersPage } from '../features/users/users-page.tsx';
-import { CategoriesPage } from '../features/catalog/categories-page.tsx';
-import { AttributesPage } from '../features/catalog/attributes-page.tsx';
-import { ProductsPage } from '../features/catalog/products-page.tsx';
-import { LabelsPage } from '../features/catalog/labels-page.tsx';
-import { InventoryPage } from '../features/inventory/inventory-page.tsx';
-import { MovementsPage } from '../features/inventory/movements-page.tsx';
-import { AdjustmentPage } from '../features/adjustments/adjustment-page.tsx';
-import { AdjustmentNewPage } from '../features/adjustments/adjustment-new-page.tsx';
-import { AdjustmentsPage } from '../features/adjustments/adjustments-page.tsx';
-import { CountPage } from '../features/inventory-counts/count-page.tsx';
-import { CountsPage } from '../features/inventory-counts/counts-page.tsx';
-import { StockEntriesPage } from '../features/stock-entries/stock-entries-page.tsx';
-import { StockEntryNewPage } from '../features/stock-entries/stock-entry-new-page.tsx';
-import { StockEntryPage } from '../features/stock-entries/stock-entry-page.tsx';
-import { CostTypesPage } from '../features/stock-entries/cost-types-page.tsx';
-import { PricingPage } from '../features/pricing/pricing-page.tsx';
-import { AuditPage } from '../features/audit/audit-page.tsx';
 import { DashboardPage } from '../features/dashboard/dashboard-page.tsx';
 import { NotFoundPage } from '../pages/not-found-page.tsx';
 import { AppShell } from './app-shell.tsx';
+import { lazyPage } from './lazy-page.tsx';
+import { RouteError } from './route-error.tsx';
 
 export const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage /> },
+  { path: '/login', element: <LoginPage />, errorElement: <RouteError /> },
   {
     path: '/',
     element: (
@@ -35,162 +18,211 @@ export const router = createBrowserRouter([
         <AppShell />
       </RequireAuth>
     ),
-    // Las rutas de los módulos de Fase 1 se agregan aquí, cada una con sus permisos:
-    //   { path: 'productos', element: <RequireAuth permissions={['catalog:read']}>...</RequireAuth> }
+    errorElement: <RouteError />,
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: 'mi-cuenta', element: <AccountPage /> },
       {
-        path: 'proveedores',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.SUPPLIERS_READ]}>
-            <SuppliersPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'usuarios',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.USERS_READ]}>
-            <UsersPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'categorias',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.CATALOG_READ]}>
-            <CategoriesPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'atributos',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.CATALOG_READ]}>
-            <AttributesPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'productos',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.CATALOG_READ]}>
-            <ProductsPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'catalogo/etiquetas',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.CATALOG_READ]}>
-            <LabelsPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'precios',
-        element: (
-          <RequireAuth anyPermissions={[PERMISSIONS.PRICES_PROPOSE, PERMISSIONS.PRICES_APPROVE]}>
-            <PricingPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'inventario',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.INVENTORY_READ]}>
-            <InventoryPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'inventario/movimientos',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.INVENTORY_READ]}>
-            <MovementsPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'inventario/ajustes',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.INVENTORY_ADJUST]}>
-            <AdjustmentsPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'inventario/ajustes/nuevo',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.INVENTORY_ADJUST, PERMISSIONS.INVENTORY_READ]}>
-            <AdjustmentNewPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'inventario/ajustes/:id',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.INVENTORY_ADJUST]}>
-            <AdjustmentPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'inventario/conteos',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.INVENTORY_COUNTS_READ]}>
-            <CountsPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'inventario/conteos/:id',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.INVENTORY_COUNTS_READ]}>
-            <CountPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'ingresos',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.STOCK_ENTRIES_READ]}>
-            <StockEntriesPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'ingresos/nuevo',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.STOCK_ENTRIES_MANAGE]}>
-            <StockEntryNewPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'configuracion/tipos-de-costo',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.STOCK_ENTRIES_READ]}>
-            <CostTypesPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'auditoria',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.AUDIT_READ]}>
-            <AuditPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'ingresos/:id',
-        element: (
-          <RequireAuth permissions={[PERMISSIONS.STOCK_ENTRIES_READ]}>
-            <StockEntryPage />
-          </RequireAuth>
-        ),
+        // Ruta sin ruta propia: un error en una sección no tumba el panel lateral.
+        errorElement: <RouteError />,
+        children: [
+          { index: true, element: <DashboardPage /> },
+          { path: 'mi-cuenta', element: <AccountPage /> },
+          {
+            path: 'proveedores',
+            element: lazyPage(
+              () =>
+                import('../features/suppliers/suppliers-page.tsx').then((m) => ({
+                  default: m.SuppliersPage,
+                })),
+              { permissions: [PERMISSIONS.SUPPLIERS_READ] },
+            ),
+          },
+          {
+            path: 'usuarios',
+            element: lazyPage(
+              () =>
+                import('../features/users/users-page.tsx').then((m) => ({ default: m.UsersPage })),
+              { permissions: [PERMISSIONS.USERS_READ] },
+            ),
+          },
+          {
+            path: 'categorias',
+            element: lazyPage(
+              () =>
+                import('../features/catalog/categories-page.tsx').then((m) => ({
+                  default: m.CategoriesPage,
+                })),
+              { permissions: [PERMISSIONS.CATALOG_READ] },
+            ),
+          },
+          {
+            path: 'atributos',
+            element: lazyPage(
+              () =>
+                import('../features/catalog/attributes-page.tsx').then((m) => ({
+                  default: m.AttributesPage,
+                })),
+              { permissions: [PERMISSIONS.CATALOG_READ] },
+            ),
+          },
+          {
+            path: 'productos',
+            element: lazyPage(
+              () =>
+                import('../features/catalog/products-page.tsx').then((m) => ({
+                  default: m.ProductsPage,
+                })),
+              { permissions: [PERMISSIONS.CATALOG_READ] },
+            ),
+          },
+          {
+            path: 'productos/:id',
+            element: lazyPage(
+              () =>
+                import('../features/catalog/product-detail-page.tsx').then((m) => ({
+                  default: m.ProductDetailPage,
+                })),
+              { permissions: [PERMISSIONS.CATALOG_READ] },
+            ),
+          },
+          {
+            path: 'catalogo/etiquetas',
+            element: lazyPage(
+              () =>
+                import('../features/catalog/labels-page.tsx').then((m) => ({
+                  default: m.LabelsPage,
+                })),
+              { permissions: [PERMISSIONS.CATALOG_READ] },
+            ),
+          },
+          {
+            path: 'precios',
+            element: lazyPage(
+              () =>
+                import('../features/pricing/pricing-page.tsx').then((m) => ({
+                  default: m.PricingPage,
+                })),
+              { anyPermissions: [PERMISSIONS.PRICES_PROPOSE, PERMISSIONS.PRICES_APPROVE] },
+            ),
+          },
+          {
+            path: 'inventario',
+            element: lazyPage(
+              () =>
+                import('../features/inventory/inventory-page.tsx').then((m) => ({
+                  default: m.InventoryPage,
+                })),
+              { permissions: [PERMISSIONS.INVENTORY_READ] },
+            ),
+          },
+          {
+            path: 'inventario/movimientos',
+            element: lazyPage(
+              () =>
+                import('../features/inventory/movements-page.tsx').then((m) => ({
+                  default: m.MovementsPage,
+                })),
+              { permissions: [PERMISSIONS.INVENTORY_READ] },
+            ),
+          },
+          {
+            path: 'inventario/ajustes',
+            element: lazyPage(
+              () =>
+                import('../features/adjustments/adjustments-page.tsx').then((m) => ({
+                  default: m.AdjustmentsPage,
+                })),
+              { permissions: [PERMISSIONS.INVENTORY_ADJUST] },
+            ),
+          },
+          {
+            path: 'inventario/ajustes/nuevo',
+            element: lazyPage(
+              () =>
+                import('../features/adjustments/adjustment-new-page.tsx').then((m) => ({
+                  default: m.AdjustmentNewPage,
+                })),
+              { permissions: [PERMISSIONS.INVENTORY_ADJUST, PERMISSIONS.INVENTORY_READ] },
+            ),
+          },
+          {
+            path: 'inventario/ajustes/:id',
+            element: lazyPage(
+              () =>
+                import('../features/adjustments/adjustment-page.tsx').then((m) => ({
+                  default: m.AdjustmentPage,
+                })),
+              { permissions: [PERMISSIONS.INVENTORY_ADJUST] },
+            ),
+          },
+          {
+            path: 'inventario/conteos',
+            element: lazyPage(
+              () =>
+                import('../features/inventory-counts/counts-page.tsx').then((m) => ({
+                  default: m.CountsPage,
+                })),
+              { permissions: [PERMISSIONS.INVENTORY_COUNTS_READ] },
+            ),
+          },
+          {
+            path: 'inventario/conteos/:id',
+            element: lazyPage(
+              () =>
+                import('../features/inventory-counts/count-page.tsx').then((m) => ({
+                  default: m.CountPage,
+                })),
+              { permissions: [PERMISSIONS.INVENTORY_COUNTS_READ] },
+            ),
+          },
+          {
+            path: 'ingresos',
+            element: lazyPage(
+              () =>
+                import('../features/stock-entries/stock-entries-page.tsx').then((m) => ({
+                  default: m.StockEntriesPage,
+                })),
+              { permissions: [PERMISSIONS.STOCK_ENTRIES_READ] },
+            ),
+          },
+          {
+            path: 'ingresos/nuevo',
+            element: lazyPage(
+              () =>
+                import('../features/stock-entries/stock-entry-new-page.tsx').then((m) => ({
+                  default: m.StockEntryNewPage,
+                })),
+              { permissions: [PERMISSIONS.STOCK_ENTRIES_MANAGE] },
+            ),
+          },
+          {
+            path: 'configuracion/tipos-de-costo',
+            element: lazyPage(
+              () =>
+                import('../features/stock-entries/cost-types-page.tsx').then((m) => ({
+                  default: m.CostTypesPage,
+                })),
+              { permissions: [PERMISSIONS.SETTINGS_MANAGE, PERMISSIONS.STOCK_ENTRIES_READ] },
+            ),
+          },
+          {
+            path: 'auditoria',
+            element: lazyPage(
+              () =>
+                import('../features/audit/audit-page.tsx').then((m) => ({ default: m.AuditPage })),
+              { permissions: [PERMISSIONS.AUDIT_READ] },
+            ),
+          },
+          {
+            path: 'ingresos/:id',
+            element: lazyPage(
+              () =>
+                import('../features/stock-entries/stock-entry-page.tsx').then((m) => ({
+                  default: m.StockEntryPage,
+                })),
+              { permissions: [PERMISSIONS.STOCK_ENTRIES_READ] },
+            ),
+          },
+        ],
       },
     ],
   },

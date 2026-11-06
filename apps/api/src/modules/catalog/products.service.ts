@@ -20,6 +20,7 @@ import {
   ValidationError,
 } from '../../lib/errors.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
+import { skuCandidates } from '../../lib/sku.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { recordInitialPrice } from '../pricing/pricing.service.ts';
@@ -107,7 +108,7 @@ function toResponse(product: ProductWithDetails, showStock = false) {
       sku: variant.sku,
       barcode: variant.barcode,
       label: variant.label,
-      salePrice: variant.salePrice.toString(),
+      salePrice: variant.salePrice.toFixed(2),
       minStock: variant.minStock,
       status: variant.status,
       ...(showStock &&
@@ -429,7 +430,7 @@ export class ProductsService {
     const include = { product: { include: { category: true } }, inventory: true } as const;
     let matchedBy: VariantLookup['matchedBy'] = 'SKU';
     let variant = await this.prisma.productVariant.findFirst({
-      where: { sku: { equals: code, mode: 'insensitive' } },
+      where: { sku: { in: skuCandidates(code) } },
       include,
     });
     if (!variant) {
@@ -461,7 +462,7 @@ export class ProductsService {
       label: variant.label,
       sku: variant.sku,
       barcode: variant.barcode,
-      salePrice: variant.salePrice.toString(),
+      salePrice: variant.salePrice.toFixed(2),
       status: variant.status,
       productStatus: variant.product.status,
       matchedBy,

@@ -1,8 +1,9 @@
-import { PERMISSIONS, type Product } from '@joyeria/shared';
+import type { Product } from '@joyeria/shared';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { jsonResponse, renderWithProviders } from '../../test/render.tsx';
+import { Route, Routes, useLocation } from 'react-router';
+import { describe, expect, it } from 'vitest';
+import { renderWithProviders } from '../../test/render.tsx';
 import { ProductCard } from './product-card.tsx';
 
 const PRODUCT_ID = '00000000-0000-7000-8000-000000000001';
@@ -16,7 +17,7 @@ function variant(n: number, salePrice: string, stockQuantity: number) {
     salePrice,
     minStock: 1,
     stockQuantity,
-    stockLevel: 'OK' as const,
+    stockLevel: stockQuantity === 0 ? ('OUT' as const) : ('OK' as const),
     status: 'ACTIVE' as const,
   };
 }
@@ -38,75 +39,100 @@ const product = {
   photos: [],
 } satisfies Product;
 
-function mockSession(permissions: string[]) {
-  vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
-    Promise.resolve(
-      jsonResponse(200, {
-        data: {
-          id: '00000000-0000-7000-8000-0000000000aa',
-          email: 'a@example.invalid',
-          name: 'Ana',
-          roleName: 'Rol',
-          permissions,
-          mustChangePassword: false,
-        },
-      }),
-    ),
-  );
+function renderCard(p: Product = product, canReadInventory = true) {
+  return renderWithProviders(<ProductCard product={p} canReadInventory={canReadInventory} />);
 }
-
-function renderCard(props: { defaultOpen?: boolean } = {}) {
-  return renderWithProviders(
-    <ProductCard
-      product={product}
-      canManage
-      canReadInventory
-      onEdit={vi.fn()}
-      onError={vi.fn()}
-      onWarnings={vi.fn()}
-      {...props}
-    />,
-  );
-}
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
 
 describe('ProductCard (tarjeta resumida)', () => {
-  it('resume lo más relevante: nombre, rubro, rango de precio, variantes y stock', () => {
-    mockSession([PERMISSIONS.CATALOG_MANAGE]);
+  it('muestra solo lo esencial: foto, nombre, precio, disponibilidad y stock', () => {
     renderCard();
-    expect(screen.getByRole('heading', { name: /Anillo luna/ })).toBeInTheDocument();
-    expect(screen.getByText('Anillos · L-12')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Anillo luna' })).toBeInTheDocument();
     expect(screen.getByText(/80,00.*–.*120,00/)).toBeInTheDocument();
-    expect(screen.getByText('Variantes:').nextSibling).toHaveTextContent('2');
-    expect(screen.getByText('Stock:').nextSibling).toHaveTextContent('7');
+    expect(screen.getByText('Disponible')).toBeInTheDocument();
+    expect(screen.getByText('Stock:').parentElement).toHaveTextContent('Stock: 7');
+    // Nada de detalle en la tarjeta: ni descripción, ni SKU, ni acciones.
+    expect(screen.queryByText('Plata 925 con circón')).not.toBeInTheDocument();
+    expect(screen.queryByText(/SKU-000001/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('deja el detalle (variantes, descripción, acciones) detrás de «Ver detalle»', async () => {
-    mockSession([PERMISSIONS.CATALOG_MANAGE]);
+  it('toda la tarjeta es un enlace a la ficha del producto', () => {
     renderCard();
-    expect(screen.queryByText('Plata 925 con circón')).not.toBeInTheDocument();
-    expect(screen.queryByText(/SKU-000001/, { selector: 'p' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Imprimir etiquetas')).not.toBeInTheDocument();
-
-    const toggle = screen.getByRole('button', { name: 'Ver detalle de Anillo luna' });
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await userEvent.click(toggle);
-
-    expect(screen.getByText('Plata 925 con circón')).toBeInTheDocument();
-    expect(screen.getByText(/SKU-000001/, { selector: 'p' })).toBeInTheDocument();
-    expect(screen.getByText('Imprimir etiquetas')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ocultar detalle de Anillo luna' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
+    expect(screen.getByRole('link', { name: 'Ver ficha de Anillo luna' })).toHaveAttribute(
+      'href',
+      `/productos/${PRODUCT_ID}`,
     );
   });
 
-  it('se abre sola cuando la búsqueda deja un único producto', () => {
-    mockSession([PERMISSIONS.CATALOG_MANAGE]);
-    renderCard({ defaultOpen: true });
-    expect(screen.getByText(/SKU-000001/, { selector: 'p' })).toBeInTheDocument();
+  it('el nombre accesible no oculta el contenido: precio, estado y stock van como descripción', () => {
+    renderCard();
+    const link = screen.getByRole('link', { name: 'Ver ficha de Anillo luna' });
+    expect(link).not.toHaveAttribute('aria-label');
+    expect(link).toHaveAccessibleDescription(/80,00.*120,00.*neto.*Disponible.*Stock: 7/s);
+  });
+
+  it('la foto de la tarjeta es decorativa (alt vacío) para no repetir el nombre', () => {
+    renderCard({
+      ...product,
+      photos: [
+        {
+          id: '00000000-0000-7000-8000-000000000101',
+          url: `/api/v1/products/${PRODUCT_ID}/photos/00000000-0000-7000-8000-000000000101`,
+          contentType: 'image/webp',
+          width: 800,
+          height: 600,
+          sizeBytes: 1000,
+          position: 0,
+          isCover: true,
+        },
+      ],
+    });
+    expect(screen.getByRole('presentation')).toHaveAttribute('alt', '');
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('muestra las insignias «Ficha incompleta» y «Sin precio»', () => {
+    renderCard({ ...product, isIncomplete: true, hasMissingPrice: true });
+    expect(screen.getByText('Ficha incompleta')).toBeInTheDocument();
+    expect(screen.getByText('Sin precio')).toBeInTheDocument();
+  });
+
+  it('indica que el precio es neto', () => {
+    renderCard();
+    expect(screen.getByText('neto')).toBeInTheDocument();
+  });
+
+  it('un producto inactivo muestra «Inactivo» una sola vez', () => {
+    renderCard({ ...product, status: 'INACTIVE' });
+    expect(screen.getAllByText('Inactivo')).toHaveLength(1);
+  });
+
+  it('indica «Sin stock» cuando no hay piezas', () => {
+    renderCard({ ...product, variants: [variant(1, '80.00', 0)] });
+    expect(screen.getByText('Sin stock')).toBeInTheDocument();
+  });
+
+  it('oculta disponibilidad y stock si el rol no ve el inventario', () => {
+    renderCard(product, false);
+    expect(screen.queryByText('Disponible')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Stock:/)).not.toBeInTheDocument();
+  });
+
+  it('al abrir la ficha lleva la búsqueda del listado en el estado de la navegación', async () => {
+    function Destination() {
+      const { state } = useLocation() as { state: { productsSearch?: string } | null };
+      return <p>Búsqueda guardada: {state?.productsSearch}</p>;
+    }
+    renderWithProviders(
+      <Routes>
+        <Route
+          path="/"
+          element={<ProductCard product={product} canReadInventory from="?q=anillo&page=2" />}
+        />
+        <Route path="/productos/:id" element={<Destination />} />
+      </Routes>,
+    );
+    await userEvent.click(screen.getByRole('link', { name: 'Ver ficha de Anillo luna' }));
+    expect(await screen.findByText('Búsqueda guardada: ?q=anillo&page=2')).toBeInTheDocument();
   });
 });

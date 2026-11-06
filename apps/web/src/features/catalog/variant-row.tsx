@@ -7,16 +7,16 @@ import { PERMISSIONS } from '@joyeria/shared';
 import { useHasPermission } from '../auth/use-auth.ts';
 import { VariantPriceHistory } from '../pricing/variant-price-history.tsx';
 import { CostHistory } from '../stock-entries/cost-history.tsx';
-import { useSuppliers } from '../suppliers/use-suppliers.ts';
+import { useActiveSuppliers } from '../suppliers/use-suppliers.ts';
+import { formatBs } from '../../lib/format.ts';
 import {
   useAssignBarcode,
   useGenerateBarcode,
   useUpdateVariant,
   useUpdateVariantStatus,
 } from './use-products.ts';
+import { PieceImage } from './photos/piece-image.tsx';
 import { stockBlockMessage } from './stock-messages.ts';
-
-const currency = new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' });
 
 function variantBlocked(variant: ProductVariant) {
   return variant.status === 'ACTIVE' && (variant.stockQuantity ?? 0) > 0;
@@ -48,11 +48,13 @@ export function VariantRow({
   const generate = useGenerateBarcode();
   const updateVariant = useUpdateVariant();
   const updateStatus = useUpdateVariantStatus();
-  const suppliers = useSuppliers(1, '', 'active');
+  const canReadSuppliers = useHasPermission(PERMISSIONS.SUPPLIERS_READ);
   const [codeOpen, setCodeOpen] = useState(false);
   const [codeDraft, setCodeDraft] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [minStock, setMinStock] = useState(String(variant.minStock));
+  // Proveedores solo con el formulario del código abierto y permiso de lectura (Q-05).
+  const suppliers = useActiveSuppliers(canReadSuppliers && codeOpen);
   const fail = (cause: unknown, fallback: string) => {
     onError(cause instanceof Error ? cause.message : fallback);
   };
@@ -91,10 +93,16 @@ export function VariantRow({
 
   return (
     <div className="rounded-lg bg-stone-50 p-3 text-sm">
-      <p>
-        <strong>SKU:</strong> {variant.sku}
-        {variant.label && variant.label !== 'Única' ? ` · ${variant.label}` : ''}
-      </p>
+      <div className="mb-2 flex items-center gap-3">
+        <PieceImage variantId={variant.id} className="size-14" />
+        <div>
+          <strong className="block">{product.name}</strong>
+          <p>
+            <strong>SKU:</strong> {variant.sku}
+            {variant.label && variant.label !== 'Única' ? ` · ${variant.label}` : ''}
+          </p>
+        </div>
+      </div>
       {canReadInventory && variant.stockQuantity !== undefined && (
         <p>
           <strong>Stock:</strong> {variant.stockQuantity} piezas
@@ -113,9 +121,7 @@ export function VariantRow({
       )}
       <p>
         <strong>Precio de venta (neto):</strong>{' '}
-        {Number(variant.salePrice) > 0
-          ? currency.format(Number(variant.salePrice))
-          : 'Sin precio definido'}{' '}
+        {Number(variant.salePrice) > 0 ? formatBs(variant.salePrice) : 'Sin precio definido'}{' '}
         {canSeePrices && (
           <Link
             to={`/precios?q=${encodeURIComponent(variant.sku)}`}
@@ -256,7 +262,7 @@ export function VariantRow({
               className="block min-h-10 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm"
             >
               <option value="">Sin proveedor</option>
-              {suppliers.data?.data.map((supplier) => (
+              {suppliers.data?.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.name}
                 </option>

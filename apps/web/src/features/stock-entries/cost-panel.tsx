@@ -1,22 +1,7 @@
 import type { StockEntryCurrency } from '@joyeria/shared';
 import type { Preview } from './lines.ts';
+import { formatBsPrecise, formatUsd } from '../../lib/format.ts';
 import { PieceImage } from '../catalog/photos/piece-image.tsx';
-
-const bob = new Intl.NumberFormat('es-BO', {
-  style: 'currency',
-  currency: 'BOB',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-const usd = new Intl.NumberFormat('es-BO', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-
-const orDash = (value: string | null, format: Intl.NumberFormat) =>
-  value === null ? '—' : format.format(Number(value));
 
 interface Props {
   preview: Preview | null;
@@ -96,26 +81,26 @@ export function CostPanel({ preview, currency, exchangeRate, confirmed }: Props)
                   </td>
                   {isUsd && (
                     <td data-label="Precio de compra (USD)" className="py-3 pr-3 tabular-nums">
-                      {usd.format(Number(row.unitPrice))}
+                      {formatUsd(row.unitPrice)}
                     </td>
                   )}
                   <td data-label="Precio de compra (Bs)" className="py-3 pr-3 tabular-nums">
-                    {bob.format(Number(row.unitCostBob))}
+                    {formatBsPrecise(row.unitCostBob)}
                   </td>
                   <td data-label="Subtotal de compra (Bs)" className="py-3 pr-3 tabular-nums">
-                    {bob.format(Number(row.subtotalBob))}
+                    {formatBsPrecise(row.subtotalBob)}
                   </td>
                   <td data-label="Costos adicionales asignados" className="py-3 pr-3 tabular-nums">
-                    {orDash(row.extraAllocated, bob)}
+                    {formatBsPrecise(row.extraAllocated)}
                   </td>
                   <td
                     data-label="Costo total del ítem"
                     className="py-3 pr-3 font-medium tabular-nums"
                   >
-                    {orDash(row.totalCost, bob)}
+                    {formatBsPrecise(row.totalCost)}
                   </td>
                   <td data-label="Costo unitario total" className="py-3 font-medium tabular-nums">
-                    {orDash(row.unitTotalCost, bob)}
+                    {formatBsPrecise(row.unitTotalCost)}
                   </td>
                 </tr>
               ))}
@@ -133,19 +118,17 @@ export function CostPanel({ preview, currency, exchangeRate, confirmed }: Props)
             <>
               <dt className="text-stone-600">Valor de compra (USD)</dt>
               <dd className="text-right tabular-nums">
-                {usd.format(Number(preview.totals.purchaseOriginal))}
+                {formatUsd(preview.totals.purchaseOriginal)}
               </dd>
             </>
           )}
           <dt className="text-stone-600">Valor de compra (Bs)</dt>
-          <dd className="text-right tabular-nums">
-            {bob.format(Number(preview.totals.purchaseBob))}
-          </dd>
+          <dd className="text-right tabular-nums">{formatBsPrecise(preview.totals.purchaseBob)}</dd>
           <dt className="text-stone-600">Costos adicionales</dt>
-          <dd className="text-right tabular-nums">{bob.format(Number(preview.totals.extras))}</dd>
+          <dd className="text-right tabular-nums">{formatBsPrecise(preview.totals.extras)}</dd>
           <dt className="border-t border-stone-200 pt-1 font-semibold">Total del ingreso</dt>
           <dd className="border-t border-stone-200 pt-1 text-right font-semibold tabular-nums">
-            {bob.format(Number(preview.totals.grand))}
+            {formatBsPrecise(preview.totals.grand)}
           </dd>
         </dl>
       )}

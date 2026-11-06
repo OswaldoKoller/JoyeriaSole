@@ -16,6 +16,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from '../../lib/errors.ts';
+import { canSeeCosts, canSeeCostsWith } from '../../lib/permissions.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
@@ -43,10 +44,6 @@ const changeInclude = {
 type ChangeWithDetails = Prisma.PriceChangeGetPayload<{ include: typeof changeInclude }>;
 
 const unit = (value: Prisma.Decimal) => parseUnitCost(value.toFixed(4));
-
-function canSeeCosts(request: FastifyRequest) {
-  return getAuth(request).user.permissions.includes(PERMISSIONS.COSTS_READ);
-}
 
 function toChangeResponse(change: ChangeWithDetails, showCosts: boolean) {
   return {
@@ -124,7 +121,7 @@ export class PricingService {
   /** Variantes con su panel de costos, precio vigente y solicitud pendiente. */
   async listVariants(query: PricingVariantsQuery, request: FastifyRequest) {
     const permissions = getAuth(request).user.permissions;
-    const showCosts = permissions.includes(PERMISSIONS.COSTS_READ);
+    const showCosts = canSeeCostsWith(permissions);
     const showStock = permissions.includes(PERMISSIONS.INVENTORY_READ);
     const where: Prisma.ProductVariantWhereInput = {
       status: 'ACTIVE',
@@ -168,17 +165,21 @@ export class PricingService {
       Prisma.StockEntryItemGetPayload<{ include: { stockEntry: true } }>
     >();
     if (showCosts && variants.length > 0) {
+      // DISTINCT ON: una sola fila por variante (la del ingreso confirmado más reciente) en vez de
+      // traer todo el historial de ingresos de las variantes de la página y descartar en memoria.
+      const latest = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT DISTINCT ON (i.variant_id) i.id
+        FROM stock_entry_items i
+        JOIN stock_entries e ON e.id = i.stock_entry_id
+        WHERE i.variant_id = ANY(${variants.map((variant) => variant.id)}::uuid[])
+          AND i.received_qty > 0
+          AND e.status = 'CONFIRMED'
+        ORDER BY i.variant_id, e.confirmed_at DESC, i.id DESC`;
       const items = await this.prisma.stockEntryItem.findMany({
-        where: {
-          variantId: { in: variants.map((variant) => variant.id) },
-          receivedQty: { gt: 0 },
-          stockEntry: { status: 'CONFIRMED' },
-        },
+        where: { id: { in: latest.map((row) => row.id) } },
         include: { stockEntry: true },
-        orderBy: [{ stockEntry: { confirmedAt: 'desc' } }, { id: 'desc' }],
       });
-      for (const item of items)
-        if (!lastItems.has(item.variantId)) lastItems.set(item.variantId, item);
+      for (const item of items) lastItems.set(item.variantId, item);
     }
 
     return {

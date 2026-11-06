@@ -4,11 +4,12 @@ import type {
   PricingVariant,
   PriceChangeStatus,
 } from '@joyeria/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
+import { PAGE_SIZE, SMALL_PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
 const key = ['pricing'] as const;
-type Page<T> = { data: T[]; meta: { page: number; pageSize: number; total: number } };
+type Page<T> = Paged<T>;
 
 export interface VariantFilters {
   page: number;
@@ -19,23 +20,25 @@ export interface VariantFilters {
 }
 
 export function usePricingVariants(filters: VariantFilters) {
-  const query = new URLSearchParams({ page: String(filters.page), pageSize: '25', q: filters.q });
+  const query = new URLSearchParams({
+    page: String(filters.page),
+    pageSize: String(PAGE_SIZE),
+    q: filters.q,
+  });
   if (filters.categoryId) query.set('categoryId', filters.categoryId);
   if (filters.noPrice) query.set('noPrice', 'true');
   if (filters.withPending) query.set('withPending', 'true');
-  return useQuery({
-    queryKey: [...key, 'variants', filters],
-    queryFn: () => api.get<Page<PricingVariant>>(`/pricing/variants?${query}`),
-  });
+  return useListQuery([...key, 'variants', filters], () =>
+    api.get<Page<PricingVariant>>(`/pricing/variants?${query}`),
+  );
 }
 
 export function usePriceChanges(page: number, status: PriceChangeStatus | '', q = '') {
-  const query = new URLSearchParams({ page: String(page), pageSize: '25', q });
+  const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), q });
   if (status) query.set('status', status);
-  return useQuery({
-    queryKey: [...key, 'changes', page, status, q],
-    queryFn: () => api.get<Page<PriceChange>>(`/pricing/changes?${query}`),
-  });
+  return useListQuery([...key, 'changes', page, status, q], () =>
+    api.get<Page<PriceChange>>(`/pricing/changes?${query}`),
+  );
 }
 
 /** Todas las pendientes (hasta 100) para decidirlas en masa. */
@@ -50,7 +53,10 @@ export function useVariantPriceHistory(variantId: string, page: number, enabled:
   return useQuery({
     queryKey: [...key, 'history', variantId, page],
     queryFn: () =>
-      api.get<Page<PriceChange>>(`/pricing/variants/${variantId}/history?page=${page}&pageSize=10`),
+      api.get<Page<PriceChange>>(
+        `/pricing/variants/${variantId}/history?page=${page}&pageSize=${SMALL_PAGE_SIZE}`,
+      ),
+    placeholderData: keepPreviousData,
     enabled,
   });
 }
@@ -71,6 +77,8 @@ function useAfterChange() {
     Promise.all([
       client.invalidateQueries({ queryKey: key }),
       client.invalidateQueries({ queryKey: ['products'] }),
+      // La bandeja «Pendientes de aprobación» del Inicio también cambia (Q-06).
+      client.invalidateQueries({ queryKey: ['approvals'] }),
     ]);
 }
 

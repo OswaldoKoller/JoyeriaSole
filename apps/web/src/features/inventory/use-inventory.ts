@@ -1,11 +1,9 @@
 import type { GlobalInventoryMovement, InitialStockInput, InventoryItem } from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
+import { PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
-type InventoryList = {
-  data: InventoryItem[];
-  meta: { page: number; pageSize: number; total: number };
-};
+type InventoryList = Paged<InventoryItem>;
 type MovementList = {
   data: {
     id: string;
@@ -23,26 +21,22 @@ type MovementList = {
 export function useInventory(page: number, q: string, level: string, initialOnly = false) {
   const params = new URLSearchParams({
     page: String(page),
-    pageSize: '25',
+    pageSize: String(PAGE_SIZE),
     q,
     level,
     initialOnly: String(initialOnly),
   });
-  return useQuery({
-    queryKey: ['inventory', page, q, level, initialOnly],
-    queryFn: () => api.get<InventoryList>(`/inventory?${params}`),
-  });
+  return useListQuery(['inventory', page, q, level, initialOnly], () =>
+    api.get<InventoryList>(`/inventory?${params}`),
+  );
 }
 
 export function useAllInventoryMovements(page: number) {
-  return useQuery({
-    queryKey: ['inventory-movements', 'all', page],
-    queryFn: () =>
-      api.get<{
-        data: GlobalInventoryMovement[];
-        meta: { page: number; pageSize: number; total: number };
-      }>(`/inventory/movements?page=${page}&pageSize=25`),
-  });
+  return useListQuery(['inventory-movements', 'all', page], () =>
+    api.get<Paged<GlobalInventoryMovement>>(
+      `/inventory/movements?page=${page}&pageSize=${PAGE_SIZE}`,
+    ),
+  );
 }
 
 export function useInventoryMovements(variantId: string | null) {

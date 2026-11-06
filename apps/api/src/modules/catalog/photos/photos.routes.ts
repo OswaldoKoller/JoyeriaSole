@@ -38,6 +38,18 @@ const IMAGE_VIEW_PERMISSIONS = [
   PERMISSIONS.PRICES_APPROVE,
 ] as const;
 
+/**
+ * Las imágenes no cuentan para el límite global por IP (300/min): una lista muestra decenas de
+ * miniaturas y dejaría sin respuesta al resto de la pantalla. Tienen un tope alto POR USUARIO
+ * (la limitación se evalúa en `preHandler`, después de autenticar, para conocer el usuario).
+ */
+const IMAGE_RATE_LIMIT = {
+  max: 3000,
+  timeWindow: '1 minute',
+  hook: 'preHandler' as const,
+  keyGenerator: (request: FastifyRequest) => request.auth?.user.id ?? request.ip,
+};
+
 /** Imagen de reemplazo (SVG propio, sin datos del usuario) para piezas sin foto. */
 const NO_PHOTO_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Sin foto">' +
@@ -119,10 +131,8 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
     '/:id/photos/:photoId',
     {
       preValidation: app.requireAnyPermission(...IMAGE_VIEW_PERMISSIONS),
-      // Una lista muestra decenas de fotos a la vez: no cuentan para el límite global por IP
-      // (300/min), que de lo contrario dejaría sin respuesta a las demás peticiones de la pantalla.
-      // Siguen exigiendo sesión y permiso.
-      config: { rateLimit: false },
+      // Una lista muestra decenas de fotos a la vez: tope alto por usuario en vez del global por IP.
+      config: { rateLimit: IMAGE_RATE_LIMIT },
       schema: { params: photoParams },
     },
     async (request, reply) => {
@@ -141,7 +151,7 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
     '/variants/:variantId/cover',
     {
       preValidation: app.requireAnyPermission(...IMAGE_VIEW_PERMISSIONS),
-      config: { rateLimit: false }, // ver la nota de la ruta de fotos por id
+      config: { rateLimit: IMAGE_RATE_LIMIT }, // ver la nota de la ruta de fotos por id
       schema: { params: variantParams },
     },
     async (request, reply) => {

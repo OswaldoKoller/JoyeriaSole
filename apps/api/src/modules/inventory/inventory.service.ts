@@ -2,6 +2,7 @@ import type { InitialStockInput, InventoryItem } from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import { Prisma } from '../../generated/prisma/client.ts';
 import { BusinessRuleError, NotFoundError } from '../../lib/errors.ts';
+import { canSeeMovementNotes } from '../../lib/permissions.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
@@ -90,13 +91,23 @@ export class InventoryService {
     };
   }
 
-  async movements(variantId: string, input: { page: number; pageSize: number }) {
+  /**
+   * Kardex de una variante, del más reciente al más antiguo. Se ordena por `id` (secuencia del
+   * libro, asignada al insertar) y no por `created_at`, que es el inicio de la transacción y puede
+   * quedar desordenado respecto del saldo cuando dos transacciones se solapan.
+   */
+  async movements(
+    variantId: string,
+    input: { page: number; pageSize: number },
+    request: FastifyRequest,
+  ) {
+    const withNotes = canSeeMovementNotes(request);
     const variant = await this.prisma.productVariant.findUnique({ where: { id: variantId } });
     if (!variant) throw new NotFoundError('Variante no encontrada');
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.inventoryMovement.findMany({
         where: { variantId },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        orderBy: { id: 'desc' },
         skip: (input.page - 1) * input.pageSize,
         take: input.pageSize,
       }),
@@ -110,7 +121,7 @@ export class InventoryService {
         balanceBefore: row.balanceBefore,
         balanceAfter: row.balanceAfter,
         reason: row.reason,
-        notes: row.notes,
+        notes: withNotes ? row.notes : null,
         userId: row.userId,
         createdAt: row.createdAt.toISOString(),
       })),
@@ -118,11 +129,13 @@ export class InventoryService {
     };
   }
 
-  async allMovements(input: { page: number; pageSize: number }) {
+  /** Historial global (más reciente primero, por `id`; ver `movements`). */
+  async allMovements(input: { page: number; pageSize: number }, request: FastifyRequest) {
+    const withNotes = canSeeMovementNotes(request);
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.inventoryMovement.findMany({
         include: { variant: { include: { product: true } } },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        orderBy: { id: 'desc' },
         skip: (input.page - 1) * input.pageSize,
         take: input.pageSize,
       }),
@@ -140,7 +153,7 @@ export class InventoryService {
         balanceBefore: row.balanceBefore,
         balanceAfter: row.balanceAfter,
         reason: row.reason,
-        notes: row.notes,
+        notes: withNotes ? row.notes : null,
         userId: row.userId,
         createdAt: row.createdAt.toISOString(),
       })),

@@ -728,7 +728,7 @@ describe('precios de venta: solicitud, aprobación e historial', () => {
       expect(await app.prisma.product.count()).toBe(0);
       const free = await createProduct(manager.cookie, { salePrice: '0' });
       expect(free.statusCode).toBe(201);
-      expect(free.json().data.variants[0].salePrice).toBe('0');
+      expect(free.json().data.variants[0].salePrice).toBe('0.00');
       expect(await app.prisma.priceChange.count()).toBe(0);
     });
 

@@ -1,4 +1,3 @@
-import { BUSINESS_TIME_ZONE } from '@joyeria/shared';
 import { X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Button } from '../../components/ui/button.tsx';
@@ -11,12 +10,7 @@ import {
   type DiffRow,
 } from './audit-diff.ts';
 import { useAuditDetail } from './use-audit.ts';
-
-const fullDate = new Intl.DateTimeFormat('es-BO', {
-  timeZone: BUSINESS_TIME_ZONE,
-  dateStyle: 'long',
-  timeStyle: 'medium',
-});
+import { formatDateTimeLong } from '../../lib/format.ts';
 
 const CELL = 'px-2 py-1.5 align-top [overflow-wrap:anywhere]';
 
@@ -184,9 +178,7 @@ export function AuditDetailDialog({ id, onClose }: { id: string; onClose: () => 
           {entry && (
             <>
               <dl className="space-y-2">
-                <Field label="Fecha">
-                  {fullDate.format(new Date(entry.createdAt))} (hora de La Paz)
-                </Field>
+                <Field label="Fecha">{formatDateTimeLong(entry.createdAt)} (hora de La Paz)</Field>
                 <Field label="Usuario">
                   {entry.user ? (
                     <>

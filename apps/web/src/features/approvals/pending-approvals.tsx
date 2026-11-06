@@ -21,12 +21,15 @@ export function PendingApprovals() {
   const { data: user } = useCurrentUser();
   const allowed = !!user && APPROVE.some((permission) => user.permissions.includes(permission));
   const pending = usePendingApprovals(allowed);
-  if (!allowed || !pending.data || pending.data.total === 0) return null;
-  const { adjustments, prices, counts, total } = pending.data;
+  if (!allowed || !pending.data) return null;
+  const { adjustments, prices, counts } = pending.data;
+  // El total se deriva de los tres contadores (los que el rol no ve vienen en null).
+  const total = (adjustments ?? 0) + (prices ?? 0) + (counts ?? 0);
+  if (total === 0) return null;
   return (
     <section
       aria-label="Pendientes de aprobación"
-      className="border-brand-200 rounded-xl border bg-brand-50 px-4 py-3 text-sm text-stone-900"
+      className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-stone-900"
     >
       <h2 className="font-semibold">
         Pendientes de aprobación{' '}

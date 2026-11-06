@@ -18,7 +18,8 @@ export default defineConfig({
     },
   },
   build: {
-    sourcemap: true,
+    // Sin mapas de código en producción: se servirían sin autenticación junto al frontend (S-09).
+    sourcemap: false,
   },
   test: {
     // En Windows el pool de threads agotó dos veces el arranque sin ejecutar pruebas.

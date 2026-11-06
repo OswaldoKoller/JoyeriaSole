@@ -587,3 +587,97 @@ describe('restablecimiento de contraseña por el Administrador (F2)', () => {
     expect((await login(app, other.user.email, TEMPORARY)).response.statusCode).toBe(200);
   });
 });
+
+describe('escalada de privilegios con el rol ADMIN (S-01/S-02)', () => {
+  let app: App;
+  beforeEach(async () => {
+    app = await buildTestApp();
+    await resetDatabase(app.prisma);
+  });
+  afterEach(() => app.close());
+
+  async function setup() {
+    // Rol personalizado con users:manage + roles:manage, sin ser Administrador.
+    const manager = await createTestUser(app.prisma, {
+      permissions: [PERMISSIONS.USERS_READ, PERMISSIONS.USERS_MANAGE, PERMISSIONS.ROLES_MANAGE],
+    });
+    const target = await createTestUser(app.prisma, { permissions: [PERMISSIONS.CATALOG_READ] });
+    const adminRole = await app.prisma.role.create({
+      data: { code: 'ADMIN', name: 'Administrador' },
+    });
+    const { cookie } = await login(app, manager.user.email, manager.password);
+    return { manager, target, adminRole, cookie };
+  }
+
+  it('un rol personalizado no puede asignar el rol ADMIN a otra persona ni a sí mismo', async () => {
+    const { manager, target, adminRole, cookie } = await setup();
+    for (const id of [target.user.id, manager.user.id]) {
+      const own = await app.prisma.userRole.findFirstOrThrow({ where: { userId: id } });
+      const res = await app.inject({
+        method: 'PUT',
+        url: `${url}/${id}/roles`,
+        headers: { cookie },
+        payload: { roleIds: [own.roleId, adminRole.id] },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json().error.message).toMatch(/Administrador/);
+    }
+    expect(await app.prisma.userRole.count({ where: { roleId: adminRole.id } })).toBe(0);
+  });
+
+  it('un rol personalizado no puede crear un usuario con el rol ADMIN', async () => {
+    const { adminRole, cookie } = await setup();
+    const res = await app.inject({
+      method: 'POST',
+      url,
+      headers: { cookie },
+      payload: {
+        email: 'intruso@test.local',
+        name: 'Intruso',
+        password: 'clave-inicial-123',
+        roleIds: [adminRole.id],
+      },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(await app.prisma.user.count({ where: { email: 'intruso@test.local' } })).toBe(0);
+  });
+
+  it('un rol personalizado no puede quitar el rol ADMIN a un Administrador', async () => {
+    const { target, adminRole, cookie } = await setup();
+    await app.prisma.userRole.create({ data: { userId: target.user.id, roleId: adminRole.id } });
+    const other = await app.prisma.role.create({ data: { code: 'OTRO', name: 'Otro' } });
+    const res = await app.inject({
+      method: 'PUT',
+      url: `${url}/${target.user.id}/roles`,
+      headers: { cookie },
+      payload: { roleIds: [other.id] },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(await app.prisma.userRole.count({ where: { userId: target.user.id } })).toBe(2);
+  });
+
+  it('un Administrador sí puede asignar y crear con el rol ADMIN', async () => {
+    const { manager, target, adminRole } = await setup();
+    await app.prisma.userRole.create({ data: { userId: manager.user.id, roleId: adminRole.id } });
+    const { cookie } = await login(app, manager.user.email, manager.password);
+    const assigned = await app.inject({
+      method: 'PUT',
+      url: `${url}/${target.user.id}/roles`,
+      headers: { cookie },
+      payload: { roleIds: [adminRole.id] },
+    });
+    expect(assigned.statusCode).toBe(200);
+    const created = await app.inject({
+      method: 'POST',
+      url,
+      headers: { cookie },
+      payload: {
+        email: 'otro-admin@test.local',
+        name: 'Otro admin',
+        password: 'clave-inicial-123',
+        roleIds: [adminRole.id],
+      },
+    });
+    expect(created.statusCode).toBe(201);
+  });
+});

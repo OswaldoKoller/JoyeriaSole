@@ -19,7 +19,7 @@ Referencias: `docs/deployment/DEPLOYMENT.md`, `docs/deployment/BACKUPS.md`, ADR-
 ## Variables de producción
 
 `NODE_ENV=production`, `DATABASE_URL`, `AUTH_SECRET` (nuevo, ≥ 48 bytes), `CORS_ORIGIN` y
-`FRONTEND_URL` (dominio https), `TRUST_PROXY=true` detrás del proxy del hosting, `LOG_LEVEL=info`.
+`FRONTEND_URL` (dominio https), `TRUST_PROXY_HOPS=<n.º de proxies propios>` (p. ej. 1 en Render/Railway), `LOG_LEVEL=info`.
 `PORT` lo inyecta el hosting (la API lo usa si no hay `API_PORT`). `WEB_DIST_DIR` ya viene en la imagen.
 `COOKIE_SECURE` nunca en `false` en producción real.
 

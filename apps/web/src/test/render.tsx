@@ -7,7 +7,10 @@ import { createQueryClient } from '../app/query-client.ts';
 /** Renderiza con los mismos providers que la app real (React Query + Router). */
 export function renderWithProviders(ui: ReactNode, { route = '/' } = {}) {
   const queryClient = createQueryClient();
-  queryClient.setDefaultOptions({ queries: { retry: false } });
+  queryClient.setDefaultOptions({
+    ...queryClient.getDefaultOptions(),
+    queries: { ...queryClient.getDefaultOptions().queries, retry: false },
+  });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>

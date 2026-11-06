@@ -10,6 +10,6 @@ export default defineConfig({
   platform: 'node',
   outDir: 'dist',
   clean: true,
-  sourcemap: true,
+  sourcemap: false, // los .map no se publican en la imagen (S-09)
   noExternal: ['@joyeria/shared'],
 });

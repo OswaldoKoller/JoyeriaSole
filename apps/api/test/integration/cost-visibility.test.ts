@@ -90,7 +90,7 @@ describe('visibilidad de costos (Q-15.2)', () => {
     }
     // Sí ve lo que necesita: precio de venta y stock.
     const detail = (await get(`/api/v1/products/${productId}`, sellerCookie)).json().data;
-    expect(detail.variants[0]).toMatchObject({ salePrice: '1500', stockQuantity: 1 });
+    expect(detail.variants[0]).toMatchObject({ salePrice: '1500.00', stockQuantity: 1 });
   });
 
   it('el Vendedor no accede a documentos de compra, proveedores, usuarios ni auditoría', async () => {
@@ -125,5 +125,90 @@ describe('visibilidad de costos (Q-15.2)', () => {
       PERMISSIONS.COSTS_READ,
     );
     expect((await get('/api/v1/stock-entries', managerCookie)).statusCode).toBe(200);
+  });
+
+  describe('notas de los movimientos (S-03)', () => {
+    const NOTE = 'Faltante de 3 piezas, costo 777.1234';
+    const movementUrls = () => [
+      '/api/v1/inventory/movements',
+      `/api/v1/inventory/${variantId}/movements`,
+    ];
+
+    beforeEach(async () => {
+      // El libro es append-only (no admite UPDATE): se agrega un movimiento más reciente con nota.
+      const first = await app.prisma.inventoryMovement.findFirstOrThrow({ where: { variantId } });
+      await app.prisma.inventoryMovement.create({
+        data: {
+          variantId,
+          type: 'ADJUSTMENT',
+          quantity: 1,
+          balanceBefore: 1,
+          balanceAfter: 2,
+          reason: 'Ajuste con nota',
+          notes: NOTE,
+          userId: first.userId,
+        },
+      });
+    });
+
+    it('el Vendedor recibe las notas como null en el kardex y en el historial global', async () => {
+      for (const url of movementUrls()) {
+        const res = await get(url, sellerCookie);
+        expect(res.statusCode, url).toBe(200);
+        expect(res.body, url).not.toContain(NOTE);
+        const rows = res.json().data as { notes: string | null; reason: string }[];
+        expect(rows.length).toBeGreaterThan(0);
+        expect(rows.every((row) => row.notes === null)).toBe(true);
+      }
+    });
+
+    it('quien ajusta inventario o audita sí ve las notas', async () => {
+      for (const permission of [
+        PERMISSIONS.INVENTORY_ADJUST,
+        PERMISSIONS.STOCK_ENTRIES_READ,
+        PERMISSIONS.AUDIT_READ,
+      ]) {
+        const user = await createTestUser(app.prisma, {
+          permissions: [PERMISSIONS.INVENTORY_READ, permission],
+        });
+        const { cookie } = await login(app, user.user.email, user.password);
+        for (const url of movementUrls()) {
+          const res = await get(url, cookie);
+          expect(res.statusCode, `${permission} ${url}`).toBe(200);
+          expect(res.json().data[0].notes, `${permission} ${url}`).toBe(NOTE);
+        }
+      }
+    });
+
+    it('el Responsable de inventario conserva las notas', async () => {
+      for (const url of movementUrls()) {
+        expect((await get(url, managerCookie)).json().data[0].notes).toBe(NOTE);
+      }
+    });
+  });
+
+  it('el kardex y el historial se ordenan por id descendente, no por created_at', async () => {
+    const base = await app.prisma.inventoryMovement.findFirstOrThrow({ where: { variantId } });
+    // Un movimiento posterior (id mayor) cuyo created_at es ANTERIOR: el orden manda el id.
+    const later = await app.prisma.inventoryMovement.create({
+      data: {
+        variantId,
+        type: 'ADJUSTMENT',
+        quantity: 1,
+        balanceBefore: 1,
+        balanceAfter: 2,
+        reason: 'Posterior',
+        userId: base.userId,
+        createdAt: new Date(base.createdAt.getTime() - 60_000),
+      },
+    });
+    for (const url of ['/api/v1/inventory/movements', `/api/v1/inventory/${variantId}/movements`]) {
+      const res = await get(url, managerCookie);
+      expect(res.statusCode, url).toBe(200);
+      expect(res.json().data.map((row: { id: string }) => row.id)).toEqual([
+        later.id.toString(),
+        base.id.toString(),
+      ]);
+    }
   });
 });

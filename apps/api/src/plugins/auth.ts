@@ -54,6 +54,20 @@ export function getAuth(request: FastifyRequest): RequestAuth {
   return request.auth;
 }
 
+interface SessionRow {
+  session_id: string;
+  revoked_at: Date | null;
+  expires_at: Date;
+  last_seen_at: Date;
+  user_id: string;
+  email: string;
+  name: string;
+  is_active: boolean;
+  must_change_password: boolean;
+  roles: string[];
+  permissions: string[];
+}
+
 /** Evita escribir en BD en cada request: lastSeenAt se refresca como máximo cada 5 minutos. */
 const LAST_SEEN_THROTTLE_MS = 5 * 60 * 1000;
 
@@ -61,43 +75,39 @@ export async function loadSessionUser(
   prisma: PrismaClient,
   token: string,
 ): Promise<RequestAuth | null> {
-  const session = await prisma.session.findUnique({
-    where: { tokenHash: hashToken(token) },
-    include: {
-      user: {
-        include: {
-          roles: {
-            include: { role: { include: { permissions: { include: { permission: true } } } } },
-          },
-        },
-      },
-    },
-  });
+  // Sin caché (la revocación y los cambios de permisos rigen de inmediato) y con UNA sola consulta
+  // (sesión + usuario + roles + permisos) que devuelve únicamente las columnas necesarias:
+  // nunca se trae passwordHash. SQL con plantilla etiquetada: nada se concatena.
+  const [row] = await prisma.$queryRaw<SessionRow[]>`
+    SELECT s.id AS session_id, s.revoked_at, s.expires_at, s.last_seen_at,
+           u.id AS user_id, u.email, u.name, u.is_active, u.must_change_password,
+           COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles,
+           COALESCE(array_agg(DISTINCT p.code) FILTER (WHERE p.code IS NOT NULL), '{}') AS permissions
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id
+    LEFT JOIN user_roles ur ON ur.user_id = u.id
+    LEFT JOIN roles r ON r.id = ur.role_id
+    LEFT JOIN role_permissions rp ON rp.role_id = r.id
+    LEFT JOIN permissions p ON p.id = rp.permission_id
+    WHERE s.token_hash = ${hashToken(token)}
+    GROUP BY s.id, u.id`;
 
   const now = new Date();
-  if (!session || session.revokedAt || session.expiresAt <= now || !session.user.isActive) {
-    return null;
-  }
+  if (!row || row.revoked_at || row.expires_at <= now || !row.is_active) return null;
 
-  if (now.getTime() - session.lastSeenAt.getTime() > LAST_SEEN_THROTTLE_MS) {
-    await prisma.session.update({ where: { id: session.id }, data: { lastSeenAt: now } });
-  }
-
-  const roles = session.user.roles.map((userRole) => userRole.role.code as RoleCode);
-  const permissions = new Set<Permission>();
-  for (const { role } of session.user.roles) {
-    for (const { permission } of role.permissions) permissions.add(permission.code as Permission);
+  if (now.getTime() - row.last_seen_at.getTime() > LAST_SEEN_THROTTLE_MS) {
+    await prisma.session.update({ where: { id: row.session_id }, data: { lastSeenAt: now } });
   }
 
   return {
-    sessionId: session.id,
+    sessionId: row.session_id,
     user: {
-      id: session.user.id,
-      email: session.user.email,
-      name: session.user.name,
-      roles,
-      permissions: [...permissions].sort(),
-      mustChangePassword: session.user.mustChangePassword,
+      id: row.user_id,
+      email: row.email,
+      name: row.name,
+      roles: [...row.roles].sort() as RoleCode[],
+      permissions: [...row.permissions].sort() as Permission[],
+      mustChangePassword: row.must_change_password,
     },
   };
 }
@@ -120,7 +130,15 @@ export const authPlugin = fp<{ env: Env }>(
         });
       },
       clear(reply) {
-        reply.clearCookie(cookieName, { path: '/' });
+        // Mismos atributos que al crearla: con el prefijo `__Host-` el navegador ignoraría el
+        // borrado si no lleva Secure.
+        reply.clearCookie(cookieName, {
+          httpOnly: true,
+          secure: env.COOKIE_SECURE,
+          sameSite: 'strict',
+          path: '/',
+          signed: true,
+        });
       },
     });
 

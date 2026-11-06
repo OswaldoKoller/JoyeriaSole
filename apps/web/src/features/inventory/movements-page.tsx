@@ -1,17 +1,14 @@
 import { movementTypeLabel } from '@joyeria/shared';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { Button } from '../../components/ui/button.tsx';
 import { useAllInventoryMovements } from './use-inventory.ts';
 import { PieceImage } from '../catalog/photos/piece-image.tsx';
-
-const dateTime = new Intl.DateTimeFormat('es-BO', {
-  timeZone: 'America/La_Paz',
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
+import { Pagination } from '../../components/ui/pagination.tsx';
+import { formatDateTime } from '../../lib/format.ts';
+import { useDocumentTitle } from '../../lib/use-document-title.ts';
 
 export function MovementsPage() {
+  useDocumentTitle('Movimientos');
   const [page, setPage] = useState(1);
   const list = useAllInventoryMovements(page);
   const movements = list.data?.data ?? [];
@@ -37,7 +34,7 @@ export function MovementsPage() {
           <p className="text-sm text-stone-600">No hay movimientos registrados.</p>
         )}
         {list.isSuccess && movements.length > 0 && (
-          <div className="overflow-x-auto">
+          <div aria-busy={list.isPlaceholderData} className="overflow-x-auto">
             <table className="table-cards w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-stone-200 text-stone-600">
@@ -52,7 +49,7 @@ export function MovementsPage() {
               <tbody>
                 {movements.map((movement) => (
                   <tr key={movement.id} className="border-b border-stone-100">
-                    <td className="py-3 pr-4">{dateTime.format(new Date(movement.createdAt))}</td>
+                    <td className="py-3 pr-4">{formatDateTime(movement.createdAt)}</td>
                     <td data-label="Producto" className="py-3 pr-4">
                       <div className="flex min-w-0 items-center gap-3">
                         <PieceImage variantId={movement.variantId} />
@@ -91,30 +88,8 @@ export function MovementsPage() {
             </table>
           </div>
         )}
-        {list.isSuccess && total > 25 && (
-          <div className="mt-4 flex items-center gap-3 text-sm">
-            <Button
-              variant="secondary"
-              disabled={page === 1}
-              onClick={() => {
-                setPage(page - 1);
-              }}
-            >
-              Anterior
-            </Button>
-            <span>
-              Página {page} · {total} movimientos
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page * 25 >= total}
-              onClick={() => {
-                setPage(page + 1);
-              }}
-            >
-              Siguiente
-            </Button>
-          </div>
+        {list.isSuccess && (
+          <Pagination page={page} total={total} noun="movimientos" onPageChange={setPage} />
         )}
       </div>
     </section>
