@@ -1,5 +1,10 @@
 # Despliegue
 
+> **Estado: despliegue pendiente.** Aún no se eligió hosting ni dominio (P-18) y el flujo de CI
+> (`.github/workflows/ci.yml`) solo verifica calidad, ejecuta los E2E y construye la imagen Docker; el paso de
+> despliegue está comentado como pendiente. Este documento contiene la recomendación y el procedimiento
+> **previstos**. Para probar la aplicación sin hosting, usar el [despliegue local](LOCAL.md).
+
 ## Arquitectura de producción
 
 ```
@@ -95,7 +100,16 @@ El rol de la aplicación en tiempo de ejecución no necesita ningún privilegio 
 8. Ingresar, **cambiar la contraseña del administrador** y crear los usuarios reales.
 9. Configurar backups externos (ver [BACKUPS.md](BACKUPS.md)) y probar una restauración.
 
-## Flujo continuo
+**No verificado (por comprobar antes del primer despliegue):** el paso 6 usa `npx prisma db seed`, que según
+`apps/api/prisma.config.ts` ejecuta `tsx prisma/seed.ts`. `tsx` está en las `devDependencies` de la API y la
+imagen de producción instala las dependencias con `npm ci --omit=dev` (`Dockerfile`), por lo que ese comando
+puede no ejecutarse con la imagen actual. No se ha probado dentro del contenedor de producción; el
+procedimiento de arriba no se ha modificado. El paso 1 describe cómo crear el repositorio desde cero; el
+repositorio actual ya tiene un remoto en GitHub.
+
+## Flujo continuo (previsto)
+
+Es el flujo que se configurará al elegir hosting; hoy ningún merge despliega.
 
 ```
 feature/* ─PR─► develop ─(CI verde)─► PR develop → main ─(CI verde + revisión)─► merge

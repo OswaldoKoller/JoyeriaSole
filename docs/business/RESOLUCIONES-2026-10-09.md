@@ -1,5 +1,7 @@
 # Decisiones comunicadas por el cliente — 2026-10-09
 
+> **Superado en parte por [RESOLUCIONES-2026-11-05](RESOLUCIONES-2026-11-05.md) y por el estado vigente de [PENDIENTES.md](PENDIENTES.md).** Ya no rigen, entre otras: la sesión de 3 horas (P-19), los motivos de ajuste solo en texto libre (P-20), «solo bolivianos» (P-10) y bloquear movimientos durante el conteo (P-13).
+
 El usuario transmitió las siguientes respuestas. Se marcaron 🟢 en [PENDIENTES.md](PENDIENTES.md) solo las decisiones completas. Las parciales permanecen 🟡. «Aprobada» significa que la regla puede implementarse en su módulo; no significa que ya esté implementada.
 
 | ID   | Respuesta                                                                                                                                                                                       | Estado     |

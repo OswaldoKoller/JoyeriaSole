@@ -1,5 +1,7 @@
 # Decisiones comunicadas por el cliente — 2026-10-11
 
+> **Superado en parte por [RESOLUCIONES-2026-11-05](RESOLUCIONES-2026-11-05.md) y por el estado vigente de [PENDIENTES.md](PENDIENTES.md).** La fórmula de precio `× 2` y el cálculo por categoría (P-03) fueron sustituidos: el precio se fija a mano ([ADR-018](../decisions/ADR-018-aprobacion-e-historial-de-precios.md)).
+
 Estas respuestas actualizan [el registro de decisiones](PENDIENTES.md) y prevalecen sobre ejemplos provisionales de documentos anteriores. Una regla aprobada no significa que ya exista en la aplicación.
 
 | ID   | Respuesta del cliente                                                                                                                                                            | Estado para implementar                                                                                                                          |

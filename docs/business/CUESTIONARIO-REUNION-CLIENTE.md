@@ -1,5 +1,7 @@
 # Cuestionario de definición con el cliente — Fase 1
 
+> **Superado por [RESOLUCIONES-2026-11-05](RESOLUCIONES-2026-11-05.md) y por el estado vigente de [PENDIENTES.md](PENDIENTES.md).** Es el cuestionario previo a la reunión del 2026-11-05; su sección 1 («Ya está decidido») ya no es vigente (sesión de 3 horas, motivos de ajuste libres, solo bolivianos y precio base `× 2`). No usarlo como estado de las decisiones.
+
 Documento para conducir la reunión con el cliente y **cerrar todas las decisiones abiertas** de una vez. Cada pregunta aparece **una sola vez**, indica qué bloquea y trae una propuesta del equipo para decidir rápido. Las propuestas **no son reglas**: solo pasan a serlo cuando el cliente responde (ver [PENDIENTES.md](PENDIENTES.md)).
 
 Preparado el 2026-11-04 a partir de [PENDIENTES.md](PENDIENTES.md), [las resoluciones del 09 y 11 de octubre](RESOLUCIONES-2026-10-11.md), [el roadmap](../engineering/ROADMAP.md), [el análisis de fases](../engineering/F1-ANALISIS-FASES-2026-10-13.md) y la revisión del código.

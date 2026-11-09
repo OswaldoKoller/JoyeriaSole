@@ -1,7 +1,11 @@
 # Dominio de negocio — Fase 1: Inventario y Control de Productos
 
 Este documento describe **conceptos y flujos**. Las reglas no confirmadas se marcan
-**PENDIENTE (P-xx)** y están detalladas en [PENDIENTES.md](PENDIENTES.md). Aplicar también las [resoluciones del 2026-10-11](RESOLUCIONES-2026-10-11.md).
+**PENDIENTE (P-xx)** y están detalladas en [PENDIENTES.md](PENDIENTES.md), que es la fuente única del estado
+de cada decisión. Las respuestas más recientes del cliente están en
+[RESOLUCIONES-2026-11-05.md](RESOLUCIONES-2026-11-05.md) (su sección 7 prevalece); las resoluciones del
+[2026-10-09](RESOLUCIONES-2026-10-09.md) y del [2026-10-11](RESOLUCIONES-2026-10-11.md) son históricas y varias
+de sus reglas fueron sustituidas (por ejemplo, la fórmula de precio `× 2`).
 
 ## Glosario
 
@@ -12,7 +16,7 @@ Este documento describe **conceptos y flujos**. Las reglas no confirmadas se mar
 | **Eje de variante**      | Atributo que diferencia variantes de un mismo producto (material, talla, longitud...).                                                                                                                                                                                                    |
 | **Atributo descriptivo** | Atributo común a todas las variantes del producto (colección, género, tipo de cierre...).                                                                                                                                                                                                 |
 | **SKU**                  | Código interno único por variante, generado con correlativo automático. Formato técnico actual: `SKU-000001`.                                                                                                                                                                             |
-| **Etiqueta propia**      | Code 128 con el SKU de la variante. La continuidad del código del proveedor para búsqueda sigue por confirmar (P-06).                                                                                                                                                                     |
+| **Etiqueta propia**      | Code 128 con el SKU de la variante, en todas las piezas (P-06 cerrada).                                                                                                                                                                                                                   |
 | **Movimiento**           | Registro inmutable de un cambio de stock (+ entrada / − salida).                                                                                                                                                                                                                          |
 | **Saldo (balance)**      | Stock actual de una variante = suma de sus movimientos.                                                                                                                                                                                                                                   |
 | **Proveedor**            | Ficha (C8): nombre (único dato obligatorio), tipo nacional/del exterior, país, NIT o identificador fiscal, contacto, teléfono, WhatsApp, correo, dirección, moneda habitual de compra (Bs/USD, solo sugerida al registrar un ingreso), condiciones de pago (texto libre), notas y estado. |
@@ -71,8 +75,10 @@ búsqueda unificada acepta SKU, código de barras o código del proveedor. Sin n
 Tamaño configurable por navegador (50 × 25 mm por defecto); impresión desde el navegador, una etiqueta por
 página (`@page`); PDF a través de «Guardar como PDF» del navegador.
 
-**Ficha incompleta (C1).** Un producto está **incompleto** si no tiene descripción **y** ningún valor de
-característica descriptiva. Es independiente de **«Sin precio»**: alguna variante _activa_ con precio 0.
+**Ficha incompleta (C1, P-41).** Un producto está **incompleto** si se cumple **cualquiera** de dos señales: la
+marca manual `profileIncomplete` (nace en el alta rápida de piezas dentro de un ingreso y se limpia al marcar la
+ficha como completa con `PATCH /products/:id`) o el cálculo `isIncomplete` (sin descripción **y** sin ningún valor
+de característica descriptiva). Es independiente de **«Sin precio»**: alguna variante _activa_ con precio 0.
 Ambas son insignias en el listado y la ficha, tienen filtro y se cuentan (sin costos) en el Inicio de quien
 gestiona el catálogo; los productos inactivos no se cuentan. No bloquean ingresos ni stock.
 
@@ -88,8 +94,10 @@ Cada **producto** (no cada variante) puede tener hasta **5 fotos** JPG, PNG o We
 elimina; todos los que ven el catálogo, incluido el Vendedor, las ven. El sistema las reduce a unos 1200 px y
 las guarda dentro de la base de datos ([ADR-020](../decisions/ADR-020-fotos-de-producto.md)); al subir se
 descarta cualquier dato oculto de la imagen (ubicación, cámara). Eliminar físicamente un producto (B11)
-elimina también sus fotos. Al dar de alta una pieza nueva dentro de un ingreso se podrá adjuntar su foto (9.1)
-reutilizando el mismo componente.
+elimina también sus fotos. Al dar de alta una pieza nueva dentro de un ingreso, quien tiene `catalog:manage`
+puede adjuntar sus fotos (opcional, 9.1) con el mismo componente, una vez creada la pieza. Además, la **foto de
+la pieza** (su portada) aparece en las pantallas que muestran piezas: Inventario, Movimientos, Inicio, Ajustes,
+Precios, Ingresos, Conteos y Etiquetas; si no tiene fotos se muestra una imagen «Sin foto».
 
 ## Inventario: movimientos, nunca ediciones
 
@@ -137,7 +145,7 @@ Proveedor → Llegada → Documento de recepción → Verificación física → 
 - **El stock aumenta únicamente al confirmar.** Crear o editar un ingreso en borrador no afecta stock.
 - Un ingreso confirmado no se edita; se corrige con ajustes.
 - Confirmar requiere el permiso `stock-entries:confirm` y queda auditado.
-- El encargado de inventario puede agregar piezas no esperadas y crear productos activos durante la recepción. Para fichas sin información completa falta precisar los datos mínimos antes de confirmar (P-24).
+- El encargado de inventario puede agregar piezas no esperadas y crear productos activos durante la recepción mediante el **alta rápida** (P-24 cerrada, ver más abajo): pide solo categoría, nombre, costo y cantidad, y la ficha queda marcada como incompleta sin bloquear la confirmación.
 - Moneda de compra por ingreso: bolivianos o dólares (Q-07). En dólares se registra el **tipo de cambio de ese ingreso** (Bs por USD, manual, hasta 4 decimales); queda fijo al confirmar. Se guardan el precio original, el tipo de cambio y el equivalente en Bs; costos, stock y precios del sistema se llevan en Bs. La moneda habitual del proveedor solo se sugiere.
 - Costos adicionales: **lista abierta** de líneas (tipo + monto en Bs + nota): Transporte, Embolsado, Aduanización, Comisiones, Otro y los tipos que agregue el Administrador (Q-08). Son montos, no porcentajes.
 - Prorrateo **por valor** de compra en Bs entre ítems (centavos por mayor resto) y **último costo** para la variante (P-07, ADR-015, ADR-016). El panel de costos muestra por ítem el precio de compra (original y Bs), el subtotal, los costos adicionales asignados, el costo total y el costo unitario total, antes de confirmar y después.
@@ -211,16 +219,21 @@ Quien tiene inventory:adjust SOLICITA (PENDING) → quien tiene inventory:adjust
 - **Trazabilidad:** quién solicitó y cuándo, quién resolvió y cuándo, variante, cantidad anterior y
   nueva, diferencia, motivo, observación y comentario de rechazo; costo y valor solo con `costs:read`.
 - **Descontinuar** (B11): atajo «Ajustar a cero» desde Inventario (solicita la salida de todo el saldo);
-  luego se desactiva la ficha. Impedir desactivar con stock > 0 es otra regla (P-22).
+  luego se desactiva la ficha. El sistema impide desactivar un producto o una variante con stock > 0 (P-22,
+  implementada; error `STOCK_BLOCKS_DEACTIVATION`).
 - Un ajuste aprobado no se edita: se corrige con otro ajuste.
 
 ## Control
 
-Consultas previstas para la Fase 1 (sin implementar aún):
+Estado de las consultas de control de la Fase 1:
 
-- Variantes **sin stock** (`quantity = 0`).
-- Variantes **bajo stock mínimo** (`quantity <= min_stock`).
-- **Historial** de movimientos por variante, tipo, usuario y rango de fechas.
+- Variantes **sin stock** (`quantity = 0`): **implementada** como filtro por nivel en Inventario
+  (`GET /inventory?level=OUT`) y como contador y tabla de piezas en alerta en el Inicio.
+- Variantes **bajo stock mínimo** (`quantity <= min_stock`, con mínimo mayor que 0): **implementada** igual que la
+  anterior (`level=LOW`).
+- **Historial** de movimientos: **implementado** por variante (`GET /inventory/:variantId/movements`) y global
+  (`GET /inventory/movements`, pantalla `/inventario/movimientos`), con paginación. Los filtros por tipo, usuario
+  y rango de fechas **no existen** todavía; los reportes y exportaciones siguen pendientes.
 - Auditoría de acciones por usuario y entidad: **implementada** como pantalla `/auditoria` **solo para el Administrador** (Q-15.3). Filtra por usuario, acción (exacta o por prefijo), tipo e ID de entidad y rango de fechas (hora de La Paz), y cada registro muestra quién, cuándo, IP, ID de petición y el antes/después campo por campo. Es de solo lectura y se guarda indefinidamente (P-23). Las claves sensibles (contraseñas, tokens, cookies) nunca se muestran.
 
 ## Fuera de alcance de la Fase 1

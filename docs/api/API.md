@@ -4,7 +4,7 @@ Base: `/api/v1` · JSON · Autenticación por cookie de sesión (httpOnly, SameS
 
 ## Convenciones
 
-- Recursos en plural y kebab-case: `/stock-entries`, `/inventory-counts`.
+- Recursos en plural y kebab-case: `/stock-entries`, `/inventory/counts`.
 - `GET` lista/detalle · `POST` crear · `PATCH` modificar parcialmente · acciones de estado como
   sub-recurso: `POST /stock-entries/:id/confirm`, `POST /inventory/counts/:id/approve`.
 - **Sin `DELETE` para entidades con historial**: se desactivan (`PATCH { isActive: false }`). La única
@@ -377,7 +377,9 @@ foto: `POST /products` devuelve el `id` y con él se llama a `POST /products/:id
 tiene fotos, así que la primera queda como portada). En la web, el componente
 `apps/web/src/features/catalog/photos/photo-uploader.tsx` (`<PhotoUploader productId productName photoCount onUploaded />`)
 o el hook `useUploadProductPhoto()` hacen exactamente esto y son independientes de la ficha del producto.
-**Pendiente:** conectar `PhotoUploader` al alta rápida de la pantalla de ingresos.
+El componente ya está conectado al alta rápida de la pantalla de ingresos
+(`apps/web/src/features/stock-entries/quick-create-piece.tsx`): una vez creada la pieza se ofrece «Fotos de la
+pieza (opcional)» a quien tiene `catalog:manage`.
 
 Errores: `400 VALIDATION_ERROR` (no es JPG/PNG/WebP real, archivo dañado, falta el campo `file`, orden inválido),
 `413 PAYLOAD_TOO_LARGE`, `422 BUSINESS_RULE_VIOLATION` (ya tiene 5 fotos), `404`, `403`, `401`.
@@ -444,7 +446,7 @@ Ver la skill `.claude/skills/api-development/SKILL.md`. Resumen:
 app.post(
   '/',
   {
-    preHandler: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
+    preValidation: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
     schema: { body: createSupplierSchema, response: { 201: z.object({ data: supplierSchema }) } },
   },
   async (request, reply) => {
@@ -453,3 +455,7 @@ app.post(
   },
 );
 ```
+
+La autorización se declara en `preValidation` y **no** en `preHandler`: Fastify valida el cuerpo antes del
+`preHandler`, así que quien no tiene sesión o permiso recibiría un 400 con el detalle del esquema en lugar de
+401/403. La prueba `security-hardening.test.ts` enumera todas las rutas y falla si alguna queda sin guarda.

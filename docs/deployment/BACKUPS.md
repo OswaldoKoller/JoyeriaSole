@@ -10,7 +10,14 @@
 | Base de datos completa (catálogo, stock, movimientos, auditoría, usuarios) | PostgreSQL            | **Sí — crítico**                                               |
 | Código, migraciones, configuración                                         | GitHub                | Ya versionado (clonar = respaldo)                              |
 | Variables de entorno / secretos                                            | Panel del hosting     | Copia en gestor de contraseñas del responsable (no en el repo) |
-| Archivos (fotos, documentos)                                               | Aún no existen (P-14) | Cuando existan: bucket con versionado                          |
+| Fotos de producto                                                          | PostgreSQL            | Dentro de la base: entran en cualquier volcado (`pg_dump`)     |
+| Documentos escaneados de recepción                                         | Aún no existen (P-14) | Cuando existan: bucket con versionado                          |
+
+**Fotos de producto.** Los bytes de las fotos viven en la tabla `product_photo_blobs` de PostgreSQL
+([ADR-020](../decisions/ADR-020-fotos-de-producto.md)), así que forman parte de cualquier respaldo de la base
+y de su restauración; no hay un bucket aparte que respaldar. El ADR estima que 2 000 productos con 3 fotos
+reducidas ocupan unos 0,5 a 1 GB y que los respaldos crecen en la misma proporción: tenerlo en cuenta al
+dimensionar el plan de la base y el almacenamiento de la copia externa.
 
 ## Propuesta (a confirmar en P-26)
 
