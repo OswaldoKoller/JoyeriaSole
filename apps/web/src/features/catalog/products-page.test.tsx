@@ -45,7 +45,7 @@ type Options = {
   permissions?: string[];
   total?: number;
   /** Respuesta de la búsqueda exacta; por defecto 404 (no es un código). */
-  lookup?: () => Response;
+  lookup?: () => Response | Promise<Response>;
   /** Respuesta del listado por página; por defecto la página con productos. */
   list?: (page: number, params: URLSearchParams) => Response | Promise<Response>;
 };
@@ -75,7 +75,7 @@ function mockApi({
     if (parsed.pathname === '/api/v1/catalog/variants/lookup') {
       requests.push({ url, params: parsed.searchParams });
       return (
-        lookup?.() ??
+        (await lookup?.()) ??
         jsonResponse(404, { error: { code: 'NOT_FOUND', message: 'Código no encontrado' } })
       );
     }
@@ -255,6 +255,41 @@ describe('filtros y paginación de productos', () => {
     const search = new URLSearchParams(screen.getByTestId('url-search').textContent);
     expect(search.get('categoryId')).toBe(CATEGORY_ID);
     expect(search.get('incomplete')).toBe('1');
+  });
+
+  it('un filtro cambiado mientras la búsqueda por código responde no se pierde', async () => {
+    // Regresión: la búsqueda terminaba tarde y reescribía la URL con los filtros del render anterior.
+    let release: () => void = () => undefined;
+    const requests = mockApi({
+      lookup: () =>
+        new Promise<Response>((resolve) => {
+          release = () => {
+            resolve(
+              jsonResponse(404, { error: { code: 'NOT_FOUND', message: 'Código no encontrado' } }),
+            );
+          };
+        }),
+    });
+    renderPage();
+    await screen.findByRole('link', { name: 'Ver ficha de Producto 1' });
+
+    await userEvent.type(searchBox(), 'anillo{enter}');
+    await userEvent.selectOptions(
+      screen.getByLabelText('Estado de la ficha'),
+      'Fichas incompletas',
+    );
+    release();
+
+    await waitFor(() => {
+      const search = new URLSearchParams(screen.getByTestId('url-search').textContent);
+      expect(search.get('q')).toBe('anillo');
+      expect(search.get('incomplete')).toBe('1');
+    });
+    await waitFor(() => {
+      const last = listRequests(requests).at(-1)?.params;
+      expect(last?.get('q')).toBe('anillo');
+      expect(last?.get('incomplete')).toBe('true');
+    });
   });
 
   it('arranca con los filtros de la URL (enlace compartido, recarga o botón Atrás)', async () => {
