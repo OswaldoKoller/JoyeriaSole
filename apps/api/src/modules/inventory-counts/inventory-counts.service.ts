@@ -23,6 +23,7 @@ import { skuCandidates } from '../../lib/sku.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { applyStockChanges } from '../inventory/stock-ledger.ts';
+import { lockVariants } from '../inventory/stock-locks.ts';
 import {
   finalCountOf,
   findScopeOverlaps,
@@ -313,12 +314,6 @@ export class InventoryCountsService {
     };
   }
 
-  private async lockVariants(tx: Prisma.TransactionClient, ids: readonly string[]) {
-    if (ids.length === 0) return;
-    await tx.$queryRaw`
-      SELECT id FROM product_variants WHERE id = ANY(${ids as string[]}::uuid[]) ORDER BY id FOR UPDATE`;
-  }
-
   /** Último movimiento del libro por variante (cursor de conciliación). 0 si no tiene. */
   private async cursorsOf(tx: Prisma.TransactionClient, ids: readonly string[]) {
     const cursors = new Map<string, bigint>();
@@ -352,7 +347,7 @@ export class InventoryCountsService {
 
       // Los saldos y el cursor se leen DESPUÉS de bloquear las variantes: la foto tiene un punto
       // lógico común y ningún movimiento queda "entre" la foto y el cursor.
-      await this.lockVariants(tx, variantIds);
+      await lockVariants(tx, variantIds);
       const balances = await tx.inventoryBalance.findMany({
         where: { variantId: { in: variantIds } },
         select: { variantId: true, quantity: true },
@@ -450,7 +445,7 @@ export class InventoryCountsService {
 
   /** Bloquea la variante y devuelve su último movimiento: el «momento» de esta captura. */
   private async captureCursor(tx: Prisma.TransactionClient, variantId: string) {
-    await this.lockVariants(tx, [variantId]);
+    await lockVariants(tx, [variantId]);
     return (await this.cursorsOf(tx, [variantId])).get(variantId) ?? 0n;
   }
 
@@ -758,7 +753,7 @@ export class InventoryCountsService {
       );
       if (empty.length > 0) {
         const ids = empty.map((item) => item.variantId);
-        await this.lockVariants(tx, ids);
+        await lockVariants(tx, ids);
         const cursors = await this.cursorsOf(tx, ids);
         for (const item of empty) {
           const cursor = cursors.get(item.variantId) ?? 0n;
@@ -863,7 +858,7 @@ export class InventoryCountsService {
         orderBy: { variantId: 'asc' },
       });
       // Con las variantes bloqueadas nadie mueve su saldo mientras se concilia y se ajusta.
-      await this.lockVariants(
+      await lockVariants(
         tx,
         items.map((item) => item.variantId),
       );

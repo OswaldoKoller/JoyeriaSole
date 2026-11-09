@@ -14,6 +14,7 @@ import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { applyStockChanges, type AppliedStockChange } from './stock-ledger.ts';
+import { lockVariants } from './stock-locks.ts';
 
 /** Acción de auditoría de un cambio de pieza. */
 export const EXCHANGE_AUDIT_ACTION = 'inventory.exchange';
@@ -82,10 +83,8 @@ export class ExchangesService {
 
     await this.prisma.$transaction(async (tx) => {
       // Bloquea las dos variantes en orden de id (el mismo que usa el libro) antes de leerlas.
-      const ids = [input.returned.variantId, input.delivered.variantId].sort();
-      for (const id of ids) {
-        await tx.$queryRaw`SELECT id FROM product_variants WHERE id = ${id}::uuid FOR UPDATE`;
-      }
+      const ids = [input.returned.variantId, input.delivered.variantId];
+      await lockVariants(tx, ids);
       const variants = await tx.productVariant.findMany({
         where: { id: { in: ids } },
         include: { product: true },
@@ -95,39 +94,39 @@ export class ExchangesService {
       const delivered = byId.get(input.delivered.variantId);
       if (!returned) throw new NotFoundError('No se encontró la variante de la pieza devuelta.');
       if (!delivered) throw new NotFoundError('No se encontró la variante de la pieza entregada.');
-      for (const variant of [returned, delivered]) {
-        if (variant.status !== 'ACTIVE' || variant.product.status !== 'ACTIVE') {
-          throw new BusinessRuleError(`La variante ${variant.sku} está inactiva.`);
-        }
-      }
 
-      const [inResult, outResult] = await applyStockChanges(tx, [
-        {
-          variantId: returned.id,
-          type: 'EXCHANGE_IN',
-          quantity: input.returned.quantity,
-          // Costo vigente de la variante, solo informativo: un cambio no recalcula costos (ADR-019).
-          unitCost: returned.costPrice.toFixed(4),
-          referenceType: REFERENCE_TYPES.EXCHANGE,
-          referenceId,
-          reason: input.reason,
-          notes: input.notes,
-          userId: user.id,
-          label: returned.sku,
-        },
-        {
-          variantId: delivered.id,
-          type: 'EXCHANGE_OUT',
-          quantity: -input.delivered.quantity,
-          unitCost: delivered.costPrice.toFixed(4),
-          referenceType: REFERENCE_TYPES.EXCHANGE,
-          referenceId,
-          reason: input.reason,
-          notes: input.notes,
-          userId: user.id,
-          label: delivered.sku,
-        },
-      ]);
+      // Las dos piezas deben estar activas: el libro lo comprueba bajo el bloqueo de las variantes.
+      const [inResult, outResult] = await applyStockChanges(
+        tx,
+        [
+          {
+            variantId: returned.id,
+            type: 'EXCHANGE_IN',
+            quantity: input.returned.quantity,
+            // Costo vigente de la variante, solo informativo: un cambio no recalcula costos (ADR-019).
+            unitCost: returned.costPrice.toFixed(4),
+            referenceType: REFERENCE_TYPES.EXCHANGE,
+            referenceId,
+            reason: input.reason,
+            notes: input.notes,
+            userId: user.id,
+            label: returned.sku,
+          },
+          {
+            variantId: delivered.id,
+            type: 'EXCHANGE_OUT',
+            quantity: -input.delivered.quantity,
+            unitCost: delivered.costPrice.toFixed(4),
+            referenceType: REFERENCE_TYPES.EXCHANGE,
+            referenceId,
+            reason: input.reason,
+            notes: input.notes,
+            userId: user.id,
+            label: delivered.sku,
+          },
+        ],
+        { requireActive: true },
+      );
       if (!inResult || !outResult) throw new BusinessRuleError('No se pudo aplicar el cambio.');
 
       await recordAudit(

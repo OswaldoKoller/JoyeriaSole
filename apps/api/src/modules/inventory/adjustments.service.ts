@@ -345,12 +345,8 @@ export class AdjustmentsService {
     const showCosts = canSeeCosts(request);
     return this.prisma.$transaction(async (tx) => {
       const adjustment = await this.lockPending(tx, id);
-      for (const item of adjustment.items) {
-        if (item.variant.status !== 'ACTIVE' || item.variant.product.status !== 'ACTIVE') {
-          throw new BusinessRuleError(`La variante ${item.variant.sku} está inactiva.`);
-        }
-      }
 
+      // La variante (y su producto) deben seguir activos: el libro lo comprueba bajo el bloqueo.
       const applied = await applyStockChanges(
         tx,
         adjustment.items.map((item) => ({
@@ -365,6 +361,7 @@ export class AdjustmentsService {
           userId,
           label: item.variant.sku,
         })),
+        { requireActive: true },
       );
 
       const audited: Record<string, string | number>[] = [];

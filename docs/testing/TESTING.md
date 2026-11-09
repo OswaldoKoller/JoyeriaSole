@@ -49,6 +49,15 @@ Se conservan aserciones y plazos de las pruebas.
 - `login(app, email, password)` — devuelve la cabecera `cookie` lista para `inject`.
 - `createTestUser(prisma, { permissions })` — usuario con un rol ad-hoc con exactamente esos permisos.
 - `seedAdjustmentReasons(prisma)` — siembra el catálogo de motivos de ajuste (`resetDatabase` lo vacía) y devuelve `code → id`.
+- `assertLedgerInvariant(prisma)` (`helpers/ledger.ts`) — verifica, para cada variante, que saldo = Σ movimientos = `balance_after` del último movimiento, que la cadena de `balance_before`/`balance_after` es continua y que ningún producto o variante INACTIVE conserva stock. Úsela al final de cualquier prueba que mueva stock.
+- `holdVariantLock`, `startAndWait`, `blockedSessions` (`helpers/locks.ts`) — ordenan carreras de forma determinista: una transacción de la prueba retiene el bloqueo de una variante, las operaciones reales se lanzan por HTTP y se espera (vía `pg_stat_activity`) a que queden bloqueadas antes de soltarlo.
+
+## Libro de inventario (invariante, guarda y concurrencia)
+
+- `test/unit/ledger-write-guard.test.ts` — lee el código fuente de `apps/api/src` y falla si aparece una escritura en `inventory_movements` / `inventory_balances` (cliente Prisma o SQL crudo) fuera de `modules/inventory/**`. Las lecturas están permitidas.
+- `test/integration/ledger-apply.test.ts` — contrato de `applyStockChanges`: varias líneas, misma variante repetida, variante inexistente, saldo negativo, desbordamiento y `requireActive`.
+- `test/integration/ledger-invariant.test.ts` — escenario mixto (stock inicial, ingreso confirmado, ajuste aprobado, conteo aprobado, cambio de pieza y eliminación de una ficha sin saldo) seguido de `assertLedgerInvariant`.
+- `test/integration/ledger-concurrency.test.ts` — desactivar producto/variante frente a confirmar un ingreso o aprobar un ajuste (nunca queda INACTIVE con stock) y eliminar una ficha frente a una operación de stock (sin interbloqueo).
 
 ## Catálogo (S2)
 
