@@ -8,10 +8,17 @@
 Sistema web de inventario para una tienda de joyería y productos de moda (Bolivia). Pyme, pocos
 usuarios, acceso desde Internet.
 
-**Fase actual:** Fase 1 implementada en la rama de integración tras las reuniones del 2026-11-05 (catálogo, ingresos, precios, inventario, ajustes, conteos, usuarios); ver `docs/engineering/PLAN-DESARROLLO-F1-2026-11.md` §12. **Alcance de Fase 1:** catálogo (categorías,
+**Fase actual:** Fase 1 implementada e integrada en `main` (2026-11-06; el cierre formal sigue pendiente: reportes, importador, puesta en marcha y aceptación, ver `docs/informe-tecnico/`) tras las reuniones del 2026-11-05 (catálogo, ingresos, precios, inventario, ajustes, conteos, usuarios); ver `docs/engineering/PLAN-DESARROLLO-F1-2026-11.md` §12. **Alcance de Fase 1:** catálogo (categorías,
 atributos, productos, variantes, SKU, códigos de barras, proveedores, costos, precios, stock mínimo,
 estado), ingresos de mercadería, inventario (saldos, movimientos, ajustes, inventario físico),
 control (sin stock, bajo mínimo, historial) y usuarios/roles/permisos.
+
+**Fase 2 (Ventas): solo ANÁLISIS y planificación** (resolución del responsable del 2026-11-07). La
+implementación requiere una autorización posterior, expresa y delimitada. Decisiones confirmadas que
+ya restringen el diseño: venta de mostrador pagada íntegramente al momento (sin créditos ni apartados),
+pagos en Bs (efectivo, QR, transferencia), facturación fiscal en un sistema externo, **no se anulan las
+ventas confirmadas (DEC-V07)**, caja única con apertura, cierre y arqueo (DEC-V09) y comprobante interno
+imprimible (DEC-V12). Sus subdecisiones siguen pendientes.
 
 **Principio:** primero se define el negocio y la arquitectura; después se implementa.
 **No implementar funcionalidades de negocio sin aprobación explícita del usuario.**
@@ -49,7 +56,9 @@ npm run db:up            # PostgreSQL 18 en Docker, puerto 5434 (joyeria_dev + j
 npm run dev              # API :3000 + web :5173 (proxy /api → API)
 npm run check            # lint + format:check + typecheck + test + build (= CI). Correr antes de terminar.
 npm test                 # unitarias + integración (BD real joyeria_test) + componentes
-npm run test:e2e         # Playwright (requiere `npx playwright install chromium` una vez)
+npm run test:e2e         # Playwright (requiere `npx playwright install chromium` y las variables del runner)
+npm run qa -- check      # lo mismo que `check` sobre una BD efímera (no toca joyeria_dev/joyeria_test)
+npm run qa -- api [x.test.ts] · npm run qa -- e2e [x.spec.ts]   # solo API o solo E2E (preferido para correr pruebas)
 npm run db:migrate -- --name <nombre>   # nueva migración desde schema.prisma
 npm run db:deploy        # aplicar migraciones · npm run db:seed · npm run db:studio
 ```
@@ -94,7 +103,7 @@ Si se descubre una decisión no listada: agregarla a PENDIENTES.md.
 
 ### Backend
 
-- Rutas: esquema Zod para `body/querystring/params` **y** `response`; `preHandler: app.requirePermission(...)`
+- Rutas: esquema Zod para `body/querystring/params` **y** `response`; `preValidation: app.requirePermission(...)`
   en todo endpoint no público. Los handlers solo delegan al servicio.
 - Servicios: reglas de negocio, `prisma.$transaction`, `recordAudit(tx, ...)` en la misma transacción.
 - Errores: lanzar subclases de `AppError` (`ValidationError`, `NotFoundError`, `ConflictError`,
@@ -150,6 +159,9 @@ Si se descubre una decisión no listada: agregarla a PENDIENTES.md.
 - ❌ Punto de venta, facturación, Impuestos Nacionales, contabilidad, multi-sucursal, app móvil, IA,
   compras automáticas, integraciones bancarias.
 - ❌ Convertir decisiones PENDIENTES en reglas; inventar requisitos.
+- ❌ Implementar Ventas (Fase 2) sin autorización expresa y delimitada; y, aun con ella, anulación de
+  ventas confirmadas (`POST /sales/:id/void`, `sales:void`, `SALE_VOID`, estado `VOIDED`) ni ningún
+  mecanismo de reversión equivalente o encubierto (DEC-V07).
 - ❌ Modificar stock sin movimiento; editar/borrar movimientos o auditoría.
 - ❌ Editar migraciones ya aplicadas; ejecutar `db:reset` o comandos destructivos sin confirmación.
 - ❌ Desactivar reglas de ESLint, usar `--no-verify`, o bajar el nivel de TypeScript para "hacer pasar" algo.
@@ -160,7 +172,12 @@ Si se descubre una decisión no listada: agregarla a PENDIENTES.md.
 
 ADRs en `docs/decisions/`: 001 producto/variante · 002 PostgreSQL+Prisma · 003 sesiones · 004 RBAC por
 permisos · 005 categorías en árbol · 006 atributos · 007 libro de movimientos · 008 ingresos y costos ·
-009 inventario físico · 010 logs vs. auditoría · 011 stack · 012 despliegue.
+009 inventario físico · 010 logs vs. auditoría · 011 stack · 012 despliegue · 013 costeo de ingresos ·
+014 conteos con movimientos · 015 reparto de centavos y valor cero · 016 compras en dólares e
+importación · 017 ajustes con solicitud y aprobación · 018 aprobación e historial de precios ·
+019 cambios de pieza · 020 fotos de producto · 021 conteo a ciegas con segundo recuento.
+Los ADR 022 en adelante que aparecen en `docs/informe-tecnico/` y `docs/propuestas/` son PROPUESTAS
+sin aprobar: no existen en `docs/decisions/`.
 
 ## Agentes y skills
 
