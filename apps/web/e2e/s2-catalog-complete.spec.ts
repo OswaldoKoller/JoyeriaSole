@@ -32,6 +32,8 @@ async function addAttributeValue(page: Page, attribute: string, value: string) {
   await expect(
     page.getByRole('region', { name: attribute }).getByText(value, { exact: true }),
   ).toBeVisible();
+  // El formulario se cierra al terminar de guardar: se espera antes de abrir el siguiente.
+  await expect(page.getByRole('button', { name: 'Guardar valor' })).toHaveCount(0);
 }
 
 const card = (page: Page, name: string) => page.getByRole('article').filter({ hasText: name });

@@ -35,6 +35,10 @@ export function ProductsPage() {
   // Búsqueda, rubro, estado de la ficha y página viven en la URL: se conservan al volver desde
   // una ficha, al recargar y al compartir el enlace.
   const [params, setParams] = useSearchParams();
+  const latestParams = useRef(params);
+  useEffect(() => {
+    latestParams.current = params;
+  });
   const { search: currentSearch } = useLocation();
   const search = params.get('q') ?? '';
   const categoryId = params.get('categoryId') ?? '';
@@ -77,14 +81,20 @@ export function ProductsPage() {
     searchRef.current?.select();
   }, [found, search]);
 
-  /** Cambia parámetros de la URL; por defecto vuelve a la primera página. */
+  /**
+   * Cambia parámetros de la URL; por defecto vuelve a la primera página. Parte de la URL vigente
+   * (`latestParams`), no de la del render que creó esta función: una búsqueda por código que termina
+   * tarde no debe borrar un filtro cambiado mientras esperaba la respuesta. (La forma funcional de
+   * `setSearchParams` NO sirve: también parte de los parámetros de su propio render.)
+   */
   function updateParams(changes: Record<string, string | null>, keepPage = false) {
-    const next = new URLSearchParams(params);
+    const next = new URLSearchParams(latestParams.current);
     for (const [name, value] of Object.entries(changes)) {
       if (value) next.set(name, value);
       else next.delete(name);
     }
     if (!keepPage) next.delete('page');
+    latestParams.current = next; // varias llamadas seguidas se componen
     setParams(next, { replace: true });
   }
 
