@@ -46,6 +46,8 @@ ENV NODE_ENV=production \
 WORKDIR /app/apps/api
 
 COPY --from=prod-deps --chown=node:node /app/node_modules /app/node_modules
+# dist/ incluye server.js (la API) y seed.js (seed ESTRUCTURAL compilado: `node dist/seed.js`).
+# La imagen no trae tsx ni el código fuente, así que `npx prisma db seed` no funciona aquí.
 COPY --from=build --chown=node:node /app/apps/api/dist ./dist
 COPY --from=build --chown=node:node /app/apps/api/prisma ./prisma
 COPY --from=build --chown=node:node /app/apps/api/prisma.config.ts /app/apps/api/package.json ./

@@ -30,6 +30,13 @@ API_PROXY_TARGET configura el proxy de Vite en QA; desarrollo mantiene :3000.
 
 `npm test` ejecuta unitarias + integración + componentes. E2E se ejecuta aparte (más lento).
 
+**Prueba de arranque de la imagen (smoke).** `bash scripts/smoke-image.sh <imagen>` (job `docker` del CI,
+tras construir la imagen) arranca la imagen de producción contra un PostgreSQL efímero propio y comprueba
+migraciones desde cero con el `CMD` real, `GET /api/v1/health` = 200, la SPA en `/`, el seed compilado
+`node dist/seed.js` (dos veces) y el login del administrador sembrado (200; clave incorrecta 401). En local:
+`docker build -t joyeria-sole:ci . && bash scripts/smoke-image.sh joyeria-sole:ci` (~40 s tras el build).
+Detalle en [DEPLOYMENT.md](../deployment/DEPLOYMENT.md#prueba-de-arranque-de-la-imagen-smoke).
+
 La suite web usa un worker thread compartido entre archivos. En Windows se observó un timeout
 al arrancar un worker nuevo por archivo; los tests limpian el DOM y restauran mocks tras cada caso.
 Se conservan aserciones y plazos de las pruebas.
