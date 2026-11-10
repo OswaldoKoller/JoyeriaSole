@@ -103,3 +103,13 @@ Formato: _qué falta → qué puede avanzar sin ella → propuesta para confirma
 ## 7. Seguridad y rendimiento
 
 Esta revisión incluyó auditoría estática, pruebas ofensivas contra una instancia local desechable y mediciones de rendimiento con datos sintéticos. Sus resultados y correcciones se documentan en `docs/security/SECURITY.md` (sección «Revisión ofensiva 2026-10-13») y `docs/testing/PERFORMANCE.md`.
+
+> **Actualización 2026-11-09.** El párrafo anterior no se sostiene: la sección «Revisión ofensiva
+> 2026-10-13» de `SECURITY.md` y `docs/testing/PERFORMANCE.md` **no existen** (DT-DOC-05 del informe
+> técnico). Por decisión del responsable (E4 de
+> [RESOLUCIONES-2026-11-09](../business/RESOLUCIONES-2026-11-09.md)), la revisión de seguridad y
+> rendimiento archivada es el [informe técnico](../informe-tecnico/). Contiene análisis estático del
+> código y de la documentación, mediciones de tamaño de _bundle_ obtenidas compilando (`vite build`) y
+> cifras de pruebas y tiempos tomadas del CI. **No contiene** pruebas ofensivas ejecutadas ni mediciones
+> de carga o rendimiento con el volumen del cliente: ambas **siguen pendientes**. El texto original se
+> conserva como registro histórico.

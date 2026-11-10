@@ -1,5 +1,7 @@
 # Cuestionario de definición con el cliente — Fase 1
 
+> **Superado por [RESOLUCIONES-2026-11-05](RESOLUCIONES-2026-11-05.md) y por el estado vigente de [PENDIENTES.md](PENDIENTES.md).** Es el cuestionario previo a la reunión del 2026-11-05; su sección 1 («Ya está decidido») ya no es vigente (sesión de 3 horas, motivos de ajuste libres, solo bolivianos y precio base `× 2`). No usarlo como estado de las decisiones.
+
 Documento para conducir la reunión con el cliente y **cerrar todas las decisiones abiertas** de una vez. Cada pregunta aparece **una sola vez**, indica qué bloquea y trae una propuesta del equipo para decidir rápido. Las propuestas **no son reglas**: solo pasan a serlo cuando el cliente responde (ver [PENDIENTES.md](PENDIENTES.md)).
 
 Preparado el 2026-11-04 a partir de [PENDIENTES.md](PENDIENTES.md), [las resoluciones del 09 y 11 de octubre](RESOLUCIONES-2026-10-11.md), [el roadmap](../engineering/ROADMAP.md), [el análisis de fases](../engineering/F1-ANALISIS-FASES-2026-10-13.md) y la revisión del código.
@@ -77,6 +79,12 @@ Si el cliente cambia de opinión sobre alguno, se trata como **cambio de requisi
 | **Datos iniciales**              | Sin plan de carga                                                                         | Importador (si se decide); etiquetado inicial                                                                                                                                         | H1–H6         |
 | **Identidad y documentación**    | Paleta provisional; sin manual de usuario                                                 | Manual, acta de aceptación                                                                                                                                                            | J1–J3         |
 | **Fase 2 (ventas)**              | Solo el menú «Próximamente»                                                               | —                                                                                                                                                                                     | K1, K3        |
+
+> **Actualización 2026-11-09.** Filas «Seguridad» y «Rendimiento»: por decisión del responsable (E4 de
+> [RESOLUCIONES-2026-11-09](RESOLUCIONES-2026-11-09.md)), la revisión archivada es el
+> [informe técnico](../informe-tecnico/): análisis estático del código y de la documentación,
+> tamaños de _bundle_ por compilación y cifras de CI. La revisión ofensiva (pruebas ejecutadas) y las
+> pruebas de carga **siguen sin hacerse**. La tabla se conserva como se redactó.
 
 ---
 

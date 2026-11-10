@@ -1,5 +1,10 @@
 # Despliegue
 
+> **Estado: despliegue pendiente.** Aún no se eligió hosting ni dominio (P-18) y el flujo de CI
+> (`.github/workflows/ci.yml`) solo verifica calidad, ejecuta los E2E y construye la imagen Docker; el paso de
+> despliegue está comentado como pendiente. Este documento contiene la recomendación y el procedimiento
+> **previstos**. Para probar la aplicación sin hosting, usar el [despliegue local](LOCAL.md).
+
 ## Arquitectura de producción
 
 ```
@@ -127,7 +132,9 @@ administrador sembrado = 200 y con una contraseña incorrecta = 401. Las credenc
 terminar (también si falla) borra solo los contenedores y la red que creó; si falla, muestra las últimas
 líneas del registro de la aplicación. Requiere `bash`, `openssl`, `curl` y Docker.
 
-## Flujo continuo
+## Flujo continuo (previsto)
+
+Es el flujo que se configurará al elegir hosting; hoy ningún merge despliega.
 
 ```
 feature/* ─PR─► develop ─(CI verde)─► PR develop → main ─(CI verde + revisión)─► merge

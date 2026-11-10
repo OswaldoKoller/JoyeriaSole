@@ -6,6 +6,25 @@ Paquete de análisis para revisión · Documento 8 de 8 · Fecha de corte: 2026-
 
 Etiquetas: **[CONFIRMADA]**, **[RECOMENDACIÓN TÉCNICA]**, **[PENDIENTE]**.
 
+> **Actualización 2026-11-09.** Varias subdecisiones de este documento ya tienen respuesta; el estado
+> vigente está en [PENDIENTES.md](../../business/PENDIENTES.md) y el detalle en
+> [RESOLUCIONES-2026-11-09](../../business/RESOLUCIONES-2026-11-09.md). Este documento no se reescribe;
+> solo se marcan las fichas afectadas por las aclaraciones posteriores:
+>
+> - **SD-C03 (fondo inicial):** respondida (B4): obligatorio, digitado en un campo libre en cada
+>   apertura. Cero y tope: sin confirmar (recomendación: aceptar 0 explícito, sin tope).
+> - **SD-C05 (gastos y retiros):** respondida (B6): no en el MVP.
+> - **SD-C06 (reapertura):** respondida (B7): no se reabre. La opción a) preveía corregir «con un nuevo
+>   movimiento de caja», que B6 excluye. El responsable pidió la vía más recomendable con una condición:
+>   **solo el Administrador corrige**. Diseño: corrección append-only que no modifica la sesión ni toca
+>   ventas o pagos, en [10-correcciones-de-caja](10-correcciones-de-caja.md).
+> - **Nuevas subdecisiones menores:** SC-1 a SC-6 (plazo, autocorrección, fondo de una sesión abierta,
+>   revisión del informe, visibilidad y recuento presencial), en el documento 10, §14.
+> - **SD-A01 y SD-A07 (venta errónea):** el responsable delegó en la recomendación técnica los puntos
+>   abiertos de C5 (hoja de incidencias fuera del sistema; el Administrador atiende y cierra; el stock
+>   se regulariza en el conteo ordinario; sin venta compensatoria). SD-A02, SD-A03, SD-A04 y SD-A08
+>   siguen pendientes.
+
 ## 0. ADVERTENCIA LEGAL (leer primero)
 
 | Punto                                        | Texto                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -161,6 +180,7 @@ La resolución exige **aprobación específica** de cada una. **Elegir «caja ú
 | Opciones                | **(a)** Monto libre, obligatorio (puede ser 0). **(b)** Monto fijo configurable por el Administrador. **(c)** Debe coincidir con el efectivo contado al cierre anterior (arrastre). |
 | Pros / contras          | (a) simple. (b) uniforme. (c) detecta faltantes entre turnos; exige reglas de arrastre cuando hay retiros.                                                                          |
 | [RECOMENDACIÓN TÉCNICA] | (a) con validación de monto ≥ 0 y tope razonable configurable; (c) como control adicional si el responsable lo quiere.                                                              |
+| Respondida (2026-11-09) | **(a)** obligatorio, monto digitado en un campo libre (B4). Cero y tope sin confirmar; la recomendación vigente es aceptar 0 explícito y no fijar tope.                             |
 | Bloquea                 | E3                                                                                                                                                                                  |
 | Decide                  | Responsable del proyecto                                                                                                                                                            |
 
@@ -181,18 +201,20 @@ La resolución exige **aprobación específica** de cada una. **Elegir «caja ú
 | Opciones                | **(a)** No en el MVP (solo cobros de ventas y fondo). **(b)** Retiros y gastos con motivo obligatorio, usuario y autorización. **(c)** Solo retiros (depósito al banco) sin gastos.                         |
 | Pros / contras          | (a) menos alcance; el efectivo esperado ignorará gastos reales y generará diferencias. (b) arqueo real; más permisos y reglas, y se acerca a contabilidad (CLAUDE.md prohíbe contabilidad). (c) intermedio. |
 | [RECOMENDACIÓN TÉCNICA] | (c) o (b) mínimo, con motivo obligatorio y sin categorías contables.                                                                                                                                        |
+| Respondida (2026-11-09) | **(a)** no en el MVP (B6). Un gasto real hecho con efectivo de la caja aparece como diferencia de arqueo.                                                                                                   |
 | Bloquea                 | E3 (diseño de `cash_movements`)                                                                                                                                                                             |
 | Decide                  | Responsable del proyecto                                                                                                                                                                                    |
 
 ### SD-C06 · Reapertura de caja cerrada
 
-| Campo                   | Contenido                                                                                                                                                                                                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Opciones                | **(a)** Nunca se reabre: los errores se corrigen con un nuevo movimiento de caja en la sesión siguiente. **(b)** Reapertura por Administrador con motivo, dentro de un plazo, mientras no se abra otra sesión. **(c)** Reapertura sin límite.                      |
-| Pros / contras          | (a) preserva el cierre como dato histórico (la resolución dice «mantener los datos del cierre como información histórica»); exige un camino para correcciones. (b) práctico; modifica el estado de un cierre y afecta la inmutabilidad. (c) rompe la trazabilidad. |
-| [RECOMENDACIÓN TÉCNICA] | (a). Si el responsable quiere (b), debe ser un registro nuevo auditado, nunca editar los datos del cierre. Es una forma de reversión: **autorización expresa**.                                                                                                    |
-| Bloquea                 | E3                                                                                                                                                                                                                                                                 |
-| Decide                  | Responsable del proyecto                                                                                                                                                                                                                                           |
+| Campo                   | Contenido                                                                                                                                                                                                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Opciones                | **(a)** Nunca se reabre: los errores se corrigen con un nuevo movimiento de caja en la sesión siguiente. **(b)** Reapertura por Administrador con motivo, dentro de un plazo, mientras no se abra otra sesión. **(c)** Reapertura sin límite.                          |
+| Pros / contras          | (a) preserva el cierre como dato histórico (la resolución dice «mantener los datos del cierre como información histórica»); exige un camino para correcciones. (b) práctico; modifica el estado de un cierre y afecta la inmutabilidad. (c) rompe la trazabilidad.     |
+| [RECOMENDACIÓN TÉCNICA] | (a). Si el responsable quiere (b), debe ser un registro nuevo auditado, nunca editar los datos del cierre. Es una forma de reversión: **autorización expresa**.                                                                                                        |
+| Respondida (2026-11-09) | **Sin reapertura** (B7). Como B6 excluye el «nuevo movimiento de caja» de (a), el responsable pidió la vía más recomendable y que **solo el Administrador** corrija: corrección append-only acotada a contado, fondo y observación ([10](10-correcciones-de-caja.md)). |
+| Bloquea                 | E3                                                                                                                                                                                                                                                                     |
+| Decide                  | Responsable del proyecto                                                                                                                                                                                                                                               |
 
 ### SD-C07 · Cierre con QR o transferencia pendiente de conciliación
 

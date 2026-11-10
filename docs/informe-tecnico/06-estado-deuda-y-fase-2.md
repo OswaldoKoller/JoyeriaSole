@@ -380,6 +380,13 @@ Lectura: de 11 criterios, **ninguno está plenamente cumplido y verificado**; 3 
 | DT-DOC-08 | **Faltan manual de usuario por rol y guía de contingencia en papel** (A5; criterio C-9)                                                                                                                                           | Media |  M   | Capacitación y aceptación sin material   | ABIERTO | Ninguna              | Redactar con el guion de aceptación                                            |
 | DT-DOC-09 | **Decisiones nuevas sin registrar en `PENDIENTES.md`**: P-44 a P-47 (reportes en el cierre, carga inicial, roles por pantalla, acta de aceptación) propuestas en el informe de arquitectura; el archivo termina en P-43 y P-AUD-2 | Media |  XS  | Decisiones sin dueño ni seguimiento      | ABIERTO | Ninguna              | Registrarlas; las de Fase 2 como P-V01…P-V17 (ver 5.16)                        |
 
+> **Actualización 2026-11-09 (DT-DOC-05).** El responsable decidió archivar este informe como la
+> revisión de seguridad y rendimiento (E4 de
+> [RESOLUCIONES-2026-11-09](../business/RESOLUCIONES-2026-11-09.md)); `F1-ANALISIS-FASES-2026-10-13.md`
+> y el PLAN llevan una nota que remite aquí. Ese archivo cubre análisis estático, tamaños de _bundle_
+> por compilación y cifras de CI; **no** cubre pruebas ofensivas ejecutadas ni mediciones de carga, que
+> siguen pendientes (C-3 y C-11 siguen parciales). La fila se conserva como se redactó.
+
 #### 3.4.7 Operación y entrega (OPS)
 
 | ID        | Descripción y evidencia                                                                                                                                                                                                                                                          | Sev.  | Esf. | Riesgo si se ignora                                                 | Estado  | Dependencia          | Recomendación                                                                      |
