@@ -86,9 +86,17 @@ jobs:
         with:
           context: .
           push: false
+          # `load` deja la imagen en el Docker del runner para la prueba de arranque siguiente.
+          load: true
           tags: joyeria-sole:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # Prueba de arranque (smoke): PostgreSQL efímero propio, CMD real (migrate deploy + servidor),
+      # GET /api/v1/health = 200, seed compilado `node dist/seed.js` (dos veces) y login del admin
+      # sembrado. Credenciales efímeras generadas por el script con openssl; no se imprimen.
+      - name: Prueba de arranque de la imagen
+        timeout-minutes: 5
+        run: bash scripts/smoke-image.sh joyeria-sole:ci
 
   # Despliegue: PENDIENTE hasta elegir proveedor y crear las cuentas (ver docs/deployment/DEPLOYMENT.md).
   # Con Render, el despliegue se dispara solo al hacer merge a `main` (auto-deploy),
