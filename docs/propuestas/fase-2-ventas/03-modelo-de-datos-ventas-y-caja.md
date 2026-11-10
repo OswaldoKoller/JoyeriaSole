@@ -5,6 +5,24 @@
 >
 > **Alcance de la autorización: SOLO ANÁLISIS.** Este documento no modifica `schema.prisma`, no crea migraciones ni archivos `.sql`, no toca código, ADR, PENDIENTES, `CLAUDE.md` ni `DATABASE.md`, y no se ejecutó nada (ni Docker, ni tests, ni consultas). **Todo el SQL/DDL de este documento es ilustrativo**; no es una migración lista para aplicar. Cualquier afirmación de rendimiento o de comportamiento de PostgreSQL bajo concurrencia es _razonamiento, no medido_.
 
+> **Actualización 2026-11-09.** Las subdecisiones de caja SD-V09-1 a SD-V09-8 se respondieron (B2 a B9
+> de [RESOLUCIONES-2026-11-09](../../business/RESOLUCIONES-2026-11-09.md)); las etiquetas
+> **[PENDIENTE]** de este documento se leen contra esas respuestas y no se reescriben una a una. Cambios
+> en el modelo por las aclaraciones posteriores:
+>
+> - **`cash_sessions.opening_amount`:** fondo obligatorio, digitado en un campo libre en cada apertura
+>   (B4). `CHECK >= 0` (acepta 0) y sin tope son **recomendación técnica**, pendiente de confirmar.
+> - **`cash_movements`:** no se crea en el MVP (B6); `cash_movements_net` es 0.
+> - **Sin reapertura (B7):** `cash_sessions_guard` no cambia; una sesión `CLOSED` sigue inmutable.
+> - **Tabla nueva propuesta `cash_session_corrections`** (append-only, solo el Administrador): corrige
+>   errores de captura del contado, del fondo y de la observación sin modificar la sesión ni tocar
+>   ventas o pagos. Diseño en [10-correcciones-de-caja](10-correcciones-de-caja.md).
+> - **`sales.cash_session_id`:** obligatoria, porque no se vende sin sesión abierta (B2).
+>
+> Solo se corrigieron las frases sobre fondo, gastos y retiros, reapertura y corrección (§1, §5.5, §5.6,
+> §5.8 y §13.3). Lo relativo a B2 (`cash_session_id` en §5.2 y §11) se lee contra esta nota y no se
+> reescribió.
+
 ## Cómo leer las etiquetas
 
 | Etiqueta                    | Significado                                                                                                          |
@@ -46,7 +64,7 @@ Cuando una tabla o columna sale de una recomendación, así se rotula. Las subde
 6. **Concurrencia (sección 8):** nivel de aislamiento `READ COMMITTED` (el actual) + bloqueos explícitos. Orden propuesto: **sesión de caja (`FOR SHARE` en venta, `FOR UPDATE` en cierre) → variantes por id (`FOR NO KEY UPDATE`) → saldo**. Con ese orden venta y cierre no pueden interbloquearse y una venta nunca queda «medio dentro» de un arqueo.
 7. **Hallazgo importante sobre migraciones:** como `sales` será inmutable por trigger, **ningún backfill de `cash_session_id`** sobre ventas ya registradas es posible sin deshabilitar el trigger (sección 11). Esto condiciona el conflicto E1/E3.
 8. **Hallazgo sobre numeración:** `INSERT … ON CONFLICT DO NOTHING` con `DEFAULT nextval()` **consume números** aunque el insert se descarte por duplicado; una secuencia tiene huecos incluso sin errores de negocio (sección 10). Elegir entre secuencia y contador sin saltos **es una subdecisión pendiente (SD-V12)**.
-9. **No se modelan** anulación, crédito, apartados, impuestos, multimoneda, clientes, descuentos, cambios (E4), factura externa ni multi-sucursal. **Quedan como opciones pendientes** reapertura de caja, gastos/retiros y conciliación de QR/transferencias (sección 13).
+9. **No se modelan** anulación, crédito, apartados, impuestos, multimoneda, clientes, descuentos, cambios (E4), factura externa ni multi-sucursal. **Quedan como opciones pendientes** reapertura de caja, gastos/retiros y conciliación de QR/transferencias (sección 13). _Actualización 2026-11-09:_ ya respondidas: sin reapertura (B7), sin gastos ni retiros (B6) y QR y transferencias informados aparte (B8); los errores de cierre se corrigen con `cash_session_corrections` ([10](10-correcciones-de-caja.md)).
 
 ---
 
@@ -313,25 +331,25 @@ Omitidos **a propósito** (no hay decisión que los respalde): `status`, `subtot
 
 **[CONFIRMADA]** la entidad y sus campos mínimos (identificador, número, estado `OPEN`/`CLOSED`, usuario y fecha de apertura, fondo inicial, usuario y fecha de cierre, efectivo esperado, efectivo contado, diferencia, observaciones). Lo demás es **[RECOMENDACIÓN TÉCNICA]**.
 
-| Columna              | Tipo                                     | NULL | Default / nota                                                                                                                                    |
-| -------------------- | ---------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                 | uuid                                     | NN   | PK                                                                                                                                                |
-| `number`             | integer                                  | NN   | **U**, `SERIAL`. Los huecos aquí no tienen consecuencia contable (es un contador de turnos) **[PENDIENTE si el responsable quiere lo contrario]** |
-| `status`             | `cash_session_status` (`OPEN`, `CLOSED`) | NN   | `OPEN`. Enum nuevo                                                                                                                                |
-| `opened_by_id`       | uuid                                     | NN   | FK → `users` RESTRICT                                                                                                                             |
-| `opened_at`          | timestamptz(3)                           | NN   | `CURRENT_TIMESTAMP`                                                                                                                               |
-| `opening_amount`     | numeric(12,2)                            | NN   | Fondo inicial; CHECK `>= 0`. Restricciones adicionales **[PENDIENTE SD-V09-3]**                                                                   |
-| `closed_by_id`       | uuid                                     | sí   | FK → `users` RESTRICT. Puede diferir de quien abrió **[PENDIENTE SD-V09-1]**                                                                      |
-| `closed_at`          | timestamptz(3)                           | sí   |                                                                                                                                                   |
-| `cash_sales_total`   | numeric(12,2)                            | sí   | Σ pagos en efectivo de la sesión, **congelado al cerrar**                                                                                         |
-| `cash_movements_net` | numeric(12,2)                            | sí   | Σ movimientos de caja con signo, **congelado al cerrar** (0 si no hay `cash_movements`)                                                           |
-| `expected_cash`      | numeric(12,2)                            | sí   | `opening_amount + cash_sales_total + cash_movements_net`, **congelado**                                                                           |
-| `counted_cash`       | numeric(12,2)                            | sí   | Efectivo físico contado; CHECK `>= 0`                                                                                                             |
-| `difference`         | numeric(12,2)                            | sí   | `counted_cash − expected_cash`; con signo                                                                                                         |
-| `notes`              | varchar(500)                             | sí   | Observaciones                                                                                                                                     |
-| `open_request_id`    | uuid                                     | sí   | **U**. Idempotencia de la apertura                                                                                                                |
-| `close_request_id`   | uuid                                     | sí   | **U**. Idempotencia del cierre                                                                                                                    |
-| `close_request_hash` | char(64)                                 | sí   | Hash de `{sessionId, countedCash, notes}`                                                                                                         |
+| Columna              | Tipo                                     | NULL | Default / nota                                                                                                                                     |
+| -------------------- | ---------------------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                 | uuid                                     | NN   | PK                                                                                                                                                 |
+| `number`             | integer                                  | NN   | **U**, `SERIAL`. Los huecos aquí no tienen consecuencia contable (es un contador de turnos) **[PENDIENTE si el responsable quiere lo contrario]**  |
+| `status`             | `cash_session_status` (`OPEN`, `CLOSED`) | NN   | `OPEN`. Enum nuevo                                                                                                                                 |
+| `opened_by_id`       | uuid                                     | NN   | FK → `users` RESTRICT                                                                                                                              |
+| `opened_at`          | timestamptz(3)                           | NN   | `CURRENT_TIMESTAMP`                                                                                                                                |
+| `opening_amount`     | numeric(12,2)                            | NN   | Fondo inicial obligatorio, digitado en cada apertura **[CONFIRMADA B4]**; CHECK `>= 0` y sin tope **[RECOMENDACIÓN]**; cero y tope **[PENDIENTE]** |
+| `closed_by_id`       | uuid                                     | sí   | FK → `users` RESTRICT. Puede diferir de quien abrió **[PENDIENTE SD-V09-1]**                                                                       |
+| `closed_at`          | timestamptz(3)                           | sí   |                                                                                                                                                    |
+| `cash_sales_total`   | numeric(12,2)                            | sí   | Σ pagos en efectivo de la sesión, **congelado al cerrar**                                                                                          |
+| `cash_movements_net` | numeric(12,2)                            | sí   | Σ movimientos de caja con signo, **congelado al cerrar** (0 si no hay `cash_movements`)                                                            |
+| `expected_cash`      | numeric(12,2)                            | sí   | `opening_amount + cash_sales_total + cash_movements_net`, **congelado**                                                                            |
+| `counted_cash`       | numeric(12,2)                            | sí   | Efectivo físico contado; CHECK `>= 0`                                                                                                              |
+| `difference`         | numeric(12,2)                            | sí   | `counted_cash − expected_cash`; con signo                                                                                                          |
+| `notes`              | varchar(500)                             | sí   | Observaciones                                                                                                                                      |
+| `open_request_id`    | uuid                                     | sí   | **U**. Idempotencia de la apertura                                                                                                                 |
+| `close_request_id`   | uuid                                     | sí   | **U**. Idempotencia del cierre                                                                                                                     |
+| `close_request_hash` | char(64)                                 | sí   | Hash de `{sessionId, countedCash, notes}`                                                                                                          |
 
 - **Por qué dos columnas extra (`cash_sales_total`, `cash_movements_net`):** permiten un CHECK aritmético en BD y dejan el desglose histórico sin depender de que las filas de origen existan idénticas (siempre existirán por inmutabilidad, pero el arqueo debe ser reproducible a simple vista). **[RECOMENDACIÓN TÉCNICA]**; el mínimo de la resolución es `expected_cash`.
 - **Desglose QR/transferencia:** no es parte del efectivo; se reporta por consulta (12.3). Opcionalmente se congela en un `closing_breakdown jsonb` (informativo). **[PENDIENTE]**: requiere aprobar su contenido y SD-V09-7.
@@ -350,12 +368,12 @@ Omitidos **a propósito** (no hay decisión que los respalde): `status`, `subtot
   ```
   Solo puede existir una fila con `status = 'OPEN'`. No necesita índice de expresión. Prisma no declara índices parciales: queda **solo en SQL** (igual que los dos existentes; ver INC-17). Si algún día hubiera más cajas, la migración reemplazaría la clave por `(cash_register_id) WHERE status='OPEN'`: **no se anticipa** `cash_registers` ni `location_id`.
 - **Índices:** `UNIQUE (number)`, `UNIQUE (open_request_id)`, `UNIQUE (close_request_id)`, `cash_sessions_opened_at_idx (opened_at)`.
-- **Triggers:** `cash_sessions_guard` (BEFORE UPDATE OR DELETE, ver 7.5): DELETE prohibido; un UPDATE solo es válido si `OLD.status = 'OPEN'` y `NEW.status = 'CLOSED'`, nada más cambia salvo los campos de cierre, y `expected_cash`, `cash_sales_total` y `cash_movements_net` **coinciden con lo recalculado**; una sesión `CLOSED` es inmutable.
+- **Triggers:** `cash_sessions_guard` (BEFORE UPDATE OR DELETE, ver 7.5): DELETE prohibido; un UPDATE solo es válido si `OLD.status = 'OPEN'` y `NEW.status = 'CLOSED'`, nada más cambia salvo los campos de cierre, y `expected_cash`, `cash_sales_total` y `cash_movements_net` **coinciden con lo recalculado**; una sesión `CLOSED` es inmutable. _Actualización 2026-11-09:_ las correcciones del Administrador se guardan en otra tabla (`cash_session_corrections`) y no relajan este trigger ([10](10-correcciones-de-caja.md)).
 - **Escribe:** módulo `cash` (apertura = `INSERT`; cierre = un único `UPDATE`).
 
 ### 5.6 `cash_movements` (E3, **solo si se aprueba SD-V09-5**)
 
-**[CONFIRMADA]** la entidad, sus campos mínimos (sesión de caja, tipo, importe, motivo, usuario responsable, fecha y hora), que conserva historial y auditoría y que existe «cuando se autoricen». **[PENDIENTE SD-V09-5]** qué tipos existen (gastos, retiros, ingresos) y quién los autoriza. Por eso **esta tabla no debe crearse hasta resolverlo**; el cálculo de arqueo funciona sin ella (`cash_movements_net = 0`).
+**[CONFIRMADA]** la entidad, sus campos mínimos (sesión de caja, tipo, importe, motivo, usuario responsable, fecha y hora), que conserva historial y auditoría y que existe «cuando se autoricen». **[PENDIENTE SD-V09-5]** qué tipos existen (gastos, retiros, ingresos) y quién los autoriza. Por eso **esta tabla no debe crearse hasta resolverlo**; el cálculo de arqueo funciona sin ella (`cash_movements_net = 0`). _Actualización 2026-11-09:_ resuelto en contra (B6, sin gastos ni retiros en el MVP): **la tabla no se crea**; lo que sigue queda como referencia por si una decisión futura la habilita.
 
 | Columna           | Tipo                 | NULL | Nota                                                                                                               |
 | ----------------- | -------------------- | ---- | ------------------------------------------------------------------------------------------------------------------ |
@@ -404,16 +422,17 @@ Omitidos **a propósito** (no hay decisión que los respalde): `status`, `subtot
 
 ### 5.8 Resumen: quién escribe cada tabla
 
-| Tabla                                       | `INSERT`                                    | `UPDATE`                                                       | `DELETE`            | Lee                                                   |
-| ------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------- | ------------------- | ----------------------------------------------------- |
-| `payment_methods`                           | migración + seed                            | seed (solo `is_active`, `name`, `sort_order`); nunca `is_cash` | nunca               | `sales`, `reports`                                    |
-| `sales`                                     | módulo `sales`                              | **nunca** (trigger)                                            | **nunca** (trigger) | `sales`, `cash` (arqueo), `reports`                   |
-| `sale_items`                                | módulo `sales`                              | nunca                                                          | nunca               | `sales`, `reports`                                    |
-| `sale_payments`                             | módulo `sales`                              | nunca                                                          | nunca               | `sales`, `cash`, `reports`                            |
-| `cash_sessions`                             | módulo `cash` (apertura)                    | módulo `cash`, **una sola vez** (cierre OPEN→CLOSED)           | nunca               | `cash`, `sales` (solo bloqueo `FOR SHARE`), `reports` |
-| `cash_movements`                            | módulo `cash`                               | nunca                                                          | nunca               | `cash`, `reports`                                     |
-| `inventory_movements`, `inventory_balances` | **solo** la fachada de `inventory`          | saldo: fachada                                                 | —                   | —                                                     |
-| `audit_logs`                                | `recordAudit(tx, …)` desde `sales` y `cash` | nunca                                                          | nunca               | `audit`                                               |
+| Tabla                                                                               | `INSERT`                                    | `UPDATE`                                                       | `DELETE`            | Lee                                                   |
+| ----------------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------- | ------------------- | ----------------------------------------------------- |
+| `payment_methods`                                                                   | migración + seed                            | seed (solo `is_active`, `name`, `sort_order`); nunca `is_cash` | nunca               | `sales`, `reports`                                    |
+| `sales`                                                                             | módulo `sales`                              | **nunca** (trigger)                                            | **nunca** (trigger) | `sales`, `cash` (arqueo), `reports`                   |
+| `sale_items`                                                                        | módulo `sales`                              | nunca                                                          | nunca               | `sales`, `reports`                                    |
+| `sale_payments`                                                                     | módulo `sales`                              | nunca                                                          | nunca               | `sales`, `cash`, `reports`                            |
+| `cash_sessions`                                                                     | módulo `cash` (apertura)                    | módulo `cash`, **una sola vez** (cierre OPEN→CLOSED)           | nunca               | `cash`, `sales` (solo bloqueo `FOR SHARE`), `reports` |
+| `cash_movements`                                                                    | módulo `cash`                               | nunca                                                          | nunca               | `cash`, `reports`                                     |
+| `cash_session_corrections` (propuesta 2026-11-09, [10](10-correcciones-de-caja.md)) | módulo `cash` (solo con `cash:correct`)     | nunca                                                          | nunca               | `cash`, `reports`, `audit`                            |
+| `inventory_movements`, `inventory_balances`                                         | **solo** la fachada de `inventory`          | saldo: fachada                                                 | —                   | —                                                     |
+| `audit_logs`                                                                        | `recordAudit(tx, …)` desde `sales` y `cash` | nunca                                                          | nunca               | `audit`                                               |
 
 Frontera de módulos **[RECOMENDACIÓN TÉCNICA]**: `sales` necesita **bloquear** la fila de la sesión de caja (`FOR SHARE`) pero no escribe en tablas de `cash`; lo hace llamando a una función pública de `cash` (p. ej. `lockOpenSession(tx)`), igual que `sales` llama a la fachada de inventario. Así la regla «cada tabla tiene un único escritor» se conserva.
 
@@ -878,6 +897,11 @@ Todos los instantes son `timestamptz(3)` (UTC en almacenamiento); la presentaci�
 
 **a) Reapertura de caja cerrada (SD-V09-6)**
 
+> **Actualización 2026-11-09.** Respondida: **sin reapertura** (B7) y sin `cash_movements` (B6). La
+> opción 0 ya no puede anotar el error «en `cash_movements`»; la vía elegida es la corrección
+> append-only del Administrador en `cash_session_corrections`, que no modifica la sesión
+> ([10](10-correcciones-de-caja.md)). La tabla se conserva como análisis histórico.
+
 | Opción                                    | Modelo                                                                                                                                                                                                               | Consecuencia                                                                                        |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | 0 — Sin reapertura                        | Una sesión `CLOSED` es definitiva; un error de arqueo se anota en la sesión siguiente (`cash_movements` o `notes`)                                                                                                   | Cero cambios al modelo; la sesión siguiente arrastra la corrección; el error original queda visible |
@@ -894,7 +918,7 @@ Todos los instantes son `timestamptz(3)` (UTC en almacenamiento); la presentaci�
 | 1 — Conciliación posterior | Tabla append-only `payment_settlements(sale_payment_id FK, status, recorded_by_id, recorded_at)`. **No puede ser un campo de `sale_payments`** (inmutable) |
 | 2 — Bloquear el cierre     | El cierre exige que no haya pagos no efectivos sin conciliar: requiere la opción 1 y un chequeo en el trigger de cierre                                    |
 
-**d) Otras subdecisiones que afectan el modelo:** SD-V09-1 (roles; no es columna sino permiso: `cash:*`), SD-V09-2 (sección 11.4), SD-V09-3 (restricciones del fondo: ¿máximo?, ¿obligatorio > 0?, ¿heredado del cierre anterior?; hoy solo `>= 0`), SD-V09-4 (tolerancia: la diferencia siempre se guarda; si se exigiera nota para diferencias > tolerancia, sería un CHECK sobre `notes`), SD-V09-8 (responsabilidad por vendedor: podría requerir `sale_payments.collected_by_id` o por `sales.seller_id`).
+**d) Otras subdecisiones que afectan el modelo:** SD-V09-1 (roles; no es columna sino permiso: `cash:*`), SD-V09-2 (sección 11.4), SD-V09-3 (restricciones del fondo: ¿máximo?, ¿obligatorio > 0?, ¿heredado del cierre anterior?; hoy solo `>= 0`; _actualización 2026-11-09:_ obligatorio y digitado en cada apertura, sin herencia, por B4; cero y tope siguen sin confirmar), SD-V09-4 (tolerancia: la diferencia siempre se guarda; si se exigiera nota para diferencias > tolerancia, sería un CHECK sobre `notes`), SD-V09-8 (responsabilidad por vendedor: podría requerir `sale_payments.collected_by_id` o por `sales.seller_id`).
 
 ---
 

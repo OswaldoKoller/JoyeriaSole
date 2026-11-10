@@ -132,6 +132,15 @@ efecto:
 **Por regla del proyecto, el agente no edita `CLAUDE.md`:** hacerlo requiere tu aprobación expresa. La sección 01 §6
 trae la lista priorizada de 23 correcciones documentales, 7 de las cuales piden una decisión tuya.
 
+> **Actualización 2026-11-09.** Por decisión del responsable (E4 de
+> [RESOLUCIONES-2026-11-09](../business/RESOLUCIONES-2026-11-09.md)), **este informe queda archivado
+> como la revisión de seguridad y rendimiento** que citan otros documentos. Alcance real: análisis
+> estático del código y de la documentación, mediciones de tamaño de _bundle_ obtenidas compilando
+> (`vite build`) y cifras de pruebas y tiempos tomadas del CI. **No incluye** pruebas ofensivas
+> ejecutadas ni mediciones de carga o rendimiento con el volumen del cliente: siguen pendientes. Los
+> documentos que citaban la «Revisión ofensiva» de `SECURITY.md` o `PERFORMANCE.md` llevan ahora una nota
+> que remite aquí (fila «Revisiones inexistentes» y DT-DOC-05, atendidas solo en ese sentido).
+
 ## 8. Fase 2 «Ventas» en breve
 
 Detalle completo en la sección 06 §5 y el informe de arquitectura. CLAUDE.md prohíbe hoy el punto de venta: hace

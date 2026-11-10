@@ -179,6 +179,11 @@ Notas de la tabla:
   inventario reportan las incidencias y el Administrador las ve (C6), pero **no se definió el flujo ni
   qué ocurre con el stock**. Siguen abiertos: pagos incorrectos, duplicaciones, devoluciones obligatorias
   por ley (requiere contador y asesor legal), cambios frente a la prohibición y reportes de incidencias.
+  - Aclaración posterior (2026-11-09, C5 «haz lo recomendable»): el flujo y el tratamiento del stock
+    quedan delegados en la recomendación técnica: hoja de incidencias numerada fuera del sistema; el
+    Administrador atiende y cierra; la incidencia no mueve stock y el desfase se regulariza en el
+    conteo físico ordinario; no se registra una venta compensatoria. Los demás puntos abiertos de esta
+    nota no cambian.
 - **Q-V09 (DEC-V09):** caja única con apertura, cobros, cierre y arqueo. Respondido el 2026-11-09:
   venta y caja se liberan **juntas** (B1); no se vende sin sesión abierta (B2); abren y cierran el
   Administrador y el Responsable de inventario (B3); fondo inicial obligatorio y de monto libre (B4);
@@ -186,6 +191,15 @@ Notas de la tabla:
   gastos ni retiros (B6); sin reapertura (B7); QR y transferencias se informan aparte y no afectan el
   efectivo (B8); cada venta guarda quién la hizo y el arqueo es por sesión (B9). Falta el ADR-028
   (propuesta) y la autorización para implementar.
+  - Aclaración posterior (2026-11-09) sobre B6 y B7: el responsable reconoció que sin reapertura ni
+    movimientos manuales no había vía para corregir un error de cierre, pidió «lo que sea más
+    recomendable» y fijó que **solo el Administrador** corrige. B6 y B7 siguen vigentes. La
+    recomendación delegada es una corrección append-only de contado, fondo y observación, que no
+    modifica la sesión cerrada ni toca ventas o pagos
+    ([10-correcciones-de-caja](../propuestas/fase-2-ventas/10-correcciones-de-caja.md)); sus
+    subdecisiones menores (SC-1 a SC-6) quedan abiertas.
+  - Aclaración posterior (2026-11-09) sobre B4: el monto del fondo se digita en un campo libre. Si el
+    cero es válido y si hay tope sigue sin decidir (recomendación: 0 explícito, sin tope).
 - **Q-V12 (DEC-V12):** comprobante interno imprimible desde el navegador. Respondido: numeración por
   secuencia con posibles saltos, a consultar con el contador (B10); no se guarda el número de factura
   externa (B11); datos comerciales según la recomendación técnica (nombre comercial, dirección,
@@ -222,7 +236,7 @@ encaminadas con las respuestas del 2026-11-09.
 
 | ID   | Decisión                                     | Estado       | Lo registrado hoy                                                                         |
 | ---- | -------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------- |
-| P-44 | Reportes y exportaciones al cierre de Fase 1 | 🟢 APROBADA  | Resuelta (2026-11-09): CSV de inventario y movimientos. Valor de inventario: sin decidir. |
+| P-44 | Reportes y exportaciones al cierre de Fase 1 | 🟢 APROBADA  | Resuelta (2026-11-09): CSV de inventario y movimientos, con el valor del inventario (D1). |
 | P-45 | Carga inicial de datos (importador)          | 🟢 APROBADA  | Resuelta (2026-11-09): carga manual, sin importador; la rebanada S11 queda sin construir. |
 | P-46 | Gestión de roles por pantalla                | 🟡 PENDIENTE | No autorizada todavía (2026-11-09). Los roles solo cambian por el seed.                   |
 | P-47 | Acta de aceptación de decisiones por defecto | 🟡 PARCIAL   | Sesión de revisión acordada (2026-11-09), todavía sin fecha.                              |
@@ -231,6 +245,12 @@ Notas:
 
 - **P-44:** la exportación de auditoría (P-AUD-1) y el valor de inventario (solo con `costs:read`) no
   se mencionaron y siguen sin decidir.
+  - Actualización 2026-11-09 (aclaración D1 = «SÍ»): el reporte mínimo CSV **incluye el valor del
+    inventario**, visible **solo con `costs:read`** (regla P-02: el Vendedor no ve costos). Sin decidir:
+    valoración a precio de venta, corte a una fecha anterior y la exportación de auditoría (P-AUD-1).
+    Recomendación técnica (no regla): costo vigente × saldo a la fecha de exportación, rotulado «a
+    costo vigente». Ver
+    [RESOLUCIONES-2026-11-09, «Aclaraciones posteriores»](RESOLUCIONES-2026-11-09.md#aclaraciones-posteriores-2026-11-09).
 - **P-45:** con 1.000 a 2.000 piezas, la carga manual es costosa y propensa a errores (informe
   técnico); el criterio de cierre «datos reales» se cumple entonces con carga manual.
 - **P-46:** el seed de producción ejecutable sí está autorizado (A3 a), pero no la pantalla ni la API

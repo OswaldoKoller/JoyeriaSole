@@ -80,6 +80,12 @@ Si el cliente cambia de opinión sobre alguno, se trata como **cambio de requisi
 | **Identidad y documentación**    | Paleta provisional; sin manual de usuario                                                 | Manual, acta de aceptación                                                                                                                                                            | J1–J3         |
 | **Fase 2 (ventas)**              | Solo el menú «Próximamente»                                                               | —                                                                                                                                                                                     | K1, K3        |
 
+> **Actualización 2026-11-09.** Filas «Seguridad» y «Rendimiento»: por decisión del responsable (E4 de
+> [RESOLUCIONES-2026-11-09](RESOLUCIONES-2026-11-09.md)), la revisión archivada es el
+> [informe técnico](../informe-tecnico/): análisis estático del código y de la documentación,
+> tamaños de _bundle_ por compilación y cifras de CI. La revisión ofensiva (pruebas ejecutadas) y las
+> pruebas de carga **siguen sin hacerse**. La tabla se conserva como se redactó.
+
 ---
 
 ## 3. Materiales que el cliente debe traer o enviar

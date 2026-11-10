@@ -262,6 +262,10 @@ Las ocho subdecisiones de caja que dejó pendientes la resolución del 2026-11-0
 
 ## Pendientes que siguen abiertos
 
+> **Actualización 2026-11-09.** Parte de esta lista se respondió después: B4, B6 y B7, C5, D1, E4 y
+> quién aprueba ajustes. Ver [Aclaraciones posteriores](#aclaraciones-posteriores-2026-11-09). La lista
+> se conserva tal como se redactó.
+
 **De esta tanda de respuestas:**
 
 - **Valores reales de C1:** nombre comercial, dirección, teléfono, NIT (opcional) y logo (opcional).
@@ -305,6 +309,9 @@ Las ocho subdecisiones de caja que dejó pendientes la resolución del 2026-11-0
 Esta tarea no modificó los documentos citados en esta sección; son avisos para decidir qué se
 actualiza y quién lo hace.
 
+> **Actualización 2026-11-09.** La contradicción «B6 y B7 entre sí» y la salvedad de E4 recibieron
+> respuesta; ver [Aclaraciones posteriores](#aclaraciones-posteriores-2026-11-09).
+
 - **D5 frente a la infraestructura documentada.** [DEPLOYMENT.md](../deployment/DEPLOYMENT.md)
   recomienda Render; `CLAUDE.md` habla de «acceso desde Internet»; [LOCAL.md](../deployment/LOCAL.md)
   dice «Nunca usarlo con datos reales» porque no tiene HTTPS ni copias. Además, `COOKIE_SECURE` es
@@ -341,3 +348,118 @@ actualiza y quién lo hace.
 - **D3 y A1.** No contradice [DATABASE.md](../database/DATABASE.md) (coincide con su recomendación de
   revocar `TRUNCATE`), pero depende de A1: con escrituras fuera del servicio de inventario, el
   trigger I-01 fallaría.
+
+## Aclaraciones posteriores (2026-11-09)
+
+Después de registrar las respuestas anteriores, el responsable contestó los huecos que este documento
+dejaba abiertos. Se transcribe cada respuesta **literal** (mayúsculas incluidas) y se separa lo que es
+su decisión de lo que delegó en la recomendación técnica.
+
+Tipos usados:
+
+- **Decisión del responsable:** lo que la respuesta dice de forma expresa.
+- **Recomendación técnica delegada:** el responsable pidió «haz lo recomendable»; la propuesta queda
+  adoptada por delegación, se puede revisar en la sesión D4 y **no** se presenta como regla de
+  negocio dictada por él.
+- **Recomendación técnica (sin aprobar):** propuesta para un punto que la respuesta no cubre; no es
+  regla.
+- **PENDIENTE:** no se dijo nada; no se asume.
+
+«Resuelta» sigue sin significar «implementada»: nada de Ventas ni de Caja está autorizado para
+implementarse.
+
+### B4 · Fondo inicial
+
+- Respuesta literal: «SÍ, SE DEFINE EL MONTO EN UN CAMPO LIBRE PARA INDICAR EL FONDO INICIAL».
+- Decisión del responsable: la apertura tiene un **campo libre** donde se digita el monto del fondo
+  inicial en cada apertura. Confirma B4 a): obligatorio, sin cifra fija ni arrastre automático.
+- Recomendación técnica (sin aprobar): el campo es obligatorio (vacío no equivale a cero), **acepta 0
+  escrito de forma explícita** y **no tiene tope de negocio**; solo rige el límite técnico de la
+  columna (`numeric(12,2)`).
+- PENDIENTE: si el cero es válido y si hay un tope; el responsable no lo dijo.
+- Corrección de un fondo mal digitado: por la vía de corrección del Administrador (ver B6 y B7).
+
+### B6 y B7 · Corrección de errores de cierre
+
+- Respuesta literal: «OK, ERROR MÍO; ENTONCES HAZ LO QUE SEA MÁS RECOMENDABLE, PERO SOLO QUE EL
+  ADMINISTRADOR SEA QUIEN PUEDA HACER LAS CORRECCIONES».
+- Decisión del responsable: reconoce la contradicción (sin reapertura y sin movimientos manuales no
+  había vía de corrección) y fija que **solo el Administrador** puede corregir. **No revoca B6 ni
+  B7:** sigue sin haber gastos ni retiros de caja y sin reapertura de una caja cerrada.
+- Recomendación técnica delegada: **corrección append-only** que no modifica la sesión cerrada,
+  limitada a errores del conteo de efectivo, del fondo inicial mal digitado y a observaciones
+  complementarias; **nunca** ventas, pagos ni importes de comprobantes. Diseño, alternativas y
+  controles contra la anulación encubierta en
+  [10-correcciones-de-caja](../propuestas/fase-2-ventas/10-correcciones-de-caja.md).
+- Consecuencia técnica: un permiso propio (propuesto `cash:correct`) que el Responsable de inventario
+  y el Vendedor **no** reciben.
+- PENDIENTE: las subdecisiones menores del documento 10 (plazo para corregir, si un Administrador
+  puede corregir un cierre propio, quién revisa el informe de correcciones).
+
+### C5 · Venta errónea ya confirmada (puntos abiertos)
+
+- Respuesta literal: «HAZ LO RECOMENDABLE».
+- Alcance: los puntos que C5 dejó abiertos (flujo de la incidencia, qué pasa con el stock y si una
+  venta «compensatoria» cuenta como documento compensatorio). C5 a) sigue vigente: incidencia resuelta
+  fuera del sistema, sin ajuste de stock y sin documento compensatorio.
+- Recomendación técnica delegada:
+  - Registro: hoja de incidencias **numerada y fuera del sistema** en el MVP (procedimiento CP-01 de
+    la [matriz de riesgos](../propuestas/fase-2-ventas/07-matriz-de-riesgos.md)), con número de
+    venta, fecha, descripción, quién reporta y resolución. No se crea una entidad del sistema.
+  - Flujo: el Vendedor o el Responsable de inventario reportan (C6); el **Administrador** atiende,
+    anota la resolución y la fecha y cierra la incidencia.
+  - Stock: la incidencia **no** mueve stock. El desfase se detecta y regulariza en el siguiente conteo
+    físico ordinario (ADR-021); el conteo no se convoca para «deshacer» la venta.
+  - Venta compensatoria: **no** se registra una venta nueva para compensar otra. Una venta nueva solo
+    se registra si hay una venta real nueva.
+- PENDIENTE: pagos incorrectos (SD-A02), duplicaciones (SD-A03), devoluciones obligatorias por ley
+  (SD-A04, requiere contador y asesor legal) y reportes de incidencias (SD-A08). Esta delegación no
+  las cubre.
+
+### D1 · Valor del inventario en el reporte mínimo
+
+- Respuesta literal: «SÍ».
+- Decisión del responsable: el reporte mínimo CSV del cierre de la Fase 1 **incluye el valor del
+  inventario**.
+- Consecuencia técnica: el valor solo se entrega a quien tenga `costs:read` (regla vigente P-02: el
+  Vendedor no ve costos); no es una decisión nueva.
+- Recomendación técnica (sin aprobar): valorar con el costo vigente de cada variante (`cost_price`)
+  por su saldo a la fecha de exportación, rotulado «a costo vigente»; sin valor a fecha pasada.
+- PENDIENTE: si también se valora a precio de venta, si hace falta un corte a una fecha anterior, y la
+  exportación de auditoría (P-AUD-1).
+
+### E4 · Revisión de seguridad y rendimiento
+
+- Respuesta literal: «SE ARCHIVA COMO REVISIÓN».
+- Decisión del responsable: [docs/informe-tecnico](../informe-tecnico/) queda archivado como **la
+  revisión** de seguridad y rendimiento que otros documentos citan.
+- Lo que esa revisión contiene, dicho con honestidad: análisis estático del código y de la
+  documentación, mediciones de tamaño de _bundle_ obtenidas compilando (`vite build`) y cifras de
+  pruebas y tiempos tomadas del CI. **No contiene** pruebas ofensivas ejecutadas ni mediciones de
+  carga o rendimiento con el volumen del cliente: **siguen pendientes**.
+- Consecuencia técnica: se añadieron notas «Actualización 2026-11-09» en los documentos que citaban la
+  sección «Revisión ofensiva» de `SECURITY.md` o `docs/testing/PERFORMANCE.md` (que no existen y no se
+  crean). El texto histórico no se borró.
+
+### Quién aprueba los ajustes
+
+- Respuesta literal: «EL ADMINISTRADOR Y EL RESPONSABLE DE INVENTARIO TIENEN ESA POTESTAD, ASÍ QUE NO
+  HAY PROBLEMA».
+- Decisión del responsable: confirma la regla compartida del 2026-11-05: el Administrador **y** el
+  Responsable de inventario aprueban ajustes (y, según esa regla, precios, stock inicial y conteos).
+  La concentración de funciones del Responsable (abre y cierra caja por B3 y además aprueba) queda
+  **conocida y aceptada** por el responsable.
+- Hallazgo: el comentario de `DEFAULT_ROLE_PERMISSIONS` en `packages/shared/src/permissions.ts` aún
+  dice que los ajustes «solo los aprueba el administrador». El código asigna correctamente
+  `inventory:adjust-approve` al Responsable; solo el comentario está desactualizado. Corrección trivial
+  pendiente para el próximo cambio de código autorizado (esta tarea no toca código).
+- No cambia el estado de P-43 en [PENDIENTES.md](PENDIENTES.md).
+
+### Qué sigue abierto tras las aclaraciones
+
+- B4: cero y tope del fondo inicial.
+- Correcciones de caja: subdecisiones SC-1 a SC-6 del documento 10.
+- C5: SD-A02, SD-A03, SD-A04 y SD-A08.
+- D1: valoración a precio de venta, corte a fecha y P-AUD-1.
+- E4: pruebas ofensivas y mediciones de carga, sin fecha ni autorización.
+- El resto de la lista «Pendientes que siguen abiertos» no cambia.
