@@ -90,7 +90,7 @@ IDEMPOTENCY_KEY_REUSED`; no se ejecuta nada ni se devuelve la respuesta guardada
   documentos de diseño no fijan una política; esta es la simple adoptada, ajustable por operación con
   `ttlHours`.
 
-**Rutas que la EXIGEN** (sin clave: `400 IDEMPOTENCY_KEY_REQUIRED`): `POST /cash/sessions`,
+**Rutas que la EXIGEN** (sin clave: `400 IDEMPOTENCY_KEY_REQUIRED`): `POST /sales`, `POST /cash/sessions`,
 `POST /cash/sessions/:id/close` y `POST /cash/sessions/:id/corrections` (ver
 [Ventas y caja](#ventas-y-caja-fase-2)). En ellas la primera ejecución responde `201` (el cierre, `200`)
 y una repetición responde **`200`** con `Idempotent-Replay: true` (plan 11 §4.4–4.6). Además de
@@ -632,6 +632,54 @@ newValue, reason }`; `reason` de 10 a 500 caracteres; `newValue` ≥ 0 y distint
 - Auditoría: `cash_session.opened` (`after { number, openingAmount }`), `cash_session.closed`
   (`before`/`after` con las cifras del arqueo), `cash_session.corrected` (`before`/`after` con valor,
   esperado, contado y diferencia; `metadata { kind, reason, sequence }`).
+
+### Ventas (`/sales`, `/payment-methods`)
+
+| #   | Método y ruta          | Permiso                               | Clave       | Cuerpo o consulta                                                                                                  | Respuesta                                                  | Errores propios                                                                                                                                  |
+| --- | ---------------------- | ------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| V1  | `GET /payment-methods` | `sales:create`                        | no          | —                                                                                                                  | `200 { data: [{ code, name, isCash }] }` activos, en orden | —                                                                                                                                                |
+| V2  | `POST /sales`          | `sales:create`                        | **exigida** | `createSaleSchema`: `{ items, payments, expectedTotal }`                                                           | `201 { data: saleDetail }` (`200` si es repetición)        | `409 PRICE_CHANGED`; `409 IDEMPOTENCY_KEY_REUSED`; `422 CASH_SESSION_REQUIRED`, `INSUFFICIENT_STOCK`, `VARIANT_NOT_SELLABLE`, `PAYMENT_MISMATCH` |
+| V3  | `GET /sales`           | uno de `sales:read`, `sales:read-all` | no          | `saleListQuerySchema`: `page`, `pageSize` ≤ 100, `from`, `to`, `number`, `sellerId`, `cashSessionId`, `methodCode` | `200 { data: [saleSummary], meta }`, más recientes primero | —                                                                                                                                                |
+| V4  | `GET /sales/:id`       | uno de `sales:read`, `sales:read-all` | no          | —                                                                                                                  | `200 { data: saleDetail }`                                 | `404` (inexistente **o** ajena sin `sales:read-all`)                                                                                             |
+
+Cuerpo de `POST /sales` (`createSaleSchema`):
+
+- `items`: 1 a 50 líneas `{ variantId, quantity (1..999), expectedUnitPrice }`, sin repetir variante
+  (para más piezas, aumentar `quantity`). `expectedUnitPrice` es el precio que vio el vendedor.
+- `payments`: 1 a 3 pagos `{ methodCode: 'CASH' | 'QR' | 'BANK_TRANSFER', amount, tendered?,
+reference? }`, un pago por medio. `amount` es lo **aplicado** a la venta (> 0). `tendered` (efectivo
+  recibido) es **obligatorio en `CASH`** y prohibido en los demás; `reference` (≤ 100) solo en QR y
+  transferencia y no se imprime. Vuelto = `tendered − amount` (solo efectivo).
+- `expectedTotal`: total que vio el vendedor en la revisión previa.
+- Sin descuentos, cliente, fecha ni moneda: `soldAt` lo fija la base; todo es en Bs.
+
+Reglas y orden de validación (todo en una transacción; nada queda si falla):
+
+1. Repetición por clave (antes de exigir caja): misma clave y cuerpo → la venta ya registrada (`200`),
+   aunque la caja ya se haya cerrado.
+2. Caja abierta (`422 CASH_SESSION_REQUIRED`).
+3. Variantes existentes, activas, con producto activo y precio > 0 (`422 VARIANT_NOT_SELLABLE`).
+4. `expectedUnitPrice` = precio vigente y `expectedTotal` = Σ cantidad × precio (`409 PRICE_CHANGED`):
+   volver al carrito con los precios nuevos y **clave nueva**.
+5. Stock suficiente (`422 INSUFFICIENT_STOCK`). Stock nunca negativo.
+6. Medios activos, Σ `amount` = total, en efectivo `tendered ≥ amount` (`422 PAYMENT_MISMATCH`).
+7. Descuenta el stock con movimientos `SALE` (uno por línea, `reference_type = 'SALE'`).
+
+Respuestas (**ninguna contiene costos, para ningún rol**):
+
+- `saleSummary`: `id`, `number`, `soldAt`, `sellerId`, `sellerName`, `total`, `itemsCount`,
+  `paymentMethods` (códigos), `cashSessionId`, `cashSessionNumber`.
+- `saleDetail`: lo anterior más `items [{ variantId, sku, productName, variantLabel, quantity,
+unitPrice, lineTotal }]`, `payments [{ methodCode, methodName, amount, tendered, changeGiven,
+reference }]`, `changeGiven` (vuelto total) y `receiptPrints` (impresiones registradas).
+- Sin `sales:read-all` el listado devuelve solo las ventas propias (filtrar por otro `sellerId` da una
+  lista vacía) y el detalle de una venta ajena responde `404`.
+- Auditoría: `sale.created` con número, sesión, total, líneas (con `movementId`) y pagos.
+
+Guía para la web (plan 11 §5.4): generar la `Idempotency-Key` al entrar a la revisión y guardarla con
+el carrito; reintentar con la **misma** clave ante error de red o `503`; usar una clave **nueva** tras
+`PRICE_CHANGED`, `INSUFFICIENT_STOCK`, `VARIANT_NOT_SELLABLE`, `PAYMENT_MISMATCH` o si cambia el
+carrito; ante `CASH_SESSION_REQUIRED`, conservar carrito y clave.
 
 ## Cómo agregar un endpoint
 

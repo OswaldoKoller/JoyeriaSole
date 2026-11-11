@@ -5,6 +5,7 @@ import {
   SYSTEM_PAYMENT_METHODS,
   type PaymentMethodCode,
 } from '@joyeria/shared';
+import type { Prisma } from '../../src/generated/prisma/client.ts';
 import type { PrismaClient } from '../../src/lib/prisma.ts';
 import { applyStockChanges } from '../../src/modules/inventory/stock-ledger.ts';
 import { setStock } from './stock.ts';
@@ -101,21 +102,25 @@ export interface DirectPayment {
  * `quantity`/`unitPrice`/`cashMethodId` registra una línea pagada en efectivo; con `lines` y
  * `payments`, cualquier combinación.
  */
-export async function insertSaleDirect(
-  prisma: PrismaClient,
-  input: {
-    sessionId: string;
-    userId: string;
-    variantId?: string;
-    quantity?: number;
-    unitPrice?: string;
-    unitCost?: string;
-    cashMethodId?: string;
-    lines?: { variantId: string; quantity: number; unitPrice: string; unitCost?: string }[];
-    payments?: DirectPayment[];
-  },
-) {
-  const [row] = await prisma.$queryRaw<{ id: string }[]>`SELECT uuidv7()::text AS id`;
+export function insertSaleDirect(prisma: PrismaClient, input: DirectSaleInput) {
+  return prisma.$transaction((tx) => writeSaleDirect(tx, input));
+}
+
+export interface DirectSaleInput {
+  sessionId: string;
+  userId: string;
+  variantId?: string;
+  quantity?: number;
+  unitPrice?: string;
+  unitCost?: string;
+  cashMethodId?: string;
+  lines?: { variantId: string; quantity: number; unitPrice: string; unitCost?: string }[];
+  payments?: DirectPayment[];
+}
+
+/** Escribe la venta dentro de una transacción ya abierta (p. ej. una que retiene bloqueos). */
+export async function writeSaleDirect(tx: Prisma.TransactionClient, input: DirectSaleInput) {
+  const [row] = await tx.$queryRaw<{ id: string }[]>`SELECT uuidv7()::text AS id`;
   if (!row) throw new Error('uuidv7() no devolvió un id');
   const saleId = row.id;
   const lines = input.lines ?? [
@@ -132,7 +137,7 @@ export async function insertSaleDirect(
   const payments: DirectPayment[] = input.payments ?? [
     { methodId: input.cashMethodId ?? '', isCash: true, name: 'Efectivo', amount: total },
   ];
-  await prisma.$transaction(async (tx) => {
+  {
     const applied = await applyStockChanges(
       tx,
       lines.map((line) => ({
@@ -189,6 +194,6 @@ export async function insertSaleDirect(
         },
       });
     }
-  });
+  }
   return saleId;
 }

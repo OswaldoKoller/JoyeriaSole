@@ -3,12 +3,14 @@
  * confirmado, ajuste aprobado, conteo aprobado, cambio de pieza y eliminación de una ficha sin saldo.
  * Para cada variante: saldo = Σ movimientos = balance_after del último movimiento, con cadena continua.
  */
+import { randomUUID } from 'node:crypto';
 import { PERMISSIONS, type Permission } from '@joyeria/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { App } from '../../src/app.ts';
 import { buildTestApp, login } from '../helpers/app.ts';
 import { createTestUser, resetDatabase, seedAdjustmentReasons } from '../helpers/db.ts';
 import { assertLedgerInvariant } from '../helpers/ledger.ts';
+import { seedPaymentMethods } from '../helpers/sales.ts';
 
 // Cada prueba inicia sesión con Argon2 y encadena decenas de peticiones.
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
@@ -148,5 +150,36 @@ describe('invariante del libro de inventario', () => {
 
     const summary = await assertLedgerInvariant(app.prisma);
     expect(summary).toEqual({ variantsWithMovements: 4, movements: 9 });
+  });
+
+  it('se cumple también con ventas de mostrador (movimientos SALE vía applyStockChanges)', async () => {
+    await seedPaymentMethods(app.prisma);
+    const category = await createCategory('ventas');
+    const variant = await createVariant(category.id, 'INV-VTA');
+    await app.prisma.productVariant.update({
+      where: { id: variant.id },
+      data: { salePrice: '40' },
+    });
+    await ok('POST', `/inventory/${variant.id}/initial`, { quantity: 5, reason: 'Carga inicial' });
+    const keyed = (url: string, payload: object) =>
+      app.inject({
+        method: 'POST',
+        url: `/api/v1${url}`,
+        headers: { cookie, 'idempotency-key': randomUUID() },
+        payload,
+      });
+    expect((await keyed('/cash/sessions', { openingAmount: '0' })).statusCode).toBe(201);
+    const sale = (quantity: number) =>
+      keyed('/sales', {
+        items: [{ variantId: variant.id, quantity, expectedUnitPrice: '40' }],
+        payments: [{ methodCode: 'QR', amount: String(40 * quantity) }],
+        expectedTotal: String(40 * quantity),
+      });
+    const results = await Promise.all([sale(2), sale(2), sale(2)]);
+    expect(results.map((r) => r.statusCode).sort()).toEqual([201, 201, 422]);
+    expect(await balanceOf(variant.id)).toBe(1);
+
+    const summary = await assertLedgerInvariant(app.prisma);
+    expect(summary).toEqual({ variantsWithMovements: 1, movements: 3 });
   });
 });

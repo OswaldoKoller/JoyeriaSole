@@ -13,7 +13,8 @@ export const moneyInputSchema = z
 
 /** Importe estrictamente mayor que cero. */
 export const positiveMoneyInputSchema = moneyInputSchema.refine(
-  (value) => parseMoney(value) > 0n,
+  // Zod evalúa el refine aunque el formato ya haya fallado: solo se convierte un importe válido.
+  (value) => MONEY_PATTERN.test(value) && parseMoney(value) > 0n,
   'El importe debe ser mayor que cero',
 );
 
