@@ -60,9 +60,36 @@ Son **exclusivos del Administrador** (el Responsable no los tiene):
 - Auditoría (`audit:read`, Q-15.3).
 - Usuarios, roles y restablecer claves (`users:read`, `users:manage`, `roles:read`, `roles:manage`).
 - Borrado físico de fichas de producto (`catalog:delete`).
-- Configuración del sistema (`settings:manage`).
+- Configuración del sistema y datos del negocio (`settings:manage`).
+- Corregir cierres de caja (`cash:correct`) y ver, atender y cerrar incidencias de venta
+  (`sales-incidents:manage`).
 
-El Vendedor solo tiene `catalog:read` e `inventory:read`, sin costos (P-02).
+**Ventas y caja** (plan 11, autorizado el 2026-11-10; D-01, D-02 y D-13 son valores por defecto
+pendientes de confirmación):
+
+| Permiso                   | Administrador | Responsable | Vendedor |
+| ------------------------- | :-----------: | :---------: | :------: |
+| `sales:create`            |      sí       |     sí      |    sí    |
+| `sales:read` (propias)    |      sí       |     sí      |    sí    |
+| `sales:read-all`          |      sí       |     sí      |    no    |
+| `cash:read`               |      sí       |     sí      |    no    |
+| `cash:open`, `cash:close` |      sí       |     sí      |    no    |
+| `cash:correct`            |      sí       |     no      |    no    |
+| `sales-incidents:report`  |      sí       |     sí      |    sí    |
+| `sales-incidents:manage`  |      sí       |     no      |    no    |
+
+No existe ningún permiso de anulación, devolución, edición de ventas, reapertura o movimientos de caja
+(DEC-V07); una guarda estática lo verifica. Ninguna respuesta de ventas contiene costos, para ningún
+rol. La venta ajena (sin `sales:read-all`) responde `404`, no `403`, para no revelar que existe.
+
+**Permisos exclusivos del Administrador frente a la pantalla «Roles»:** `cash:correct`,
+`sales-incidents:manage` y `settings:manage` (`ADMIN_ONLY_PERMISSIONS`) **no se pueden conceder a
+ningún otro rol**, ni siquiera por un Administrador: la API responde `422` con la lista
+(`details.permissions`) y `GET /roles/permissions` los marca con `adminOnly: true` para que la
+pantalla los deshabilite.
+
+El Vendedor tiene `catalog:read`, `inventory:read`, `sales:create`, `sales:read` y
+`sales-incidents:report`, sin costos (P-02) ni caja.
 
 **Escalada de privilegios (S-01/S-02):** solo un Administrador puede **conceder o quitar el rol
 `ADMIN`** (al crear un usuario o al reasignar roles) y modificar la cuenta de otro Administrador
@@ -76,8 +103,8 @@ tiene:** quien administra roles o usuarios sin un permiso no puede agregarlo a u
 persona (o a sí mismo) un rol que lo incluya (`403`). Todo cambio de rol queda en `audit_logs`
 (`role.created`, `role.updated`, `role.deleted`, con antes/después) en la misma transacción. Los
 permisos se leen en cada petición: un cambio rige de inmediato en las sesiones abiertas.
-Advertencia: si se crea un permiso exclusivo del Administrador por decisión del cliente (p. ej.
-`cash:correct` de la propuesta de caja), la pantalla todavía no impide asignarlo a otro rol.
+Los permisos exclusivos del Administrador (`cash:correct`, `sales-incidents:manage`,
+`settings:manage`) no se pueden asignar a otros roles (ver arriba).
 
 **Notas de movimientos (S-03):** `GET /inventory/movements` y `GET /inventory/:variantId/movements`
 devuelven `notes` solo si la persona tiene `inventory:adjust`, `stock-entries:read` o `audit:read`; el

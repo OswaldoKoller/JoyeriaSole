@@ -90,7 +90,7 @@ IDEMPOTENCY_KEY_REUSED`; no se ejecuta nada ni se devuelve la respuesta guardada
   documentos de diseño no fijan una política; esta es la simple adoptada, ajustable por operación con
   `ttlHours`.
 
-**Rutas que la EXIGEN** (sin clave: `400 IDEMPOTENCY_KEY_REQUIRED`): `POST /sales`, `POST /cash/sessions`,
+**Rutas que la EXIGEN** (sin clave: `400 IDEMPOTENCY_KEY_REQUIRED`): `POST /sales`, `POST /sale-incidents`, `POST /cash/sessions`,
 `POST /cash/sessions/:id/close` y `POST /cash/sessions/:id/corrections` (ver
 [Ventas y caja](#ventas-y-caja-fase-2)). En ellas la primera ejecución responde `201` (el cierre, `200`)
 y una repetición responde **`200`** con `Idempotent-Replay: true` (plan 11 §4.4–4.6). Además de
@@ -680,6 +680,60 @@ Guía para la web (plan 11 §5.4): generar la `Idempotency-Key` al entrar a la r
 el carrito; reintentar con la **misma** clave ante error de red o `503`; usar una clave **nueva** tras
 `PRICE_CHANGED`, `INSUFFICIENT_STOCK`, `VARIANT_NOT_SELLABLE`, `PAYMENT_MISMATCH` o si cambia el
 carrito; ante `CASH_SESSION_REQUIRED`, conservar carrito y clave.
+
+### Comprobante interno (`/sales/:id/receipt`)
+
+| #   | Método y ruta                          | Permiso                    | Clave | Cuerpo                                                               | Respuesta                                         | Errores              |
+| --- | -------------------------------------- | -------------------------- | ----- | -------------------------------------------------------------------- | ------------------------------------------------- | -------------------- |
+| V5  | `GET /sales/:id/receipt`               | igual que `GET /sales/:id` | no    | —                                                                    | `200 { data: saleReceipt }`                       | `404`                |
+| V6  | `POST /sales/:id/receipt/print-events` | igual que `GET /sales/:id` | no    | `receiptPrintInputSchema`: `{ format }` (`58mm`, `80mm`, `A5`, `A4`) | `201 { data: { copyNumber, isCopy, printedAt } }` | `404`; `400` formato |
+
+- `saleReceipt` (`saleReceiptSchema`): `saleId`, `number`, `soldAt`, `currency: 'BOB'`,
+  `items [{ sku, productName, variantLabel, quantity, unitPrice, lineTotal }]`, `total`,
+  `payments [{ methodName, amount, tendered, changeGiven }]` (**sin** referencia), `seller { name }` o
+  `null` (según `receiptShowSeller`, D-04), `business { tradeName, address, phone, taxId }` (datos
+  **vigentes**, D-08) y `printCount`. Se arma desde las filas inmutables de la venta: cambiar después
+  precios, nombres o medios no lo altera. Leerlo no escribe nada. Sin costos.
+- Leyendas y formatos para la web (`@joyeria/shared`): `RECEIPT_TITLE` («Comprobante interno»),
+  `RECEIPT_NOT_FISCAL_LEGEND` («No válido como factura fiscal»), `RECEIPT_COPY_LEGEND` («COPIA»),
+  `RECEIPT_FORMATS`, `DEFAULT_RECEIPT_FORMAT` (`A4`).
+- `print-events` registra la **solicitud** de impresión (append-only) y la audita
+  (`sale.receipt_printed` con `{ format, copyNumber }`). La primera es el original (`isCopy: false`); desde
+  la segunda, `isCopy: true` → imprimir «COPIA». Llamarlo **antes** de `window.print()`; si falla, no
+  imprimir. Imprimir no crea ni modifica ventas.
+
+### Incidencias de venta (`/sale-incidents`)
+
+Solo trazabilidad (D-10, X-1): **no modifican la venta, el stock, los pagos ni la caja**. Lo resuelto
+se hace fuera del sistema y se describe al cerrar.
+
+| #   | Método y ruta                    | Permiso                  | Clave       | Cuerpo o consulta                                                                                 | Respuesta                                                   | Errores                                  |
+| --- | -------------------------------- | ------------------------ | ----------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------- |
+| N1  | `POST /sale-incidents`           | `sales-incidents:report` | **exigida** | `createSaleIncidentSchema`: `{ kind, description (10..1000), saleNumber? }`                       | `201 { data: saleIncident }` (`200` si es repetición)       | `404` si la venta no existe o es ajena   |
+| N2  | `GET /sale-incidents`            | `sales-incidents:manage` | no          | `saleIncidentListQuerySchema`: `page`, `pageSize`, `status` (`all`/`OPEN`/`CLOSED`), `from`, `to` | `200 { data: [saleIncident], meta }`, más recientes primero | —                                        |
+| N3  | `GET /sale-incidents/:id`        | `sales-incidents:manage` | no          | —                                                                                                 | `200 { data: saleIncident }`                                | `404`                                    |
+| N4  | `POST /sale-incidents/:id/close` | `sales-incidents:manage` | no          | `closeSaleIncidentSchema`: `{ resolution (10..1000) }`                                            | `200 { data: saleIncident }`                                | `404`; `409 CONFLICT` si ya está cerrada |
+
+- `kind`: `WRONG_SALE`, `WRONG_PAYMENT`, `DUPLICATE`, `OTHER` (D-11). `saleNumber` es el entero de
+  `VTA-000123`; quien no tiene `sales:read-all` solo puede referir ventas propias (ajena → `404`).
+- Claves como `amount`, `quantity`, `variantId` o `refund` → `400`.
+- `saleIncident`: `id`, `number` (`INC-000001`), `kind`, `description`, `status`, `sale { id, number }`
+  o `null`, `reportedBy { id, name }`, `reportedAt`, `resolution`, `resolvedBy`, `resolvedAt`.
+- Quien reporta recibe el alta pero no lista incidencias; solo el Administrador las ve y las cierra.
+- Auditoría: `sale_incident.reported`, `sale_incident.closed`.
+
+### Datos del negocio (`/settings/business`)
+
+| #   | Método y ruta            | Permiso                                | Cuerpo                                                                                                                      | Respuesta                        |
+| --- | ------------------------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| S1  | `GET /settings/business` | `settings:manage` (solo Administrador) | —                                                                                                                           | `200 { data: businessSettings }` |
+| S2  | `PUT /settings/business` | `settings:manage` (solo Administrador) | `updateBusinessSettingsSchema`: `{ tradeName (1..120), address? (≤ 200), phone? (≤ 40), taxId? (≤ 20), receiptShowSeller }` | `200 { data: businessSettings }` |
+
+- `businessSettings`: `tradeName`, `address`, `phone`, `taxId`, `receiptShowSeller`, `updatedAt` y
+  `updatedBy { id, name }` (`null` mientras nadie lo haya editado). `PUT` reemplaza todo: un campo
+  opcional ausente, vacío o `null` queda en `null`. Sin logo (SD-R08 a).
+- Valores provisionales (D-07): «Joyería Sole», sin dirección, teléfono ni NIT, sin vendedor impreso.
+- Auditoría: `business_settings.updated` con antes/después.
 
 ## Cómo agregar un endpoint
 
