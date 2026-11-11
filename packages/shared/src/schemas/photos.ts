@@ -35,3 +35,26 @@ export type ReorderPhotosInput = z.infer<typeof reorderPhotosSchema>;
 export function productPhotoPath(productId: string, photoId: string) {
   return `/api/v1/products/${productId}/photos/${photoId}`;
 }
+
+/**
+ * Anchos (px) de las miniaturas que sirve la API con `?w=` (DT-DAT-18, OD-04 B). Lista blanca
+ * cerrada: nunca se aceptan tamaños arbitrarios (cada tamaño cuesta CPU y espacio; un tamaño
+ * libre permitiría agotar el servidor). Las pantallas muestran las fotos entre 40 y 235 px.
+ */
+export const PHOTO_THUMB_WIDTHS = [160, 320, 640] as const;
+export type PhotoThumbWidth = (typeof PHOTO_THUMB_WIDTHS)[number];
+
+/** Ruta de una miniatura (o de la foto completa si la foto ya es igual de angosta). */
+export function productPhotoThumbPath(url: string, width: PhotoThumbWidth) {
+  return `${url}?w=${width}`;
+}
+
+/** Máximo de variantes por consulta de portadas (una pantalla pide las de todas sus filas). */
+export const MAX_VARIANT_COVERS_PER_REQUEST = 100;
+
+/** Portada de una pieza (por su variante); `photo` es null si el producto no tiene fotos. */
+export const variantCoverSchema = z.object({
+  variantId: z.uuid(),
+  photo: productPhotoSchema.nullable(),
+});
+export type VariantCover = z.infer<typeof variantCoverSchema>;

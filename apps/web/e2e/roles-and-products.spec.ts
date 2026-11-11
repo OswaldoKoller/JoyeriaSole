@@ -184,12 +184,10 @@ test.describe('productos e inventario desde la interfaz', () => {
     await page.getByRole('button', { name: 'Buscar' }).click();
     const row = page.getByRole('row', { name: /E2E Anillo Editado/ });
     await expect(row).toContainText('Sin stock');
-    // La imagen de la pieza aparece en Saldos (aquí la de «Sin foto») y se carga de verdad.
-    const image = row.locator('img[src*="/api/v1/products/variants/"]');
-    await expect(image).toHaveCount(1);
-    await expect
-      .poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))
-      .toBeGreaterThan(0);
+    // La imagen de la pieza aparece en Saldos: aquí, sin foto, el marcador local (la portada se
+    // consulta por lotes y no se descarga ninguna imagen; DT-DAT-17).
+    await expect(row.locator('[data-piece-image="sin-foto"]')).toHaveCount(1);
+    await expect(row.locator('img')).toHaveCount(0);
     await row.getByRole('button', { name: /stock inicial/i }).click();
     await page.getByLabel('Cantidad en piezas').fill('8');
     await page.getByLabel('Motivo').fill('Apertura E2E');

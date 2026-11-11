@@ -109,7 +109,8 @@ Usuarios: solo un Administrador puede crear un usuario con el rol `ADMIN`, asign
 | POST   | `/products/:id/axes`                      | `catalog:manage`                                                                                                                                                              | Define los ejes y valores de la variante base                                                                                                                                                                                                                                                     |
 | POST   | `/products/:id/variants`                  | `catalog:manage`                                                                                                                                                              | Agrega combinación única con SKU correlativo (código repetido → aviso en `meta.warnings`); `salePrice` exige `prices:approve`                                                                                                                                                                     |
 | GET    | `/products/:id/photos`                    | `catalog:read`                                                                                                                                                                | Fotos del producto (solo metadatos: `id`, `url`, medidas, `position`, `isCover`), en orden de galería. **Nunca bytes**                                                                                                                                                                            |
-| GET    | `/products/:id/photos/:photoId`           | cualquiera de: `catalog:read`, `inventory:read`, `stock-entries:read`, `inventory-counts:read`, `inventory:adjust`, `inventory:exchange`, `prices:propose` o `prices:approve` | Bytes de la imagen (WebP). `ETag`, `304` con `If-None-Match`, `Cache-Control: private, immutable`, `Content-Type` de lista blanca, `nosniff`. El Vendedor puede verla                                                                                                                             |
+| GET    | `/products/:id/photos/:photoId`           | cualquiera de: `catalog:read`, `inventory:read`, `stock-entries:read`, `inventory-counts:read`, `inventory:adjust`, `inventory:exchange`, `prices:propose` o `prices:approve` | Bytes de la imagen (WebP); `?w=160                                                                                                                                                                                                                                                                | 320 | 640`da una miniatura (otro valor → 400).`ETag`, `304`con`If-None-Match`, `Cache-Control: private, immutable`, `Content-Type`de lista blanca,`nosniff`. El Vendedor puede verla |
+| GET    | `/products/variants/covers?ids=a,b,…`     | cualquiera de: `catalog:read`, `inventory:read`, `stock-entries:read`, `inventory-counts:read`, `inventory:adjust`, `inventory:exchange`, `prices:propose` o `prices:approve` | Portadas de varias piezas en una petición: `[{ variantId, photo }]` en el orden pedido; `photo` = metadatos o `null`. Hasta 100 ids (si no, 400). Nunca bytes. Ver «Miniaturas y caché»                                                                                                           |
 | GET    | `/products/variants/:variantId/cover`     | cualquiera de: `catalog:read`, `inventory:read`, `stock-entries:read`, `inventory-counts:read`, `inventory:adjust`, `inventory:exchange`, `prices:propose` o `prices:approve` | Portada de la pieza a partir de su variante (la usan todas las pantallas que muestran piezas). `ETag`/`304`, `Cache-Control: private, no-cache` (la portada puede cambiar). Sin fotos o variante desconocida: imagen SVG «Sin foto» (200), nunca 404                                              |
 | POST   | `/products/:id/photos`                    | `catalog:manage`                                                                                                                                                              | Sube **una** foto: `multipart/form-data`, campo `file`, JPG/PNG/WebP validado por contenido (≤ 5 MB → 413; otro formato o archivo dañado → 400; 6.ª foto → 422). Se re-codifica a WebP ≤ 1200 px sin metadatos. La primera foto queda como portada. 201 con la foto. Audita `product.photo_added` |
 | PUT    | `/products/:id/photos/order`              | `catalog:manage`                                                                                                                                                              | `{ photoIds }` con exactamente las fotos del producto en el nuevo orden; responde la lista. Audita `product.photos_reordered`                                                                                                                                                                     |
@@ -383,6 +384,24 @@ pieza (opcional)» a quien tiene `catalog:manage`.
 
 Errores: `400 VALIDATION_ERROR` (no es JPG/PNG/WebP real, archivo dañado, falta el campo `file`, orden inválido),
 `413 PAYLOAD_TOO_LARGE`, `422 BUSINESS_RULE_VIOLATION` (ya tiene 5 fotos), `404`, `403`, `401`.
+
+**Miniaturas y caché (DT-DAT-17/18, nota de ADR-020).** Cada foto se sirve también en anchos fijos de
+**160, 320 y 640 px** con `?w=` (`PHOTO_THUMB_WIDTHS` en `@joyeria/shared`). Cualquier otro valor → 400: nadie
+puede hacer procesar tamaños arbitrarios. Si la foto ya es igual o más angosta se sirve completa. Se generan
+con `sharp` al subir y se guardan en `product_photo_thumbnails`; las fotos subidas antes las generan la primera
+vez que se piden. Como el id de la foto cambia con cada subida, foto y miniaturas se cachean un año
+(`Cache-Control: private, max-age=31536000, immutable`); el `ETag` de una miniatura es `"<sha256>-w<ancho>"`.
+`/variants/:variantId/cover` también acepta `?w=`, pero sigue revalidándose (`no-cache`).
+
+`GET /products/variants/covers?ids=a,b,…` (mismos permisos que ver una foto) devuelve
+`{ data: [{ variantId, photo }] }` en el orden pedido y sin repetidos; `photo` son los metadatos de la portada o
+`null` (sin fotos o variante desconocida). Ids UUID separados por coma, de 1 a 100; si no, 400. La web:
+
+- pide las portadas de una pantalla en **una** consulta (agrupada por `useVariantCover`, reutilizada 5 minutos e
+  invalidada al cambiar fotos) y luego la imagen por su URL inmutable: no revalida cada miniatura en cada
+  pantalla. `/cover` queda solo como respaldo si esa consulta falla;
+- usa `srcset` con las miniaturas más angostas que la foto más la foto completa (`photoSrcSet`), `sizes`,
+  `width`/`height` y `loading="lazy"`. Una pieza sin foto muestra un marcador local, sin petición.
 
 ### Auditoría (solo Administrador, Q-15.3)
 

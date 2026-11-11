@@ -119,7 +119,12 @@ function ProductDetail({ product }: { product: Product }) {
   return (
     <article aria-label={`Ficha de ${product.name}`} className="space-y-6">
       <div className="flex flex-wrap items-start gap-5 rounded-xl border border-stone-200 bg-white p-4 shadow-xs">
-        <ProductThumb product={product} priority className="size-40 sm:size-56" />
+        <ProductThumb
+          product={product}
+          priority
+          sizes="(min-width: 640px) 224px, 160px"
+          className="size-40 sm:size-56"
+        />
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold">
             <span>{product.name}</span>
