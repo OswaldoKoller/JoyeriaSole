@@ -26,7 +26,8 @@ categories ─┐ (parent_id → árbol: categoría / subcategoría)
             ├─< category_attributes >── attributes ──< attribute_options
             └─< products ─┬─< product_variant_axes >── attributes
                           ├─< product_attribute_values ── (attribute, option?)
-                          ├─< product_photos ──── product_photo_blobs (1:1)
+                          ├─< product_photos ─┬── product_photo_blobs (1:1)
+                          │                   └─< product_photo_thumbnails
                           └─< product_variants ─┬─< variant_attribute_values ── (attribute, option)
                                                 ├── inventory_balances (1:1)
                                                 ├─< inventory_movements
@@ -63,6 +64,7 @@ categories ─┐ (parent_id → árbol: categoría / subcategoría)
 | `product_variants`         | **Unidad de inventario**: `sku` único, `barcode` único opcional, costo, precio, stock mínimo, estado.                                                                                                                                                                                                                |
 | `product_photos`           | Fotos del producto (hasta 5, S3/Q-09): solo **metadatos** (tipo, medidas, tamaño, `sha256` = ETag, `position`, `is_cover`, quién la subió). CHECK de tipo (`image/webp`, `image/jpeg`, `image/png`), medidas > 0 y posición ≥ 0; índice único parcial: una portada por producto. Borrado en cascada con el producto. |
 | `product_photo_blobs`      | Bytes (`bytea`) de cada foto, 1:1 con `product_photos` (cascada). Implementación PostgreSQL de `PhotoStorage` (ADR-020); solo se lee al servir la imagen.                                                                                                                                                            |
+| `product_photo_thumbnails` | Miniaturas WebP (DT-DAT-18): PK `(photo_id, width)`, `width` de 160, 320 o 640 (CHECK), solo menores que la foto; bytes no vacíos. Cascada con la foto. Se generan al subir (las fotos anteriores, al pedirlas). Solo se leen al servir la imagen.                                                                   |
 | `variant_attribute_values` | Valor de cada eje para la variante (solo opciones).                                                                                                                                                                                                                                                                  |
 
 `products.profile_incomplete` (migración `20261106020200_product_profile_incomplete`) marca las piezas creadas desde un ingreso con datos mínimos cuya ficha falta completar (C1); no bloquea la pieza y se limpia a mano (`PATCH /products/:id` con `profileIncomplete: false`). La API expone además `isIncomplete`, **calculado**: una ficha está incompleta si `profile_incomplete` es verdadero **o** si no tiene descripción ni características descriptivas. Filtros, insignias y el contador del Inicio usan esa combinación (P-41).
@@ -119,7 +121,7 @@ Definidas en la migración inicial (SQL) y en las migraciones posteriores, adem�
 - `product_attribute_values`: exactamente un valor no nulo.
 - `categories`: una categoría no puede ser su propio padre.
 - **Trigger de inmutabilidad** en `price_changes` (migración `20261106020300`): un cambio de precio resuelto no se modifica ni se borra.
-- `product_photos`: tipo en lista blanca, medidas positivas y **una sola portada por producto** (índice único parcial `product_photos_one_cover_per_product`); `product_photo_blobs`: bytes no vacíos. El máximo de 5 fotos lo garantiza el servicio bajo `SELECT ... FOR UPDATE` del producto.
+- `product_photos`: tipo en lista blanca, medidas positivas y **una sola portada por producto** (índice único parcial `product_photos_one_cover_per_product`); `product_photo_blobs` y `product_photo_thumbnails`: bytes no vacíos; miniaturas solo de 160, 320 o 640 px. El máximo de 5 fotos lo garantiza el servicio bajo `SELECT ... FOR UPDATE` del producto.
 - **Triggers append-only** en `inventory_movements` y `audit_logs`: impiden `UPDATE`/`DELETE`.
   (En `audit_logs` solo se permite que `user_id` pase a NULL si se elimina el usuario.) No cubren
   `TRUNCATE`: en producción el rol de la aplicación no tiene ese permiso (D3, ver más abajo).

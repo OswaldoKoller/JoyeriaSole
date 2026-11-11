@@ -1,11 +1,16 @@
-import { MAX_PHOTOS_PER_PRODUCT, type ProductPhoto } from '@joyeria/shared';
+import {
+  MAX_PHOTOS_PER_PRODUCT,
+  type PhotoThumbWidth,
+  type ProductPhoto,
+  type VariantCover,
+} from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import type { Prisma } from '../../../generated/prisma/client.ts';
 import { BusinessRuleError, NotFoundError, ValidationError } from '../../../lib/errors.ts';
 import type { PrismaClient } from '../../../lib/prisma.ts';
 import { getAuth } from '../../../plugins/auth.ts';
 import { recordAudit } from '../../audit/audit.service.ts';
-import { processPhoto } from './image-processing.ts';
+import { makeThumbnail, processPhoto } from './image-processing.ts';
 import { toPhotoResponse } from './photo-response.ts';
 import { PostgresPhotoStorage, type PhotoStorage } from './photo-storage.ts';
 
@@ -86,6 +91,7 @@ export class ProductPhotosService {
         },
       });
       await this.storage.put(tx, photo.id, processed.bytes);
+      await this.storage.putThumbnails(tx, photo.id, processed.thumbnails);
       const response = toPhotoResponse(photo);
       await recordAudit(
         tx,
@@ -217,6 +223,49 @@ export class ProductPhotosService {
       where: { product: { variants: { some: { id: variantId } } } },
       orderBy: [{ isCover: 'desc' }, { position: 'asc' }],
     });
+  }
+
+  /**
+   * Portadas de varias piezas en una sola consulta (DT-DAT-17): las pantallas con muchas filas
+   * piden aquí qué foto mostrar y luego usan su URL inmutable, sin revalidar cada imagen.
+   * Devuelve una entrada por id pedido, en el mismo orden; `photo` es null si no hay foto (o la
+   * variante no existe: no se distingue, igual que en `/cover`). `servable` filtra los tipos.
+   */
+  async coversOfVariants(
+    variantIds: string[],
+    servable: (contentType: string) => boolean,
+  ): Promise<VariantCover[]> {
+    const variants = await this.prisma.productVariant.findMany({
+      where: { id: { in: variantIds } },
+      select: {
+        id: true,
+        product: {
+          select: {
+            photos: { orderBy: [{ isCover: 'desc' }, { position: 'asc' }, { id: 'asc' }], take: 1 },
+          },
+        },
+      },
+    });
+    const byVariant = new Map(
+      variants.map((variant) => {
+        const photo = variant.product.photos[0];
+        return [variant.id, photo && servable(photo.contentType) ? toPhotoResponse(photo) : null];
+      }),
+    );
+    return variantIds.map((variantId) => ({ variantId, photo: byVariant.get(variantId) ?? null }));
+  }
+
+  /**
+   * Bytes de una miniatura. Las fotos subidas antes de DT-DAT-18 no la tienen: se genera desde
+   * la original (ya validada y re-codificada al subir) y se guarda para las siguientes veces.
+   */
+  async readThumbnail(photoId: string, width: PhotoThumbWidth) {
+    const stored = await this.storage.getThumbnail(photoId, width);
+    if (stored) return stored;
+    const original = await this.readBytes(photoId);
+    const bytes = await makeThumbnail(original, width);
+    await this.storage.saveThumbnail(photoId, { width, bytes });
+    return bytes;
   }
 
   async readBytes(photoId: string) {
