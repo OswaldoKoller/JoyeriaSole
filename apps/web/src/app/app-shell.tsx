@@ -157,7 +157,12 @@ const GROUPS: Group[] = [
   {
     label: 'Ventas',
     items: [
-      { label: 'Punto de venta', icon: ShoppingCart },
+      {
+        label: 'Punto de venta',
+        to: '/ventas/nueva',
+        icon: ShoppingCart,
+        permission: PERMISSIONS.SALES_CREATE,
+      },
       { label: 'Historial de ventas', icon: Receipt },
       // Sin «Devoluciones»: una venta confirmada no se anula ni se revierte (DEC-V07, C9).
       { label: 'Caja', to: '/caja', icon: Wallet, permission: PERMISSIONS.CASH_READ },

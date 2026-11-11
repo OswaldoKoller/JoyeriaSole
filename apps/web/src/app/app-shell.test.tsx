@@ -127,11 +127,13 @@ describe('panel lateral', () => {
     const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
     await within(nav).findByRole('link', { name: 'Saldos y alertas' });
 
-    for (const name of ['Punto de venta', 'Historial de ventas']) {
+    for (const name of ['Historial de ventas']) {
       expect(within(nav).getByText(name)).toBeVisible();
       expect(within(nav).queryByRole('link', { name })).not.toBeInTheDocument();
     }
-    expect(within(nav).getAllByText('Próximamente').length).toBeGreaterThanOrEqual(2);
+    expect(within(nav).getAllByText('Próximamente').length).toBeGreaterThanOrEqual(1);
+    // Sin sales:create no hay punto de venta.
+    expect(within(nav).queryByText('Punto de venta')).not.toBeInTheDocument();
     // Nunca se ofrece «Devoluciones»: una venta confirmada no se revierte (DEC-V07).
     expect(within(nav).queryByText('Devoluciones')).not.toBeInTheDocument();
     // Los ajustes ya están implementados (ADR-017): es un enlace real, no «Próximamente».

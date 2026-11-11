@@ -268,6 +268,24 @@ export const router = createBrowserRouter([
               { permissions: [PERMISSIONS.CASH_READ] },
             ),
           },
+          // Ventas de mostrador (E1, plan 11 §5.1): `/ventas/nueva` va antes que `/ventas/:id`.
+          {
+            path: 'ventas/nueva',
+            element: lazyPage(
+              () => import('../features/sales/pos-page.tsx').then((m) => ({ default: m.PosPage })),
+              { permissions: [PERMISSIONS.SALES_CREATE] },
+            ),
+          },
+          {
+            path: 'ventas/:id/comprobante',
+            element: lazyPage(
+              () =>
+                import('../features/sales/receipt-page.tsx').then((m) => ({
+                  default: m.ReceiptPage,
+                })),
+              { anyPermissions: [PERMISSIONS.SALES_READ, PERMISSIONS.SALES_READ_ALL] },
+            ),
+          },
         ],
       },
     ],

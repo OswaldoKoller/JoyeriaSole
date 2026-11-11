@@ -16,7 +16,8 @@ type Handler = (call: ApiCall, calls: ApiCall[]) => Reply | Promise<Reply>;
 /**
  * Sustituye `fetch` por un enrutador de pruebas: `"MÉTODO /ruta"` → manejador. La ruta se compara
  * sin la consulta (`?…`). Registra cada llamada (con su `Idempotency-Key`) para las aserciones.
- * Una petición sin manejador falla la prueba con un mensaje claro.
+ * Una petición sin manejador falla la prueba con un mensaje claro. Las portadas de las piezas
+ * (`PieceImage`) se responden solas, sin foto.
  */
 export function mockApi(
   routes: Record<string, Handler>,
@@ -33,13 +34,18 @@ export function mockApi(
     if (path === '/auth/me') {
       return jsonResponse(200, {
         data: {
-          id: user.id ?? '01900000-0000-7000-8000-0000000000u1',
+          id: user.id ?? '01900000-0000-7000-8000-0000000000a1',
           name: user.name ?? 'Ana Cajera',
           email: 'ana@test.local',
           roles: [],
           permissions: user.permissions,
         },
       });
+    }
+    // Portadas de las piezas (PieceImage): sin foto, y no se registran como llamadas.
+    if (path.startsWith('/products/variants/covers')) {
+      const ids = new URLSearchParams(path.split('?')[1] ?? '').get('ids')?.split(',') ?? [];
+      return jsonResponse(200, { data: ids.map((variantId) => ({ variantId, photo: null })) });
     }
     calls.push(call);
     const handler = routes[`${method} ${path.split('?')[0] ?? ''}`];

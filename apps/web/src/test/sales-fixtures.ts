@@ -9,7 +9,7 @@ import type {
 /** Datos de prueba de caja y ventas (formas exactas de los esquemas de `@joyeria/shared`). */
 
 export const SESSION_ID = '01900000-0000-7000-8000-00000000c001';
-export const USER_ID = '01900000-0000-7000-8000-0000000000u1';
+export const USER_ID = '01900000-0000-7000-8000-0000000000a1';
 
 export const OPEN_STATUS: CashStatus = {
   open: true,
@@ -94,8 +94,8 @@ export function closedSession(overrides: Partial<CashSessionDetail> = {}): CashS
 }
 
 export const RING: VariantLookup = {
-  variantId: '01900000-0000-7000-8000-00000000v001',
-  productId: '01900000-0000-7000-8000-00000000p001',
+  variantId: '01900000-0000-7000-8000-00000000b001',
+  productId: '01900000-0000-7000-8000-00000000d001',
   productName: 'Anillo Sol',
   categoryName: 'Anillos',
   label: 'Talla 7',
@@ -110,8 +110,8 @@ export const RING: VariantLookup = {
 
 export const CHAIN: VariantLookup = {
   ...RING,
-  variantId: '01900000-0000-7000-8000-00000000v002',
-  productId: '01900000-0000-7000-8000-00000000p002',
+  variantId: '01900000-0000-7000-8000-00000000b002',
+  productId: '01900000-0000-7000-8000-00000000d002',
   productName: 'Cadena Luna',
   label: null,
   sku: 'SKU-000002',
@@ -123,7 +123,7 @@ export const CHAIN: VariantLookup = {
 
 export function saleDetail(overrides: Partial<SaleDetail> = {}): SaleDetail {
   return {
-    id: '01900000-0000-7000-8000-00000000s001',
+    id: '01900000-0000-7000-8000-00000000e001',
     number: 123,
     soldAt: '2026-11-11T15:30:00.000Z',
     sellerId: USER_ID,
