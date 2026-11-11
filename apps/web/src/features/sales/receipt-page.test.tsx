@@ -107,6 +107,11 @@ describe('comprobante interno', () => {
     expect(screen.getByRole('article', { name: /Comprobante de la venta/ })).toHaveTextContent(
       'COPIA',
     );
+    // Una Idempotency-Key por acción de imprimir: dos impresiones, dos claves.
+    const keys = calls.filter((call) => call.method === 'POST').map((call) => call.idempotencyKey);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(keys[1]).not.toBe(keys[0]);
     // Imprimir nunca crea ni modifica ventas.
     expect(calls.some((call) => call.path === '/sales' && call.method === 'POST')).toBe(false);
   });

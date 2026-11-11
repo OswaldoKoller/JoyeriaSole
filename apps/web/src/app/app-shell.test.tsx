@@ -121,25 +121,62 @@ describe('panel lateral', () => {
     );
   });
 
-  it('muestra los módulos futuros como «Próximamente», sin enlace', async () => {
+  it('sin permisos de ventas no muestra el grupo Ventas', async () => {
     mockUser(['inventory:read', 'inventory:adjust']);
     renderWithProviders(<AppShell />);
     const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
     await within(nav).findByRole('link', { name: 'Saldos y alertas' });
-
-    for (const name of ['Historial de ventas']) {
-      expect(within(nav).getByText(name)).toBeVisible();
-      expect(within(nav).queryByRole('link', { name })).not.toBeInTheDocument();
-    }
-    expect(within(nav).getAllByText('Próximamente').length).toBeGreaterThanOrEqual(1);
-    // Sin sales:create no hay punto de venta.
+    expect(within(nav).queryByText('Ventas', { exact: true })).not.toBeInTheDocument();
     expect(within(nav).queryByText('Punto de venta')).not.toBeInTheDocument();
-    // Nunca se ofrece «Devoluciones»: una venta confirmada no se revierte (DEC-V07).
-    expect(within(nav).queryByText('Devoluciones')).not.toBeInTheDocument();
-    // Los ajustes ya están implementados (ADR-017): es un enlace real, no «Próximamente».
+    expect(within(nav).queryByText('Próximamente')).not.toBeInTheDocument();
     expect(within(nav).getByRole('link', { name: 'Ajustes' })).toHaveAttribute(
       'href',
       '/inventario/ajustes',
+    );
+  });
+
+  it('el Vendedor ve punto de venta e historial, pero no caja ni incidencias', async () => {
+    mockUser(['catalog:read', 'inventory:read', 'sales:create', 'sales:read']);
+    renderWithProviders(<AppShell />, { route: '/ventas/nueva' });
+    const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
+    expect(await within(nav).findByRole('link', { name: 'Punto de venta' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    // /ventas/nueva no marca también el historial.
+    expect(within(nav).getByRole('link', { name: 'Historial de ventas' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    for (const name of ['Caja', 'Incidencias', 'Datos del negocio']) {
+      expect(within(nav).queryByRole('link', { name })).not.toBeInTheDocument();
+    }
+    // Nunca se ofrece «Devoluciones» ni nada que revierta una venta (DEC-V07).
+    expect(within(nav).queryByText(/Devoluci|Anula/)).not.toBeInTheDocument();
+  });
+
+  it('el Administrador ve caja, incidencias y datos del negocio', async () => {
+    mockUser([
+      'sales:create',
+      'sales:read',
+      'sales:read-all',
+      'cash:read',
+      'sales-incidents:manage',
+      'settings:manage',
+    ]);
+    renderWithProviders(<AppShell />, { route: '/ventas/abc' });
+    const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
+    expect(await within(nav).findByRole('link', { name: 'Historial de ventas' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(nav).getByRole('link', { name: 'Caja' })).toHaveAttribute('href', '/caja');
+    expect(within(nav).getByRole('link', { name: 'Incidencias' })).toHaveAttribute(
+      'href',
+      '/ventas/incidencias',
+    );
+    expect(within(nav).getByRole('link', { name: 'Datos del negocio' })).toHaveAttribute(
+      'href',
+      '/configuracion/negocio',
     );
   });
 

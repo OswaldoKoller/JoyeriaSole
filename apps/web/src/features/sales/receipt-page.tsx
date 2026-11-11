@@ -1,5 +1,5 @@
 import { RECEIPT_FORMATS, formatSaleNumber, type ReceiptFormat } from '@joyeria/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { ApiError } from '../../lib/api-client.ts';
@@ -22,6 +22,8 @@ export function ReceiptPage() {
   const [printJob, setPrintJob] = useState<{ isCopy: boolean; n: number } | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // Evita dos registros por un doble clic antes de que el botón se deshabilite.
+  const printing = useRef(false);
   const data = receipt.data;
   const label = data ? formatSaleNumber(data.number) : '';
   useDocumentTitle(data ? `Comprobante ${label}` : 'Comprobante');
@@ -35,6 +37,8 @@ export function ReceiptPage() {
   const isCopy = printJob ? printJob.isCopy : (data?.printCount ?? 0) >= 1;
 
   async function print() {
+    if (printing.current) return;
+    printing.current = true;
     setError('');
     setNotice('');
     try {
@@ -51,6 +55,8 @@ export function ReceiptPage() {
           ? `No se imprimió: ${cause.message}`
           : 'No se imprimió: no se pudo registrar la impresión. Revise la conexión y vuelva a intentarlo.',
       );
+    } finally {
+      printing.current = false;
     }
   }
 

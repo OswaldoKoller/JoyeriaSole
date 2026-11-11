@@ -2,6 +2,7 @@ import { PERMISSIONS, formatCashSessionNumber, type CashCorrection } from '@joye
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
+import { ButtonLink } from '../../components/ui/button-link.tsx';
 import { formatBs, formatDateTime } from '../../lib/format.ts';
 import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useHasPermission } from '../auth/use-auth.ts';
@@ -74,6 +75,7 @@ export function CashSessionPage() {
   const { id = '' } = useParams();
   const detail = useCashSession(id);
   const canCorrect = useHasPermission(PERMISSIONS.CASH_CORRECT);
+  const canReadAllSales = useHasPermission(PERMISSIONS.SALES_READ_ALL);
   const [correcting, setCorrecting] = useState(false);
   const [notice, setNotice] = useState('');
   const session = detail.data;
@@ -109,6 +111,14 @@ export function CashSessionPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {canReadAllSales && (
+                <ButtonLink
+                  variant="secondary"
+                  to={`/ventas?caja=${session.id}&numeroCaja=${session.number}`}
+                >
+                  Ver las ventas de esta caja
+                </ButtonLink>
+              )}
               {canCorrect && session.status === 'CLOSED' && (
                 <Button
                   onClick={() => {

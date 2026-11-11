@@ -277,6 +277,42 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: 'ventas/incidencias',
+            element: lazyPage(
+              () =>
+                import('../features/sales/incidents-page.tsx').then((m) => ({
+                  default: m.IncidentsPage,
+                })),
+              { permissions: [PERMISSIONS.SALES_INCIDENTS_MANAGE] },
+            ),
+          },
+          {
+            path: 'ventas',
+            element: lazyPage(
+              () =>
+                import('../features/sales/sales-page.tsx').then((m) => ({ default: m.SalesPage })),
+              { anyPermissions: [PERMISSIONS.SALES_READ, PERMISSIONS.SALES_READ_ALL] },
+            ),
+          },
+          {
+            path: 'ventas/:id',
+            element: lazyPage(
+              () =>
+                import('../features/sales/sale-page.tsx').then((m) => ({ default: m.SalePage })),
+              { anyPermissions: [PERMISSIONS.SALES_READ, PERMISSIONS.SALES_READ_ALL] },
+            ),
+          },
+          {
+            path: 'configuracion/negocio',
+            element: lazyPage(
+              () =>
+                import('../features/settings/business-settings-page.tsx').then((m) => ({
+                  default: m.BusinessSettingsPage,
+                })),
+              { permissions: [PERMISSIONS.SETTINGS_MANAGE] },
+            ),
+          },
+          {
             path: 'ventas/:id/comprobante',
             element: lazyPage(
               () =>
