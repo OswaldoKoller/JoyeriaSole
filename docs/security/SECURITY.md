@@ -41,8 +41,8 @@
 ## Roles y permisos: quién puede qué
 
 Fuente de verdad: `packages/shared/src/permissions.ts` (`DEFAULT_ROLE_PERMISSIONS`, solo para el seed
-inicial; luego los roles se administran en base de datos). La API autoriza siempre por permiso, nunca por
-nombre de rol.
+inicial; luego los roles se administran en base de datos y en la pantalla «Roles», P-46). La API
+autoriza siempre por permiso, nunca por nombre de rol.
 
 **Regla de autorización compartida (cliente, 2026-11-05):** tanto el **Administrador** como el
 **Responsable de inventario** pueden autorizar. Ver [RESOLUCIONES-2026-11-05](../business/RESOLUCIONES-2026-11-05.md).
@@ -58,7 +58,7 @@ Pueden **Administrador y Responsable de inventario** (el Vendedor no puede ningu
 Son **exclusivos del Administrador** (el Responsable no los tiene):
 
 - Auditoría (`audit:read`, Q-15.3).
-- Usuarios, roles y restablecer claves (`users:read`, `users:manage`, `roles:manage`).
+- Usuarios, roles y restablecer claves (`users:read`, `users:manage`, `roles:read`, `roles:manage`).
 - Borrado físico de fichas de producto (`catalog:delete`).
 - Configuración del sistema (`settings:manage`).
 
@@ -68,6 +68,16 @@ El Vendedor solo tiene `catalog:read` e `inventory:read`, sin costos (P-02).
 `ADMIN`** (al crear un usuario o al reasignar roles) y modificar la cuenta de otro Administrador
 (editar, restablecer clave, reasignar roles). Un rol personalizado con `users:manage` + `roles:manage`
 recibe 403 con un mensaje claro al intentarlo.
+
+**Gestión de roles por pantalla (P-46, 2026-11-10):** el rol Administrador es inmutable (no pierde
+permisos, no se renombra ni se elimina), así que el sistema nunca queda sin un administrador activo con
+todos los permisos. Los otros roles de sistema no pierden sus permisos base. **Nadie concede lo que no
+tiene:** quien administra roles o usuarios sin un permiso no puede agregarlo a un rol, ni asignar a una
+persona (o a sí mismo) un rol que lo incluya (`403`). Todo cambio de rol queda en `audit_logs`
+(`role.created`, `role.updated`, `role.deleted`, con antes/después) en la misma transacción. Los
+permisos se leen en cada petición: un cambio rige de inmediato en las sesiones abiertas.
+Advertencia: si se crea un permiso exclusivo del Administrador por decisión del cliente (p. ej.
+`cash:correct` de la propuesta de caja), la pantalla todavía no impide asignarlo a otro rol.
 
 **Notas de movimientos (S-03):** `GET /inventory/movements` y `GET /inventory/:variantId/movements`
 devuelven `notes` solo si la persona tiene `inventory:adjust`, `stock-entries:read` o `audit:read`; el

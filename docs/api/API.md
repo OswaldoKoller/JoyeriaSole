@@ -63,7 +63,12 @@ Los endpoints del conteo físico (`/inventory/counts`) están en su propia secci
 
 Usuarios: solo un Administrador puede crear un usuario con el rol `ADMIN`, asignar o quitar ese rol
 (`PUT /users/:id/roles`) o modificar a otro Administrador; un rol personalizado con `users:manage` +
-`roles:manage` recibe `403` con un mensaje claro.
+`roles:manage` recibe `403` con un mensaje claro. Además, **nadie concede lo que no tiene** (P-46): al
+crear un usuario o reasignarle roles, los roles NUEVOS no pueden tener permisos que no tenga quien los
+asigna (`403`).
+
+Roles (P-46, pantalla «Roles»): `GET /roles`, `GET /roles/permissions`, `POST /roles`,
+`PATCH /roles/:id` y `DELETE /roles/:id`; ver [Roles y permisos](#roles-y-permisos-p-46).
 
 | Método | Ruta                                      | Auth                                                                                                                                                                          | Descripción                                                                                                                                                                                                                                                                                       |
 | ------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -459,3 +464,36 @@ app.post(
 La autorización se declara en `preValidation` y **no** en `preHandler`: Fastify valida el cuerpo antes del
 `preHandler`, así que quien no tiene sesión o permiso recibiría un 400 con el detalle del esquema en lugar de
 401/403. La prueba `security-hardening.test.ts` enumera todas las rutas y falla si alguna queda sin guarda.
+
+## Roles y permisos (P-46)
+
+Gestión de roles por pantalla, autorizada el 2026-11-10. Los permisos siguen definidos en código
+(`packages/shared/src/permissions.ts`); por pantalla solo se agrupan en roles.
+
+| Método | Ruta                 | Auth           | Descripción                                                                                                                                                                              |
+| ------ | -------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/roles`             | `roles:read`   | `{ data: [{ id, code, name, description, isSystem, permissions, lockedPermissions, userCount }] }`: roles de sistema primero; `userCount` cuenta usuarios activos e inactivos            |
+| GET    | `/roles/permissions` | `roles:read`   | Catálogo agrupado por área: `[{ code, label, permissions: [{ code, description }] }]` (textos en español; un recurso nuevo sin área cae en «Otros»)                                      |
+| POST   | `/roles`             | `roles:manage` | `{ name, description?, permissions[] }` → `201`. Código generado `CUSTOM_<NOMBRE>` (sufijo `_2`… si se repite); nombre único sin distinguir mayúsculas (`409`); auditoría `role.created` |
+| PATCH  | `/roles/:id`         | `roles:manage` | `{ name?, description?, permissions? }` (al menos uno). `permissions` reemplaza la lista completa. Auditoría `role.updated` con antes/después                                            |
+| DELETE | `/roles/:id`         | `roles:manage` | `204`. Solo roles personalizados **sin usuarios** (activos o inactivos); auditoría `role.deleted` con el estado anterior completo                                                        |
+
+Validación (`400`): permisos que no están en el catálogo, repetidos o lista vacía; nombre vacío o de más
+de 100 caracteres; descripción de más de 500 (vacía = `null`); `id` que no es UUID.
+
+Salvaguardas:
+
+- **Administrador (`ADMIN`) inmutable:** no pierde permisos, no se renombra ni cambia su descripción y
+  no se elimina (`422`). Como además `PUT /users/:id/roles` y `PATCH /users/:id` protegen al último
+  administrador activo, el sistema nunca queda sin un administrador activo con todos los permisos.
+- **Otros roles de sistema** (Responsable de inventario, Vendedor): no se renombran, no cambian su
+  descripción, no se eliminan y **no pierden sus permisos base** del seed (`lockedPermissions`, `422`);
+  sí admiten permisos adicionales. Así el seed idempotente no deshace nada hecho por pantalla.
+- **Nadie concede lo que no tiene** (`403`): quien administra roles sin tener un permiso no puede
+  agregarlo a ningún rol, ni al suyo.
+- Un rol con usuarios no se elimina (`422`); `404` si no existe.
+- Los permisos se leen en **cada petición** (sin caché): un cambio rige desde la siguiente petición de
+  cada usuario del rol, sin cerrar su sesión.
+- Las altas, ediciones y bajas se serializan con un bloqueo de aviso (advisory) de la transacción, y la
+  fila del rol se bloquea (`FOR UPDATE`) para que una asignación simultánea no deje un rol eliminado con
+  usuarios.

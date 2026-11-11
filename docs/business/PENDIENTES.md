@@ -208,7 +208,8 @@ Notas de la tabla:
   reimpresión permitida con marca «Copia» y auditoría (C4). Siguen abiertos el formato del correlativo,
   la identificación del vendedor en el comprobante, quién puede reimprimir y los requisitos del contador.
 - **Q-V13:** quién abre y cierra caja está resuelto (B3); quién vende y cobra y los permisos exactos de
-  `sales:*` y `cash:*` siguen sin aprobarse (los roles solo cambian por seed; ver P-46).
+  `sales:*` y `cash:*` siguen sin aprobarse (los roles ya se administran por pantalla desde el
+  2026-11-10; ver P-46).
 - **Q-V08 y Q-V15:** el responsable las dejó **para después** (F4).
 
 ### Subdecisiones de Ventas que siguen abiertas
@@ -234,12 +235,12 @@ Decisiones nuevas **P-44 a P-47**, propuestas en el
 [informe técnico](../informe-tecnico/06-estado-deuda-y-fase-2.md) (OD-05, OD-06 y OD-14) y resueltas o
 encaminadas con las respuestas del 2026-11-09.
 
-| ID   | Decisión                                     | Estado       | Lo registrado hoy                                                                         |
-| ---- | -------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------- |
-| P-44 | Reportes y exportaciones al cierre de Fase 1 | 🟢 APROBADA  | Resuelta (2026-11-09): CSV de inventario y movimientos, con el valor del inventario (D1). |
-| P-45 | Carga inicial de datos (importador)          | 🟢 APROBADA  | Resuelta (2026-11-09): carga manual, sin importador; la rebanada S11 queda sin construir. |
-| P-46 | Gestión de roles por pantalla                | 🟡 PENDIENTE | No autorizada todavía (2026-11-09). Los roles solo cambian por el seed.                   |
-| P-47 | Acta de aceptación de decisiones por defecto | 🟡 PARCIAL   | Sesión de revisión acordada (2026-11-09), todavía sin fecha.                              |
+| ID   | Decisión                                     | Estado          | Lo registrado hoy                                                                         |
+| ---- | -------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------- |
+| P-44 | Reportes y exportaciones al cierre de Fase 1 | 🟢 APROBADA     | Resuelta (2026-11-09): CSV de inventario y movimientos, con el valor del inventario (D1). |
+| P-45 | Carga inicial de datos (importador)          | 🟢 APROBADA     | Resuelta (2026-11-09): carga manual, sin importador; la rebanada S11 queda sin construir. |
+| P-46 | Gestión de roles por pantalla                | 🟢 IMPLEMENTADA | Resuelta (2026-11-10): API `/roles` y pantalla «Roles», con salvaguardas (ver nota).      |
+| P-47 | Acta de aceptación de decisiones por defecto | 🟡 PARCIAL      | Sesión de revisión acordada (2026-11-09), todavía sin fecha.                              |
 
 Notas:
 
@@ -253,7 +254,14 @@ Notas:
     [RESOLUCIONES-2026-11-09, «Aclaraciones posteriores»](RESOLUCIONES-2026-11-09.md#aclaraciones-posteriores-2026-11-09).
 - **P-45:** con 1.000 a 2.000 piezas, la carga manual es costosa y propensa a errores (informe
   técnico); el criterio de cierre «datos reales» se cumple entonces con carga manual.
-- **P-46:** el seed de producción ejecutable sí está autorizado (A3 a), pero no la pantalla ni la API
+- **P-46 (resuelta 2026-11-10):** el responsable autorizó la pantalla y la API de gestión de roles
+  (permisos `roles:read` y `roles:manage`, solo el Administrador). Salvaguardas técnicas, no reglas de
+  negocio nuevas: el Administrador es inmutable; los otros roles de sistema no se renombran ni pierden
+  sus permisos base (el seed los volvería a agregar); un rol con usuarios no se elimina; nadie concede
+  permisos que no tiene; todo queda auditado. Detalle en `docs/api/API.md` («Roles y permisos»).
+  Queda abierto: marcar permisos «exclusivos del Administrador» que la pantalla no deje asignar a otros
+  roles (p. ej. `cash:correct` de la propuesta de caja), si el cliente lo pide.
+  Antes (2026-11-09): el seed de producción ejecutable sí estaba autorizado (A3 a), pero no la pantalla ni la API
   de roles.
 - **P-47:** material para la sesión en
   [REVISION-DECISIONES-POR-DEFECTO](REVISION-DECISIONES-POR-DEFECTO.md).

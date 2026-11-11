@@ -89,6 +89,9 @@ async function seedPermissionsAndRoles() {
     });
 
     // Solo se AGREGAN permisos faltantes; no se quitan los que un administrador haya asignado.
+    // Pantalla «Roles» (P-46): los roles creados allí llevan código `CUSTOM_*` y el seed nunca los toca.
+    // En los de sistema la pantalla no cambia nombre ni descripción ni quita estos permisos base, de
+    // modo que el seed no deshace nada hecho por pantalla (los permisos extra agregados se conservan).
     await prisma.rolePermission.createMany({
       data: def.permissions.map((p) => {
         const id = permissionId.get(p);
