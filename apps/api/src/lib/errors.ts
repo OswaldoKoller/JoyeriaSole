@@ -73,3 +73,22 @@ export class PasswordChangeRequiredError extends AppError {
     super(403, ERROR_CODES.PASSWORD_CHANGE_REQUIRED, message);
   }
 }
+
+/**
+ * La clave `Idempotency-Key` ya se usó para otra operación (otro cuerpo, otra ruta u otro usuario).
+ * No se ejecuta nada: el cliente debe generar una clave nueva para una operación distinta.
+ */
+export class IdempotencyKeyReusedError extends AppError {
+  constructor(
+    message = 'Esta solicitud ya se registró con otros datos. Recargue la página y vuelva a intentarlo.',
+  ) {
+    super(409, ERROR_CODES.IDEMPOTENCY_KEY_REUSED, message);
+  }
+}
+
+/** La operación exige la cabecera `Idempotency-Key` y no llegó (400). */
+export class IdempotencyKeyRequiredError extends AppError {
+  constructor(message = 'Falta la cabecera Idempotency-Key (UUID) de la operación.') {
+    super(400, ERROR_CODES.IDEMPOTENCY_KEY_REQUIRED, message);
+  }
+}

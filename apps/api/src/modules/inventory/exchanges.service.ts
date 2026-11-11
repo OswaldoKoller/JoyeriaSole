@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   PERMISSIONS,
   REFERENCE_TYPES,
+  exchangeSchema,
   type CreateExchangeInput,
   type Exchange,
   type ExchangeLine,
@@ -9,9 +10,11 @@ import {
 import type { FastifyRequest } from 'fastify';
 import type { Prisma } from '../../generated/prisma/client.ts';
 import { BusinessRuleError, NotFoundError } from '../../lib/errors.ts';
+import { idempotentTransaction } from '../../lib/idempotency.ts';
 import { canSeeCostsWith } from '../../lib/permissions.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
+import { idempotencyOf } from '../../plugins/idempotency.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { applyStockChanges, type AppliedStockChange } from './stock-ledger.ts';
 import { lockVariants } from './stock-locks.ts';
@@ -80,8 +83,11 @@ export class ExchangesService {
     assertDistinctVariants(input);
     const { user } = getAuth(request);
     const referenceId = randomUUID();
+    // Idempotente: un reintento con la misma Idempotency-Key devuelve el cambio ya registrado en
+    // vez de aplicar otra vez los dos movimientos (cada POST genera un referenceId nuevo).
+    const idempotency = { context: idempotencyOf(request), responseSchema: exchangeSchema };
 
-    await this.prisma.$transaction(async (tx) => {
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       // Bloquea las dos variantes en orden de id (el mismo que usa el libro) antes de leerlas.
       const ids = [input.returned.variantId, input.delivered.variantId];
       await lockVariants(tx, ids);
@@ -144,17 +150,20 @@ export class ExchangesService {
         },
         request,
       );
+      return this.load(tx, referenceId, user.permissions);
     });
-
-    return this.load(referenceId, user.permissions);
   }
 
   async get(referenceId: string, request: FastifyRequest): Promise<Exchange> {
-    return this.load(referenceId, getAuth(request).user.permissions);
+    return this.load(this.prisma, referenceId, getAuth(request).user.permissions);
   }
 
-  private async load(referenceId: string, permissions: readonly string[]): Promise<Exchange> {
-    const movements = await this.prisma.inventoryMovement.findMany({
+  private async load(
+    db: PrismaClient | Prisma.TransactionClient,
+    referenceId: string,
+    permissions: readonly string[],
+  ): Promise<Exchange> {
+    const movements = await db.inventoryMovement.findMany({
       where: { referenceType: REFERENCE_TYPES.EXCHANGE, referenceId },
       include: { variant: { include: { product: true } } },
       orderBy: { id: 'asc' },
@@ -168,7 +177,7 @@ export class ExchangesService {
       permissions.includes(PERMISSIONS.INVENTORY_EXCHANGE) ||
       permissions.includes(PERMISSIONS.AUDIT_READ);
     const audit = canSeeAudit
-      ? await this.prisma.auditLog.findFirst({
+      ? await db.auditLog.findFirst({
           where: { action: EXCHANGE_AUDIT_ACTION, entityId: referenceId },
           orderBy: { id: 'asc' },
         })

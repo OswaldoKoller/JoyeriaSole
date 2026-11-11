@@ -21,6 +21,13 @@ export const ERROR_CODES = {
   RATE_LIMITED: 'RATE_LIMITED', // 429
   /** 503 — conflicto transitorio de la base (bloqueo, tiempo agotado): reintentar en unos segundos. */
   SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+  /**
+   * 409 — la clave de idempotencia ya se usó con otra operación: otro cuerpo, otra ruta u otro
+   * usuario. No se ejecutó nada; el cliente debe generar una clave nueva para una operación nueva.
+   */
+  IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',
+  /** 400 — la operación exige la cabecera `Idempotency-Key` (UUID) y no llegó. */
+  IDEMPOTENCY_KEY_REQUIRED: 'IDEMPOTENCY_KEY_REQUIRED',
   INTERNAL_ERROR: 'INTERNAL_ERROR', // 500 — nunca expone detalles internos
 } as const;
 
@@ -47,3 +54,11 @@ export interface PaginationMeta {
 }
 
 export const API_PREFIX = '/api/v1';
+
+/**
+ * Cabecera de idempotencia (ver docs/api/API.md, «Idempotencia»). El cliente envía un UUID por
+ * intento de operación del usuario y lo reutiliza en los reintentos; el servidor responde la
+ * repetición con la respuesta original y la cabecera `Idempotent-Replay: true`.
+ */
+export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
+export const IDEMPOTENT_REPLAY_HEADER = 'Idempotent-Replay';

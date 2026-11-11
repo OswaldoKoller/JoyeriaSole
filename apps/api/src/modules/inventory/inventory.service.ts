@@ -1,10 +1,17 @@
-import type { InitialStockInput, InventoryItem } from '@joyeria/shared';
+import {
+  initialStockResultSchema,
+  type InitialStockInput,
+  type InitialStockResult,
+  type InventoryItem,
+} from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import { Prisma } from '../../generated/prisma/client.ts';
 import { BusinessRuleError, NotFoundError } from '../../lib/errors.ts';
+import { idempotentTransaction } from '../../lib/idempotency.ts';
 import { canSeeMovementNotes } from '../../lib/permissions.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
+import { idempotencyOf } from '../../plugins/idempotency.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { applyStockChanges } from './stock-ledger.ts';
 import { lockVariants } from './stock-locks.ts';
@@ -163,8 +170,16 @@ export class InventoryService {
     };
   }
 
-  async initialStock(variantId: string, input: InitialStockInput, request: FastifyRequest) {
-    return this.prisma.$transaction(async (tx) => {
+  async initialStock(
+    variantId: string,
+    input: InitialStockInput,
+    request: FastifyRequest,
+  ): Promise<InitialStockResult> {
+    const idempotency = {
+      context: idempotencyOf(request),
+      responseSchema: initialStockResultSchema,
+    };
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       // Bloquea la variante incluso cuando todavía no existe su fila de saldo.
       await lockVariants(tx, [variantId]);
       const variant = await tx.productVariant.findUnique({

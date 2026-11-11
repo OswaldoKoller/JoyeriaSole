@@ -37,6 +37,10 @@ export const initialStockSchema = z.object({
   notes: z.string().trim().max(2000).nullable().optional(),
 });
 
+/** Respuesta de `POST /inventory/:variantId/initial`. */
+export const initialStockResultSchema = z.object({ quantity: z.number() });
+
 export type InventoryItem = z.infer<typeof inventoryItemSchema>;
 export type GlobalInventoryMovement = z.infer<typeof globalInventoryMovementSchema>;
 export type InitialStockInput = z.infer<typeof initialStockSchema>;
+export type InitialStockResult = z.infer<typeof initialStockResultSchema>;

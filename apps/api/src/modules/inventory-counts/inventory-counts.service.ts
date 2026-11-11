@@ -1,6 +1,7 @@
 import {
   REFERENCE_TYPES,
   countLabel,
+  inventoryCountDetailSchema,
   type CancelInventoryCountInput,
   type CountScanRecord,
   type CountScanResult,
@@ -17,10 +18,12 @@ import {
   ForbiddenError,
   NotFoundError,
 } from '../../lib/errors.ts';
+import { idempotentTransaction } from '../../lib/idempotency.ts';
 import { canSeeCosts } from '../../lib/permissions.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { skuCandidates } from '../../lib/sku.ts';
 import { getAuth } from '../../plugins/auth.ts';
+import { idempotencyOf } from '../../plugins/idempotency.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { applyStockChanges } from '../inventory/stock-ledger.ts';
 import { lockVariants } from '../inventory/stock-locks.ts';
@@ -738,7 +741,12 @@ export class InventoryCountsService {
    */
   async close(id: string, request: FastifyRequest) {
     const userId = getAuth(request).user.id;
-    return this.prisma.$transaction(async (tx) => {
+    const idempotency = {
+      context: idempotencyOf(request),
+      responseSchema: inventoryCountDetailSchema,
+      transaction: TX_OPTIONS,
+    };
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       const { status } = await this.lockForCapture(tx, id, userId);
       const items = await tx.inventoryCountItem.findMany({
         where: { inventoryCountId: id },
@@ -828,7 +836,7 @@ export class InventoryCountsService {
         request,
       );
       return this.detail(tx, id, request);
-    }, TX_OPTIONS);
+    });
   }
 
   // ------------------------------------------------------------------ aprobación y cancelación
@@ -841,7 +849,12 @@ export class InventoryCountsService {
    */
   async approve(id: string, request: FastifyRequest) {
     const userId = getAuth(request).user.id;
-    return this.prisma.$transaction(async (tx) => {
+    const idempotency = {
+      context: idempotencyOf(request),
+      responseSchema: inventoryCountDetailSchema,
+      transaction: TX_OPTIONS,
+    };
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       const locked = await this.lockCount(tx, id);
       if (locked.status !== 'IN_REVIEW') {
         throw new BusinessRuleError(
@@ -960,7 +973,7 @@ export class InventoryCountsService {
         request,
       );
       return this.detail(tx, id, request);
-    }, TX_OPTIONS);
+    });
   }
 
   /** Cancela el conteo (cualquier estado no terminado). No mueve stock. */
