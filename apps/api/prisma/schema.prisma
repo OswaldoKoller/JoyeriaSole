@@ -740,6 +740,10 @@ model InventoryMovement {
   // Historial/conciliación por variante (migración 20261106040000). Sin INCLUDE (quantity): Prisma no
   // lo expresa y lo vería como deriva (ver docs/database/DATABASE.md, "Índices de rendimiento").
   @@index([variantId, id(sort: Desc)], map: "inventory_movements_variant_id_id_idx")
+  // Solo en SQL (migración 20261110000000_ledger_integrity), Prisma no lo expresa:
+  //   I-01 triggers diferidos saldo == libro y cadena continua (también en inventory_balances);
+  //   I-02 índice único parcial inventory_movements_reference_variant_type_key
+  //        (reference_type, reference_id, variant_id, type) WHERE reference_id IS NOT NULL.
   @@map("inventory_movements")
 }
 

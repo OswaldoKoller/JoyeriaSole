@@ -60,6 +60,8 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/api/v1/health || exit 1
 
-# Aplica migraciones pendientes y arranca. `migrate deploy` es idempotente y no destructivo.
+# Aplica migraciones pendientes, quita TRUNCATE al rol de la aplicación (D3; idempotente, ver
+# prisma/privileges/revoke-app-truncate.sql y docs/deployment/DEPLOYMENT.md) y arranca.
+# `migrate deploy` es idempotente y no destructivo.
 # `exec` reemplaza al shell por Node: SIGTERM llega a la API y el apagado ordenado funciona.
-CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npx prisma db execute --file prisma/privileges/revoke-app-truncate.sql && exec node dist/server.js"]

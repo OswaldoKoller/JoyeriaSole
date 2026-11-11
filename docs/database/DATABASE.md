@@ -93,7 +93,7 @@ Migración `20261106020300_price_changes`. Reglas en la base: `CHECK` de precios
 | Tabla                        | Propósito                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `inventory_movements`        | **Libro mayor inmutable**. Cantidad con signo, saldo antes/después, costo, referencia al documento, motivo, usuario, fecha. Tipos: `INITIAL_STOCK`, `STOCK_ENTRY`, `ADJUSTMENT`, `COUNT_ADJUSTMENT`, `LOSS`, `EXCHANGE_IN`, `EXCHANGE_OUT` (y `SALE`, `CUSTOMER_RETURN`, `EXCHANGE` reservados sin uso).                                                                                                                                       |
-| `inventory_balances`         | Saldo actual por variante (lectura rápida). Se actualiza en la misma transacción que el movimiento.                                                                                                                                                                                                                                                                                                                                            |
+| `inventory_balances`         | Saldo actual por variante (lectura rápida). Se actualiza en la misma transacción que el movimiento y la base exige que coincida con el libro (I-01).                                                                                                                                                                                                                                                                                           |
 | `inventory_counts`           | Conteo físico (ADR-021): número `CNT-000001`, estado `DRAFT → IN_PROGRESS → RECOUNT → IN_REVIEW → APPROVED` / `CANCELLED`, `category_id` (alcance, incluye subcategorías), `operator_id` (único operador), fechas de cada paso, quién aprobó y motivo de cancelación. No se borra; terminado = inmutable (trigger).                                                                                                                            |
 | `inventory_count_items`      | Una línea por variante del alcance: foto del sistema (`system_qty`, `snapshot_cursor`), primer conteo (`counted_qty`, `counted_cursor`), `needs_recount`, recuento (`recount_qty`, `recount_cursor`) y, al aprobar, el resultado congelado (`expected_qty`, `final_qty`, `reconciled_movements`, `difference`, saldos, `unit_cost`, `movement_id`). El cursor es el id del último movimiento de la variante al contar (conciliación, ADR-014). |
 | `inventory_count_scans`      | Registro de cada lectura o cantidad fijada: ronda (1 o 2), variante **o** hallazgo, código, origen `SCAN`/`MANUAL`, `delta`, `quantity_after`, `movement_cursor`, usuario, hora y `undone_at`. Solo se agrega; lo único que cambia es `undone_at` (una vez); no se borra.                                                                                                                                                                      |
@@ -121,7 +121,12 @@ Definidas en la migración inicial (SQL) y en las migraciones posteriores, adem�
 - **Trigger de inmutabilidad** en `price_changes` (migración `20261106020300`): un cambio de precio resuelto no se modifica ni se borra.
 - `product_photos`: tipo en lista blanca, medidas positivas y **una sola portada por producto** (índice único parcial `product_photos_one_cover_per_product`); `product_photo_blobs`: bytes no vacíos. El máximo de 5 fotos lo garantiza el servicio bajo `SELECT ... FOR UPDATE` del producto.
 - **Triggers append-only** en `inventory_movements` y `audit_logs`: impiden `UPDATE`/`DELETE`.
-  (En `audit_logs` solo se permite que `user_id` pase a NULL si se elimina el usuario.)
+  (En `audit_logs` solo se permite que `user_id` pase a NULL si se elimina el usuario.) No cubren
+  `TRUNCATE`: en producción el rol de la aplicación no tiene ese permiso (D3, ver más abajo).
+- **Saldo == libro (I-01)** y **un movimiento por documento, variante y tipo (I-02)**, migración
+  `20261110000000_ledger_integrity`: triggers de restricción diferidos en `inventory_balances` e
+  `inventory_movements` e índice único parcial `inventory_movements_reference_variant_type_key`. Ver
+  «Garantías de integridad del libro».
 - `inventory_adjustment_items`: `quantity_delta <> 0`; cantidad anterior, nueva y movimiento van juntas y
   `balance_after = balance_before + quantity_delta >= 0`.
 - `inventory_adjustments`: `resolved_by/at` solo en `APPROVED`/`REJECTED`, `cancelled_at` solo en
@@ -201,63 +206,104 @@ exista: es correcto. Comparar con `SET enable_seqscan = off` solo para diagnosti
 índice completo (usar total aproximado o `hasMore` si crece) y `OFFSET` grande se degrada linealmente
 (pasar a paginación por cursor `id`).
 
-### Garantías de integridad propuestas (NO implementadas, requieren aprobación)
+### Garantías de integridad del libro (D3: I-01, I-02 y TRUNCATE)
 
-La auditoría propuso las siguientes garantías. **No están en ninguna migración**; cada una cambia el
-comportamiento ante datos inválidos o puede romper flujos/pruebas existentes. Scripts listos para
-cuando se aprueben (migración separada, p. ej. `..._ledger_integrity`):
+El responsable eligió el conjunto recomendado en D3
+([RESOLUCIONES-2026-11-09](../business/RESOLUCIONES-2026-11-09.md)) y autorizó su implementación el
+2026-11-10. Las demás propuestas (I-03…I-06) **siguen sin aplicar** (tabla de abajo).
 
-| Id   | Garantía                                                          | Riesgo principal                                                                                                                                                                                                                                               |
-| ---- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| I-01 | Saldo == `balance_after` del último movimiento (trigger diferido) | Falla si ya hay desfases históricos: **ejecutar antes la consulta de reconciliación**. Los tests que insertan saldos o movimientos sueltos con Prisma (`database-integrity`, `negative-stock-guard`) deberían pasar por el servicio.                           |
-| I-02 | Índice único parcial `(reference_type, reference_id, variant_id)` | Rechaza dos movimientos de la misma variante bajo el mismo documento: confirmar que ningún flujo legítimo lo hace (p. ej. un ajuste con la misma variante dos veces, o un cambio de pieza).                                                                    |
-| I-03 | Ingreso `CONFIRMED` e ítems inmutables (triggers)                 | El flujo de confirmación actualiza ítems (`unit_extra_cost`, `total_cost`) en la misma transacción que cambia el estado: el trigger debe permitir esa transición.                                                                                              |
-| I-04 | FK `movement_id` de ajustes/conteos hacia `inventory_movements`   | `inventory_adjustment_items.movement_id` e `inventory_count_items.movement_id` ya son `BIGINT` (mismo tipo que `inventory_movements.id`): la FK es directa, con `ON DELETE RESTRICT` (compatible con el append-only). Validar antes que no haya ids huérfanos. |
-| I-05 | CHECK de signo por tipo de movimiento                             | Confirmar antes el signo de `LOSS` (¿siempre negativo?) y `ADJUSTMENT`/`COUNT_ADJUSTMENT` (ambos signos). `NOT VALID` + `VALIDATE` para no bloquear.                                                                                                           |
-| I-06 | `products.remove` debe contar `price_changes` e ítems de ajuste   | Es de servicio (mensaje claro en vez de error de FK 500), no de esquema.                                                                                                                                                                                       |
+**Migración `20261110000000_ledger_integrity`:**
 
-**Riesgo transversal de las pruebas:** `resetDatabase` (`apps/api/test/helpers/db.ts`) y el
-`globalSetup` usan `TRUNCATE ... CASCADE` sobre todas las tablas. Un trigger `BEFORE TRUNCATE` que
-bloquee el vaciado de `inventory_movements`/`audit_logs` rompería **toda** la suite de integración; si se
-quisiera esa protección habría que cambiar el helper (p. ej. rol de pruebas con `session_replication_role
-= replica` o `ALTER TABLE ... DISABLE TRIGGER` solo en la BD de pruebas) y aun así el `TRUNCATE` requiere
-privilegios del dueño: en producción conviene revocar `TRUNCATE`/`DELETE`/`UPDATE` al rol de la app sobre
-esas tablas (`REVOKE TRUNCATE, DELETE ON inventory_movements, audit_logs FROM <rol_app>`), sin trigger.
+1. **Verificación previa (aborta, no corrige).** Antes de crear nada comprueba con los datos
+   existentes: (a) que el saldo de cada variante (0 si no hay fila) sea el `balance_after` de su último
+   movimiento (0 si no hay movimientos), incluidas las variantes con movimientos y sin fila de saldo;
+   (b) que la cadena de cada variante sea continua (el primer `balance_before` es 0 y cada uno es el
+   `balance_after` del anterior); y (c) que no haya movimientos repetidos para I-02. Si algo falla, la
+   migración aborta con `RAISE EXCEPTION` y hasta 20 ejemplos; como corre en una transacción, no deja
+   nada a medias. Se corrige con movimientos de ajuste trazables (nunca editando el libro) y se vuelve a
+   ejecutar `prisma migrate deploy`. Consulta de reconciliación para investigar (debe devolver 0 filas):
+
+   ```sql
+   SELECT v.variant_id, COALESCE(b.quantity, 0) AS saldo, COALESCE(l.balance_after, 0) AS libro
+   FROM (SELECT variant_id FROM inventory_balances UNION SELECT variant_id FROM inventory_movements) v
+   LEFT JOIN inventory_balances b ON b.variant_id = v.variant_id
+   LEFT JOIN LATERAL (SELECT m.balance_after FROM inventory_movements m
+                      WHERE m.variant_id = v.variant_id ORDER BY m.id DESC LIMIT 1) l ON true
+   WHERE COALESCE(b.quantity, 0) <> COALESCE(l.balance_after, 0);
+   ```
+
+2. **I-01 · el saldo coincide con el libro.** Dos _constraint triggers_ `DEFERRABLE INITIALLY DEFERRED`
+   (se evalúan al `COMMIT`, cuando el movimiento y el saldo ya están escritos en la misma transacción):
+   - `inventory_balances_match_ledger` (`AFTER INSERT OR UPDATE OR DELETE` en `inventory_balances`): el
+     saldo resultante debe ser el `balance_after` del último movimiento de la variante. Borrar una fila
+     solo es válido si el libro también da 0 (lo que hace `products.remove` con fichas sin historial).
+   - `inventory_movements_match_balance` (`AFTER INSERT` en `inventory_movements`): el `balance_before`
+     del movimiento debe ser el `balance_after` del movimiento anterior de la variante (o 0) y, al
+     confirmar, el saldo debe coincidir con el libro. Atrapa el «movimiento sin tocar el saldo» y las
+     cadenas rotas.
+
+   Junto con el `CHECK balance_after = balance_before + quantity` existente, esto implica **saldo = Σ
+   movimientos**. Ambas usan `inventory_assert_balance_matches_ledger(uuid)` y lanzan `RAISE EXCEPTION`
+   con el código por defecto (P0001) y un mensaje que empieza por `I-01:`; se revierte la transacción
+   completa (movimiento, saldo y auditoría) y la API responde un 500 genérico. Costo: unas pocas
+   lecturas por índice (`inventory_movements_variant_id_id_idx` y la PK de saldos) por fila tocada, sin
+   viajes de red. Es correcto bajo concurrencia porque todos los escritores serializan por el
+   `FOR UPDATE` de la variante (`applyStockChanges`, `stock-locks.ts`).
+
+   **Consecuencia para quien escriba en el libro:** un saldo ya no puede insertarse ni cambiarse sin su
+   movimiento en la misma transacción. Las pruebas usan `setStock` (`apps/api/test/helpers/stock.ts`,
+   que pasa por `applyStockChanges`) en lugar de crear saldos sueltos. `seed-demo.ts` ya escribía
+   movimiento y saldo juntos.
+
+3. **I-02 · un movimiento por (documento, variante, tipo).** Índice único parcial
+   `inventory_movements_reference_variant_type_key` sobre
+   `(reference_type, reference_id, variant_id, type) WHERE reference_id IS NOT NULL`. Incluye `type`
+   (corrección del informe técnico 04 §4.6 a la versión de tres columnas): una futura anulación de
+   venta podrá usar el mismo documento que la venta original. Ningún flujo actual repite (documento,
+   variante): ingresos y ajustes tienen `UNIQUE (documento, variante)` en sus líneas, los conteos
+   generan un movimiento por ítem, los cambios de pieza exigen variantes distintas y el stock inicial no
+   lleva documento. Una violación llega como `P2002` (409 genérico). Prisma no expresa índices
+   parciales: vive solo en SQL, como `product_photos_one_cover_per_product`.
+
+**Quitar `TRUNCATE` al usuario de la aplicación en producción (sin trigger).** Los triggers
+append-only son por fila y `TRUNCATE` no los dispara. Un trigger `BEFORE TRUNCATE` rompería
+`resetDatabase` y el `globalSetup` de las pruebas, y una migración también correría en la base de
+pruebas; por eso va aparte:
+
+- `apps/api/prisma/privileges/revoke-app-truncate.sql` (un bloque `DO`, idempotente, sin tocar datos)
+  revoca `TRUNCATE` al rol conectado (`current_user`) en todas las tablas de `public` de las que es
+  dueño y en sus privilegios por defecto, de modo que las tablas de migraciones futuras nacen sin él.
+  Debe ejecutarlo el **dueño** de las tablas (`REVOKE` solo quita lo que concedió quien lo ejecuta); si
+  encuentra tablas de otro dueño, lo avisa con un `WARNING`.
+- El `CMD` del `Dockerfile` lo ejecuta en cada arranque, tras `prisma migrate deploy` y con el mismo
+  `DATABASE_URL` (`npx prisma db execute --file prisma/privileges/revoke-app-truncate.sql`). Hoy la
+  aplicación migra y opera con un único rol dueño, que es justo el que pierde `TRUNCATE`.
+- No se aplica en desarrollo, en las pruebas ni en `npm run qa` (no usan la imagen). En
+  `npm run local:up` (modo docker) sí corre, pero el rol de ese PostgreSQL es superusuario y los
+  privilegios no se comprueban: el script emite un `WARNING`. Detalle y límites en
+  [DEPLOYMENT.md](../deployment/DEPLOYMENT.md#rol-de-la-base-de-datos-sin-truncate).
+
+Pruebas: `apps/api/test/integration/database-integrity.test.ts` intenta violar cada garantía con
+escrituras directas (saldo sin movimiento, movimiento sin saldo, cadena rota, borrado de un saldo con
+stock, reversión de la auditoría de la misma transacción, documento repetido) y ejecuta el script de
+privilegios con un rol no superusuario dueño de las tablas, dentro de una transacción que se revierte:
+el `TRUNCATE` queda rechazado y los demás privilegios intactos. Las pruebas de concurrencia
+(`ledger-*.test.ts`) siguen pasando con los triggers activos.
+
+### Garantías propuestas pendientes (NO implementadas, requieren aprobación)
+
+| Id   | Garantía                                                        | Riesgo principal                                                                                                                                                                                                                                               |
+| ---- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I-03 | Ingreso `CONFIRMED` e ítems inmutables (triggers)               | El flujo de confirmación actualiza ítems (`unit_extra_cost`, `total_cost`) en la misma transacción que cambia el estado: el trigger debe permitir esa transición.                                                                                              |
+| I-04 | FK `movement_id` de ajustes/conteos hacia `inventory_movements` | `inventory_adjustment_items.movement_id` e `inventory_count_items.movement_id` ya son `BIGINT` (mismo tipo que `inventory_movements.id`): la FK es directa, con `ON DELETE RESTRICT` (compatible con el append-only). Validar antes que no haya ids huérfanos. |
+| I-05 | CHECK de signo por tipo de movimiento                           | Confirmar antes el signo de `LOSS` (¿siempre negativo?) y `ADJUSTMENT`/`COUNT_ADJUSTMENT` (ambos signos). `NOT VALID` + `VALIDATE` para no bloquear.                                                                                                           |
+| I-06 | `products.remove` debe contar `price_changes` e ítems de ajuste | Es de servicio (mensaje claro en vez de error de FK 500), no de esquema.                                                                                                                                                                                       |
+
+Revocar además `DELETE`/`UPDATE` sobre `inventory_movements` y `audit_logs`, o separar un rol de
+migración (dueño) de otro de ejecución solo con DML (X-02 del informe técnico 04), **no** forma parte
+de D3 y sigue sin aprobar.
 
 ```sql
--- I-01 · Reconciliación previa (debe devolver 0 filas antes de crear el trigger):
-SELECT b.variant_id, b.quantity AS saldo,
-       COALESCE((SELECT m.balance_after FROM inventory_movements m
-                 WHERE m.variant_id = b.variant_id ORDER BY m.id DESC LIMIT 1), 0) AS ultimo
-FROM inventory_balances b
-WHERE b.quantity <> COALESCE((SELECT m.balance_after FROM inventory_movements m
-                              WHERE m.variant_id = b.variant_id ORDER BY m.id DESC LIMIT 1), 0);
-
--- I-01 · Trigger diferido (se evalúa al COMMIT, cuando movimiento y saldo ya están escritos):
-CREATE FUNCTION check_balance_matches_ledger() RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE last_after integer;
-BEGIN
-  SELECT balance_after INTO last_after FROM inventory_movements
-   WHERE variant_id = NEW.variant_id ORDER BY id DESC LIMIT 1;
-  IF NEW.quantity <> COALESCE(last_after, 0) THEN
-    RAISE EXCEPTION 'El saldo de la variante % no coincide con el libro de movimientos', NEW.variant_id
-      USING ERRCODE = 'check_violation';
-  END IF;
-  RETURN NULL;
-END $$;
-CREATE CONSTRAINT TRIGGER inventory_balances_match_ledger
-  AFTER INSERT OR UPDATE ON inventory_balances
-  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION check_balance_matches_ledger();
--- (cubre cambios de saldo; un movimiento sin tocar el saldo se detecta con un segundo trigger
---  equivalente sobre inventory_movements.)
-
--- I-02 · Un movimiento por (documento, variante):
---   verificación previa (0 filas):
-SELECT reference_type, reference_id, variant_id, count(*) FROM inventory_movements
-WHERE reference_id IS NOT NULL GROUP BY 1, 2, 3 HAVING count(*) > 1;
-CREATE UNIQUE INDEX inventory_movements_reference_variant_key
-  ON inventory_movements (reference_type, reference_id, variant_id) WHERE reference_id IS NOT NULL;
-
 -- I-05 · Signo por tipo (tras confirmar LOSS y los tipos con ambos signos):
 ALTER TABLE inventory_movements ADD CONSTRAINT inventory_movements_sign_check CHECK (
   (type IN ('INITIAL_STOCK', 'STOCK_ENTRY', 'CUSTOMER_RETURN', 'EXCHANGE_IN') AND quantity > 0)
