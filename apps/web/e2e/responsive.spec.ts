@@ -28,6 +28,12 @@ const ROUTES = [
   ['Nuevo ajuste', '/inventario/ajustes/nuevo'],
   ['Tipos de costo', '/configuracion/tipos-de-costo'],
   ['Auditoría', '/auditoria'],
+  ['Caja', '/caja'],
+  ['Historial de cajas', '/caja/historial'],
+  ['Punto de venta', '/ventas/nueva'],
+  ['Historial de ventas', '/ventas'],
+  ['Incidencias de venta', '/ventas/incidencias'],
+  ['Datos del negocio', '/configuracion/negocio'],
 ] as const;
 
 /** Controles visibles de la página que quedan fuera de la pantalla o recortados por un ancestro. */
