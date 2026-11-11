@@ -131,11 +131,11 @@ sesión o permiso recibe 401/403 y nunca un 400 con el detalle del esquema. Las 
 
 ## Evolución prevista (no implementar sin aprobación)
 
-| Fase futura                        | Cómo encaja                                                                                                                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ventas / POS                       | Nuevo módulo `sales`; genera `SALE` y cambios `EXCHANGE_IN`/`EXCHANGE_OUT` (ADR-019) vía el servicio de inventario. El rol Vendedor ya existe.                                  |
-| Facturación / Impuestos Nacionales | Módulo `invoicing` aislado, integrado con el SIN mediante un adaptador; no toca inventario directamente.                                                                        |
-| Múltiples sucursales               | Agregar tabla `locations` y `location_id` a saldos, movimientos, ingresos y conteos (la PK de `inventory_balances` pasa a `(variant_id, location_id)`). Migración planificable. |
-| Reportes                           | Consultas sobre `inventory_movements` (historial completo con costos) y vistas SQL.                                                                                             |
-| App móvil                          | Consume la misma API `/api/v1`; se agregaría auth por token si fuera necesario.                                                                                                 |
-| Archivos (fotos)                   | Fotos ya implementadas en PostgreSQL tras la interfaz `PhotoStorage` ([ADR-020](../decisions/ADR-020-fotos-de-producto.md)); un bucket S3/R2 sería otra implementación (P-14).  |
+| Fase futura                        | Cómo encaja                                                                                                                                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Ventas / POS                       | **Autorizado el 2026-11-10** (plan `docs/propuestas/fase-2-ventas/11-plan-de-implementacion.md`): módulos `sales`, `cash` y `settings`; la venta genera `SALE` vía el servicio de inventario. Sin anulaciones (DEC-V07). |
+| Facturación / Impuestos Nacionales | Descartado por Q-V02: la factura fiscal se emite en un sistema externo; aquí solo hay comprobante interno (DEC-V12).                                                                                                     |
+| Múltiples sucursales               | Agregar tabla `locations` y `location_id` a saldos, movimientos, ingresos y conteos (la PK de `inventory_balances` pasa a `(variant_id, location_id)`). Migración planificable.                                          |
+| Reportes                           | Consultas sobre `inventory_movements` (historial completo con costos) y vistas SQL.                                                                                                                                      |
+| App móvil                          | Consume la misma API `/api/v1`; se agregaría auth por token si fuera necesario.                                                                                                                                          |
+| Archivos (fotos)                   | Fotos ya implementadas en PostgreSQL tras la interfaz `PhotoStorage` ([ADR-020](../decisions/ADR-020-fotos-de-producto.md)); un bucket S3/R2 sería otra implementación (P-14).                                           |

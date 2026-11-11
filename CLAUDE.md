@@ -13,12 +13,14 @@ atributos, productos, variantes, SKU, códigos de barras, proveedores, costos, p
 estado), ingresos de mercadería, inventario (saldos, movimientos, ajustes, inventario físico),
 control (sin stock, bajo mínimo, historial) y usuarios/roles/permisos.
 
-**Fase 2 (Ventas): solo ANÁLISIS y planificación** (resolución del responsable del 2026-11-07). La
-implementación requiere una autorización posterior, expresa y delimitada. Decisiones confirmadas que
-ya restringen el diseño: venta de mostrador pagada íntegramente al momento (sin créditos ni apartados),
-pagos en Bs (efectivo, QR, transferencia), facturación fiscal en un sistema externo, **no se anulan las
-ventas confirmadas (DEC-V07)**, caja única con apertura, cierre y arqueo (DEC-V09) y comprobante interno
-imprimible (DEC-V12). Sus subdecisiones siguen pendientes.
+**Fase 2 (Ventas): implementación AUTORIZADA el 2026-11-10** (ver `docs/business/RESOLUCIONES-2026-11-10.md`),
+delimitada por el plan `docs/propuestas/fase-2-ventas/11-plan-de-implementacion.md` (E1 venta de
+mostrador y comprobante interno, E3 caja única). Decisiones confirmadas que restringen el diseño: venta
+de mostrador pagada íntegramente al momento (sin créditos ni apartados), pagos en Bs (efectivo, QR,
+transferencia), facturación fiscal en un sistema externo, **no se anulan las ventas confirmadas
+(DEC-V07)**, caja única con apertura, cierre y arqueo (DEC-V09) y comprobante interno imprimible
+(DEC-V12). Los valores marcados «POR DEFECTO — PENDIENTE DE CONFIRMACIÓN» en el plan no son reglas:
+deben quedar configurables o fáciles de cambiar.
 
 **Principio:** primero se define el negocio y la arquitectura; después se implementa.
 **No implementar funcionalidades de negocio sin aprobación explícita del usuario.**
@@ -156,10 +158,11 @@ Si se descubre una decisión no listada: agregarla a PENDIENTES.md.
 ## NO hacer
 
 - ❌ Implementar módulos de Fase 1 sin aprobación explícita.
-- ❌ Punto de venta, facturación, Impuestos Nacionales, contabilidad, multi-sucursal, app móvil, IA,
-  compras automáticas, integraciones bancarias.
+- ❌ Facturación fiscal, Impuestos Nacionales, contabilidad, multi-sucursal, app móvil, IA, compras
+  automáticas, integraciones bancarias. (La venta de mostrador con comprobante interno sí está autorizada
+  desde el 2026-11-10, dentro del plan 11.)
 - ❌ Convertir decisiones PENDIENTES en reglas; inventar requisitos.
-- ❌ Implementar Ventas (Fase 2) sin autorización expresa y delimitada; y, aun con ella, anulación de
+- ❌ Ampliar Ventas más allá del plan 11 sin autorización; y, en ningún caso, anulación de
   ventas confirmadas (`POST /sales/:id/void`, `sales:void`, `SALE_VOID`, estado `VOIDED`) ni ningún
   mecanismo de reversión equivalente o encubierto (DEC-V07).
 - ❌ Modificar stock sin movimiento; editar/borrar movimientos o auditoría.
