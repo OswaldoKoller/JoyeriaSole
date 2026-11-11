@@ -43,8 +43,9 @@ export class NotFoundError extends AppError {
 }
 
 export class ConflictError extends AppError {
-  constructor(message: string, details?: unknown) {
-    super(409, ERROR_CODES.CONFLICT, message, details);
+  /** `code` permite un código estable propio (p. ej. CASH_SESSION_ALREADY_OPEN) para que la web reaccione. */
+  constructor(message: string, details?: unknown, code: ErrorCode = ERROR_CODES.CONFLICT) {
+    super(409, code, message, details);
   }
 }
 

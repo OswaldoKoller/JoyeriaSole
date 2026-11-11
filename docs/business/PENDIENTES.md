@@ -145,8 +145,50 @@ con el prefijo **Q-V** (el informe técnico las llamaba P-V). Fuentes:
 [RESOLUCIONES-2026-11-09](RESOLUCIONES-2026-11-09.md); los códigos A1 a F4 que aparecen abajo son las
 respuestas de ese cuestionario.
 
-**Nada de Ventas está implementado ni autorizado para implementarse:** la autorización del 2026-11-07
-es «solo análisis y planificación». Las respuestas del 2026-11-09 definen el diseño, no lo habilitan.
+**Actualización 2026-11-10:** el responsable autorizó implementar «todo el módulo de Ventas» según el
+[plan 11](../propuestas/fase-2-ventas/11-plan-de-implementacion.md)
+([RESOLUCIONES-2026-11-10](RESOLUCIONES-2026-11-10.md)). DEC-V07 sigue vigente: no hay anulaciones.
+El backend (S1 a S4) usa los valores por defecto de abajo, que **no son reglas de negocio**.
+
+### Valores POR DEFECTO — PENDIENTE DE CONFIRMACIÓN (plan 11 §2.2)
+
+Implementados para poder construir; el responsable debe revisarlos. Dónde se cambian:
+
+| Id   | Valor aplicado                                                                                                             | Dónde se cambia (sin migración salvo que se indique)                                         |
+| ---- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| D-01 | Venden (`sales:create`) Vendedor, Responsable y Administrador                                                              | `DEFAULT_ROLE_PERMISSIONS` + seed, o pantalla «Roles»                                        |
+| D-02 | El Vendedor ve solo sus ventas (`sales:read`); Responsable y Administrador ven todas (`sales:read-all`)                    | Ídem                                                                                         |
+| D-03 | Correlativo `VTA-000001` (la base guarda un entero)                                                                        | `formatSaleNumber` en `packages/shared/src/sales.ts`                                         |
+| D-04 | Se guarda el nombre del vendedor en cada venta; no se imprime                                                              | Interruptor `receiptShowSeller` en los datos del negocio                                     |
+| D-05 | El fondo inicial acepta `0` escrito explícitamente (vacío no es cero); sin tope                                            | `moneyInputSchema` en `packages/shared/src/schemas/money.ts`                                 |
+| D-06 | Reimprime quien puede ver la venta                                                                                         | Permiso propio nuevo, sin migración                                                          |
+| D-07 | Datos del negocio provisionales: «Joyería Sole», sin dirección, teléfono ni NIT; sin logo                                  | Pantalla de datos del negocio (`PUT /settings/business`); `BUSINESS_SETTINGS_DEFAULTS`       |
+| D-08 | El comprobante muestra los datos comerciales **vigentes** (no un snapshot por venta)                                       | Un snapshot futuro requiere migración                                                        |
+| D-09 | Tres medios fijos (Efectivo, QR, Transferencia); referencia de QR o transferencia opcional (≤ 100), no se imprime          | `SYSTEM_PAYMENT_METHODS`, `PAYMENT_REFERENCE_MAX_LENGTH` (un medio nuevo es una fila)        |
+| D-10 | Incidencias dentro del sistema, solo trazabilidad (contradice la «hoja fuera del sistema» de la aclaración de C5, ver X-1) | Rutas `/sale-incidents` separables; se pueden retirar sin afectar el resto                   |
+| D-11 | Tipos `WRONG_SALE`, `WRONG_PAYMENT`, `DUPLICATE`, `OTHER`; quien reporta no lista; lista y cierra el Administrador         | Enum de BD (migración); permisos                                                             |
+| D-12 | Arqueo no ciego: quien tiene `cash:read` ve el esperado en vivo                                                            | Solo interfaz                                                                                |
+| D-13 | `cash:read` al Responsable                                                                                                 | Permisos                                                                                     |
+| D-14 | Correcciones sin plazo; un Administrador puede corregir su propio cierre; solo sesiones cerradas                           | Reglas de servicio (el trigger exige `CLOSED`)                                               |
+| D-15 | 1 a 50 líneas, cantidad 1 a 999 por línea, una línea por variante, un pago por medio (máx. 3)                              | `SALE_MAX_ITEMS`, `SALE_MAX_QUANTITY`, `SALE_MAX_PAYMENTS` en `packages/shared/src/sales.ts` |
+| D-16 | Sin descuentos, sin clientes, sin fecha retroactiva (`sold_at` lo fija la base)                                            | Columnas nuevas (migración futura)                                                           |
+| D-17 | Número de sesión `CAJ-000001`                                                                                              | `formatCashSessionNumber`                                                                    |
+| D-18 | Una sesión puede cruzar días; sin cierre automático                                                                        | Solo interfaz                                                                                |
+| D-19 | «COPIA» desde la segunda impresión registrada de una venta                                                                 | `RECEIPT_COPY_LEGEND`                                                                        |
+
+También por defecto (plan 11 §4.2 y §3.12): el cierre espera como máximo 5 s a las ventas en curso
+(`CLOSE_LOCK_TIMEOUT`, luego `503`); la observación del arqueo con diferencia exige ≥ 3 caracteres y el
+motivo de una corrección ≥ 10 (`packages/shared/src/sales.ts`).
+
+**Contradicción X-1 (requiere confirmación expresa):** la aclaración delegada de C5 (2026-11-09) dice
+que las incidencias van en una hoja fuera del sistema; el encargo del 2026-11-10 las pide dentro. Se
+implementaron como entidad de solo trazabilidad; si el responsable mantiene la hoja, se retiran las
+rutas `/sale-incidents` y la tabla `sale_incidents` (nada más depende de ellas).
+
+**Nueva (2026-11-11):** permisos exclusivos del Administrador frente a la pantalla «Roles». Se
+consideraron exclusivos `cash:correct` (R-17), `sales-incidents:manage` (R-09) y `settings:manage`
+(R-27): la API no los concede a ningún otro rol. Confirmar si la lista es correcta (p. ej. si
+`audit:read` o `users:manage` también deberían quedar bloqueados por pantalla).
 
 | ID    | Decisión                     | Estado        | Lo registrado hoy                                                                   |
 | ----- | ---------------------------- | ------------- | ----------------------------------------------------------------------------------- |

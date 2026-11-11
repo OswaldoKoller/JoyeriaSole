@@ -3,6 +3,7 @@
  * los permisos de aprobar ajustes/precios los añaden otras rebanadas.
  */
 import {
+  ADMIN_ONLY_PERMISSIONS,
   ALL_PERMISSIONS,
   DEFAULT_ROLE_PERMISSIONS,
   PERMISSIONS,
@@ -44,11 +45,16 @@ describe('permisos por defecto de los roles', () => {
     }
   });
 
-  it('el Vendedor solo consulta catálogo y stock, sin costos (P-02, Q-15.2)', () => {
-    expect([...DEFAULT_ROLE_PERMISSIONS.SELLER.permissions].sort()).toEqual([
-      PERMISSIONS.CATALOG_READ,
-      PERMISSIONS.INVENTORY_READ,
-    ]);
+  it('el Vendedor consulta catálogo y stock y vende, sin costos (P-02, Q-15.2, D-01, D-02)', () => {
+    expect([...DEFAULT_ROLE_PERMISSIONS.SELLER.permissions].sort()).toEqual(
+      [
+        PERMISSIONS.CATALOG_READ,
+        PERMISSIONS.INVENTORY_READ,
+        PERMISSIONS.SALES_CREATE,
+        PERMISSIONS.SALES_READ,
+        PERMISSIONS.SALES_INCIDENTS_REPORT,
+      ].sort(),
+    );
     expect(has('SELLER', PERMISSIONS.COSTS_READ)).toBe(false);
   });
 
@@ -67,5 +73,59 @@ describe('permisos por defecto de los roles', () => {
     expect(has('INVENTORY_MANAGER', PERMISSIONS.COSTS_READ)).toBe(true);
     expect(has('INVENTORY_MANAGER', PERMISSIONS.CATALOG_MANAGE)).toBe(true);
     expect(has('INVENTORY_MANAGER', PERMISSIONS.STOCK_ENTRIES_CONFIRM)).toBe(true);
+  });
+});
+
+describe('permisos de ventas y caja (plan 11 §4.1)', () => {
+  const CASH = [
+    PERMISSIONS.CASH_READ,
+    PERMISSIONS.CASH_OPEN,
+    PERMISSIONS.CASH_CLOSE,
+    PERMISSIONS.CASH_CORRECT,
+  ];
+
+  it('solo el Administrador tiene cash:correct y sales-incidents:manage', () => {
+    for (const permission of [PERMISSIONS.CASH_CORRECT, PERMISSIONS.SALES_INCIDENTS_MANAGE]) {
+      expect(has('ADMIN', permission)).toBe(true);
+      expect(has('INVENTORY_MANAGER', permission)).toBe(false);
+      expect(has('SELLER', permission)).toBe(false);
+    }
+  });
+
+  it('el Vendedor no tiene ningún permiso de caja, ni costos, ni ve ventas ajenas', () => {
+    for (const permission of CASH) expect(has('SELLER', permission)).toBe(false);
+    expect(DEFAULT_ROLE_PERMISSIONS.SELLER.permissions.some((p) => p.startsWith('cash:'))).toBe(
+      false,
+    );
+    expect(has('SELLER', PERMISSIONS.COSTS_READ)).toBe(false);
+    expect(has('SELLER', PERMISSIONS.SALES_READ_ALL)).toBe(false);
+  });
+
+  it('el Responsable abre, cierra y consulta la caja y ve todas las ventas (B3, D-02, D-13)', () => {
+    for (const permission of [
+      PERMISSIONS.CASH_OPEN,
+      PERMISSIONS.CASH_CLOSE,
+      PERMISSIONS.CASH_READ,
+      PERMISSIONS.SALES_CREATE,
+      PERMISSIONS.SALES_READ,
+      PERMISSIONS.SALES_READ_ALL,
+      PERMISSIONS.SALES_INCIDENTS_REPORT,
+    ]) {
+      expect(has('INVENTORY_MANAGER', permission)).toBe(true);
+    }
+  });
+
+  it('los permisos exclusivos del Administrador no figuran en ningún otro rol por defecto', () => {
+    expect([...ADMIN_ONLY_PERMISSIONS].sort()).toEqual(
+      [
+        PERMISSIONS.CASH_CORRECT,
+        PERMISSIONS.SALES_INCIDENTS_MANAGE,
+        PERMISSIONS.SETTINGS_MANAGE,
+      ].sort(),
+    );
+    for (const permission of ADMIN_ONLY_PERMISSIONS) {
+      expect(has('INVENTORY_MANAGER', permission)).toBe(false);
+      expect(has('SELLER', permission)).toBe(false);
+    }
   });
 });

@@ -94,7 +94,7 @@ Migración `20261106020300_price_changes`. Reglas en la base: `CHECK` de precios
 
 | Tabla                        | Propósito                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `inventory_movements`        | **Libro mayor inmutable**. Cantidad con signo, saldo antes/después, costo, referencia al documento, motivo, usuario, fecha. Tipos: `INITIAL_STOCK`, `STOCK_ENTRY`, `ADJUSTMENT`, `COUNT_ADJUSTMENT`, `LOSS`, `EXCHANGE_IN`, `EXCHANGE_OUT` (y `SALE`, `CUSTOMER_RETURN`, `EXCHANGE` reservados sin uso).                                                                                                                                       |
+| `inventory_movements`        | **Libro mayor inmutable**. Cantidad con signo, saldo antes/después, costo, referencia al documento, motivo, usuario, fecha. Tipos: `INITIAL_STOCK`, `STOCK_ENTRY`, `ADJUSTMENT`, `COUNT_ADJUSTMENT`, `LOSS`, `EXCHANGE_IN`, `EXCHANGE_OUT`, `SALE` (venta de mostrador, siempre negativo) (y `CUSTOMER_RETURN`, `EXCHANGE` reservados sin uso).                                                                                                |
 | `inventory_balances`         | Saldo actual por variante (lectura rápida). Se actualiza en la misma transacción que el movimiento y la base exige que coincida con el libro (I-01).                                                                                                                                                                                                                                                                                           |
 | `inventory_counts`           | Conteo físico (ADR-021): número `CNT-000001`, estado `DRAFT → IN_PROGRESS → RECOUNT → IN_REVIEW → APPROVED` / `CANCELLED`, `category_id` (alcance, incluye subcategorías), `operator_id` (único operador), fechas de cada paso, quién aprobó y motivo de cancelación. No se borra; terminado = inmutable (trigger).                                                                                                                            |
 | `inventory_count_items`      | Una línea por variante del alcance: foto del sistema (`system_qty`, `snapshot_cursor`), primer conteo (`counted_qty`, `counted_cursor`), `needs_recount`, recuento (`recount_qty`, `recount_cursor`) y, al aprobar, el resultado congelado (`expected_qty`, `final_qty`, `reconciled_movements`, `difference`, saldos, `unit_cost`, `movement_id`). El cursor es el id del último movimiento de la variante al contar (conciliación, ADR-014). |
@@ -115,6 +115,27 @@ Migración `20261106020300_price_changes`. Reglas en la base: `CHECK` de precios
 | Tabla              | Propósito                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `idempotency_keys` | Claves `Idempotency-Key` de las operaciones críticas (migración `20261110010000_idempotency_keys`): `key` (UUID generado por el cliente, clave primaria; por eso no es UUID v7), `user_id`, `scope` (método y ruta), `request_hash` (SHA-256 de `{ params, body }`), `response` (JSONB con la respuesta `data` original; NULL solo dentro de la transacción que la reclama), `created_at`, `expires_at` (24 h por defecto). Se inserta con `INSERT … ON CONFLICT` como primer paso de la misma transacción que la operación; una clave vencida se sobrescribe. No es historial de negocio: el plugin `idempotency` purga las vencidas cada hora. Ver `docs/api/API.md` «Idempotencia». |
+
+### Ventas y caja (plan 11 de fase-2-ventas; ADR-022, ADR-023 y ADR-024)
+
+Migración `20261111000000_sales_and_cash`. Autorizado el 2026-11-10
+([RESOLUCIONES-2026-11-10](../business/RESOLUCIONES-2026-11-10.md)). **Una venta confirmada no se
+anula, no se borra y no se modifica (DEC-V07)**: `sales` no tiene columna de estado ni campos de
+anulación, y una guarda estática (`apps/api/test/unit/no-sale-void-guard.test.ts`) falla si aparecen.
+
+| Tabla                      | Propósito                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `payment_methods`          | Catálogo fijo sembrado por la migración y el seed (D-09): `CASH` («Efectivo», `is_cash`), `QR`, `BANK_TRANSFER` («Transferencia»). `UNIQUE (id, is_cash)` es el destino de la FK compuesta de los pagos. Sin CRUD (SD-G07).                                                                                                                                                |
+| `cash_sessions`            | Sesión de la caja única: número `CAJ-000001` (secuencia con saltos), `status` `OPEN`/`CLOSED`, quién y cuándo abrió, fondo inicial; al cerrar: quién y cuándo, cobros en efectivo **congelados**, `cash_movements_net` (siempre 0, B6), esperado, contado, diferencia con signo y observación. `open_request_id`, `close_request_id` y `close_request_hash`: idempotencia. |
+| `sales`                    | Venta confirmada e **inmutable**: número `VTA-000001` (secuencia con saltos, R-20), sesión de caja, vendedor y su nombre (snapshot), `sold_at` (lo fija la base con `clock_timestamp()`), `total`, `client_request_id` (UNIQUE, `Idempotency-Key`) y `request_hash`. Sin estado, descuentos, cliente, impuestos ni factura.                                                |
+| `sale_items`               | Líneas inmutables: variante (una por venta), cantidad, precio unitario y total de línea, **costo al vender** (`unit_cost_snapshot`, nunca sale por la API de ventas), SKU, producto y etiqueta (snapshots) y `movement_id` (FK UNIQUE al movimiento `SALE` del libro).                                                                                                     |
+| `sale_payments`            | Pagos inmutables (uno por medio): medio y su `is_cash` copiado por FK compuesta, nombre del medio (snapshot), importe aplicado, efectivo recibido y vuelto (solo efectivo) y referencia (solo QR o transferencia).                                                                                                                                                         |
+| `sale_receipt_prints`      | Append-only: cada solicitud de impresión del comprobante (`copy_number` 1 = original, ≥ 2 = «COPIA»), formato (`58mm`, `80mm`, `A5`, `A4`), quién y cuándo.                                                                                                                                                                                                                |
+| `cash_session_corrections` | Append-only: corrección de un cierre (solo Administrador): `sequence` por sesión, `kind` (`COUNTED_CASH`, `OPENING_AMOUNT`, `NOTE`), valor anterior y nuevo, cifras vigentes resultantes, motivo, quién, cuándo e idempotencia. Sin columnas ni FK hacia ventas, pagos o medios (AE-2). La sesión original no cambia.                                                      |
+| `sale_incidents`           | Incidencia de venta, **solo trazabilidad** (D-10, X-1): número `INC-000001`, venta opcional, tipo, descripción, estado `OPEN`/`CLOSED`, quién reporta y quién resuelve (texto de lo resuelto fuera del sistema). Sin importes, cantidades, variantes, movimientos ni pagos: ningún módulo la consume para actuar.                                                          |
+| `business_settings`        | **Registro único** (`id = 1`, excepción justificada a UUID v7, ADR-024): nombre comercial, dirección, teléfono, NIT opcional, `receipt_show_seller` (D-04), quién y cuándo lo editó. La migración inserta los valores provisionales (D-07); el seed no los sobrescribe.                                                                                                    |
+
+Todas las FK nuevas son `ON DELETE RESTRICT`.
 
 ## Restricciones en la base de datos (defensa en profundidad)
 
@@ -141,7 +162,37 @@ Definidas en la migración inicial (SQL) y en las migraciones posteriores, adem�
   `CANCELLED`, y un rechazo exige comentario. **Triggers**: un ajuste no se borra y, una vez resuelto
   (`status <> 'PENDING'`), ni él ni sus líneas se modifican (ADR-017).
 
-Estas garantías están cubiertas por `apps/api/test/integration/database-integrity.test.ts`.
+- **Ventas y caja** (migración `20261111000000_sales_and_cash`):
+  - `inventory_movements_sale_sign_check`: un movimiento `SALE` siempre resta (`quantity < 0`). Es la
+    parte de I-05 que ya no depende de decisiones abiertas.
+  - `sales`, `sale_items`, `sale_payments` y `sale_receipt_prints`: triggers `*_immutable` /
+    `*_append_only` (`prevent_append_only_change`) que rechazan **todo** `UPDATE` y `DELETE`.
+  - `sales_require_open_session` (`BEFORE INSERT`): la sesión existe y está `OPEN` (la lee con
+    `FOR SHARE`) y `sold_at >= opened_at`.
+  - `sales_integrity_check`, `sale_items_integrity_check`, `sale_payments_integrity_check`: triggers de
+    restricción **diferidos** que al `COMMIT` exigen ≥ 1 línea, ≥ 1 pago y Σ líneas = total = Σ pagos;
+    también impiden agregar líneas o pagos a una venta ya confirmada.
+  - `sale_items_movement_check` (diferido): la línea apunta a SU movimiento `SALE` (misma variante,
+    cantidad negada, documento `SALE` de la misma venta y mismo costo unitario).
+  - CHECK: `total > 0`, `line_total = quantity × unit_price`, importes > 0, vuelto solo en efectivo y
+    `tendered = amount + change_given`, referencia solo fuera del efectivo, hash `^[0-9a-f]{64}$`.
+  - `cash_sessions_single_open_idx`: índice único parcial `(status) WHERE status = 'OPEN'` → **una sola
+    sesión abierta**. CHECK de estado coherente (cerrada ⇔ todos los datos de cierre), fondo y contado
+    ≥ 0, `cash_movements_net = 0`, `expected_cash = opening_amount + cash_sales_total + cash_movements_net`,
+    `difference = counted_cash − expected_cash` y observación de ≥ 3 caracteres si la diferencia ≠ 0.
+  - `cash_sessions_guard`: una sesión se inserta abierta y sin datos de cierre; abierta solo cambia
+    para cerrarse, sin tocar los datos de apertura y con `cash_sales_total` igual a la suma
+    **recalculada** de los pagos en efectivo de sus ventas; cerrada no cambia nunca (sin reapertura);
+    ninguna se borra.
+  - `cash_session_corrections_validate` (`BEFORE INSERT`): sesión `CLOSED`, `previous_value` = valor
+    vigente, `sequence` = última + 1 y cifras «después» recalculadas con los cobros congelados (AE-4).
+    CHECK: `NOTE` ⇔ sin valores, valor nuevo ≥ 0 y distinto del anterior, motivo ≥ 10 caracteres.
+  - `sale_incidents_guard`: sin `DELETE`; `UPDATE` solo `OPEN → CLOSED` cambiando únicamente estado,
+    resolución, quién y cuándo.
+  - `business_settings`: `CHECK (id = 1)` y nombre comercial no vacío.
+
+Estas garantías están cubiertas por `apps/api/test/integration/database-integrity.test.ts` y, las de
+ventas y caja, por `apps/api/test/integration/sales-immutability.test.ts`.
 
 ## Índices de rendimiento
 
@@ -304,7 +355,7 @@ el `TRUNCATE` queda rechazado y los demás privilegios intactos. Las pruebas de 
 | ---- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | I-03 | Ingreso `CONFIRMED` e ítems inmutables (triggers)               | El flujo de confirmación actualiza ítems (`unit_extra_cost`, `total_cost`) en la misma transacción que cambia el estado: el trigger debe permitir esa transición.                                                                                              |
 | I-04 | FK `movement_id` de ajustes/conteos hacia `inventory_movements` | `inventory_adjustment_items.movement_id` e `inventory_count_items.movement_id` ya son `BIGINT` (mismo tipo que `inventory_movements.id`): la FK es directa, con `ON DELETE RESTRICT` (compatible con el append-only). Validar antes que no haya ids huérfanos. |
-| I-05 | CHECK de signo por tipo de movimiento                           | Confirmar antes el signo de `LOSS` (¿siempre negativo?) y `ADJUSTMENT`/`COUNT_ADJUSTMENT` (ambos signos). `NOT VALID` + `VALIDATE` para no bloquear.                                                                                                           |
+| I-05 | CHECK de signo por tipo de movimiento                           | Confirmar antes el signo de `LOSS` (¿siempre negativo?) y `ADJUSTMENT`/`COUNT_ADJUSTMENT` (ambos signos). `NOT VALID` + `VALIDATE` para no bloquear. **Parcial:** el signo de `SALE` ya está (`inventory_movements_sale_sign_check`, ventas).                  |
 | I-06 | `products.remove` debe contar `price_changes` e ítems de ajuste | Es de servicio (mensaje claro en vez de error de FK 500), no de esquema.                                                                                                                                                                                       |
 
 Revocar además `DELETE`/`UPDATE` sobre `inventory_movements` y `audit_logs`, o separar un rol de
@@ -349,7 +400,10 @@ inicial (desde `SEED_ADMIN_*`) y las 12 definiciones de atributos citadas en el 
 valores. **No** carga productos, categorías ni proveedores: los define el cliente. También siembra,
 de forma idempotente, el catálogo de motivos de ajuste (Robo, Pérdida, Muestra, Rotura, Error de
 registro, Otro) y los tipos de costo de importación (Transporte, Embolsado, Aduanización, Comisiones,
-Otro); solo agrega los que faltan y no pisa cambios hechos después.
+Otro); solo agrega los que faltan y no pisa cambios hechos después. Para ventas y caja siembra los
+tres medios de pago (`CASH`, `QR`, `BANK_TRANSFER`; restablece nombre y marca de sistema sin pisar
+`is_active`) y crea la fila única de `business_settings` **solo si falta** (nunca sobrescribe lo que
+editó el Administrador). La migración `20261111000000_sales_and_cash` siembra lo mismo.
 
 Cuando se agregan o reasignan permisos (p. ej. `prices:propose`/`prices:approve`,
 `inventory:adjust-approve` o `inventory:initial-stock`) hay que **volver a ejecutar el seed** en las

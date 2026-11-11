@@ -22,13 +22,10 @@ afterEach(() => app.close());
 
 /** Lo mínimo del seed: catálogo de permisos y roles de sistema Administrador y Vendedor. */
 async function seedRoles() {
-  for (const code of ALL_PERMISSIONS) {
-    await app.prisma.permission.upsert({
-      where: { code },
-      update: {},
-      create: { code, description: PERMISSION_DESCRIPTIONS[code] },
-    });
-  }
+  await app.prisma.permission.createMany({
+    data: ALL_PERMISSIONS.map((code) => ({ code, description: PERMISSION_DESCRIPTIONS[code] })),
+    skipDuplicates: true,
+  });
   const permissions = await app.prisma.permission.findMany();
   const idOf = (code: string) => permissions.find((p) => p.code === code)?.id ?? '';
   const systemRole = (code: 'ADMIN' | 'SELLER') =>
@@ -417,5 +414,65 @@ describe('salvaguardas', () => {
       payload: { roleIds: [auditor.id] },
     });
     expect(ok.statusCode).toBe(200);
+  });
+});
+
+describe('permisos exclusivos del Administrador (cash:correct, sales-incidents:manage, settings:manage)', () => {
+  it('ni siquiera el Administrador los concede a un rol nuevo o a un rol de sistema', async () => {
+    const { admin, seller } = await seedRoles();
+    const { cookie } = await adminSession(admin.id);
+
+    for (const permission of [
+      PERMISSIONS.CASH_CORRECT,
+      PERMISSIONS.SALES_INCIDENTS_MANAGE,
+      PERMISSIONS.SETTINGS_MANAGE,
+    ]) {
+      const created = await createRole(cookie, {
+        name: `Supervisor ${permission}`,
+        permissions: [PERMISSIONS.CASH_READ, permission],
+      });
+      expect(created.statusCode).toBe(422);
+      expect(created.json().error.details).toEqual({ permissions: [permission] });
+
+      const patched = await patchRole(cookie, seller.id, {
+        permissions: [...DEFAULT_ROLE_PERMISSIONS.SELLER.permissions, permission],
+      });
+      expect(patched.statusCode).toBe(422);
+    }
+
+    expect(await app.prisma.role.count({ where: { code: { startsWith: 'CUSTOM_' } } })).toBe(0);
+    expect(await rolePermissions(seller.id)).toEqual(
+      [...DEFAULT_ROLE_PERMISSIONS.SELLER.permissions].sort(),
+    );
+    expect(await app.prisma.auditLog.count({ where: { action: { startsWith: 'role.' } } })).toBe(0);
+
+    // Los demás permisos de ventas y caja sí se asignan por pantalla.
+    const cashier = await createRole(cookie, {
+      name: 'Cajera',
+      permissions: [PERMISSIONS.CASH_READ, PERMISSIONS.CASH_OPEN, PERMISSIONS.CASH_CLOSE],
+    });
+    expect(cashier.statusCode).toBe(201);
+  });
+
+  it('el catálogo de permisos los marca como exclusivos para que la pantalla los deshabilite', async () => {
+    const { admin } = await seedRoles();
+    const { cookie } = await adminSession(admin.id);
+    const res = await app.inject({ method: 'GET', url: `${url}/permissions`, headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    const flags = (
+      res.json().data as { permissions: { code: string; adminOnly: boolean }[] }[]
+    ).flatMap((area) => area.permissions);
+    expect(
+      flags
+        .filter((p) => p.adminOnly)
+        .map((p) => p.code)
+        .sort(),
+    ).toEqual(
+      [
+        PERMISSIONS.CASH_CORRECT,
+        PERMISSIONS.SALES_INCIDENTS_MANAGE,
+        PERMISSIONS.SETTINGS_MANAGE,
+      ].sort(),
+    );
   });
 });

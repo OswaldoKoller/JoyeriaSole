@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ADMIN_ONLY_PERMISSIONS,
   ALL_PERMISSIONS,
   DEFAULT_ROLE_PERMISSIONS,
   PERMISSIONS,
@@ -20,6 +21,7 @@ export const PERMISSION_AREAS = [
   { code: 'catalog', label: 'Catálogo, costos y precios' },
   { code: 'purchases', label: 'Proveedores e ingresos' },
   { code: 'inventory', label: 'Inventario y conteos' },
+  { code: 'sales', label: 'Ventas y caja' },
   { code: 'system', label: 'Auditoría y configuración' },
   { code: 'other', label: 'Otros' },
 ] as const;
@@ -38,6 +40,9 @@ const AREA_BY_RESOURCE: Record<string, PermissionAreaCode> = {
   'inventory-counts': 'inventory',
   audit: 'system',
   settings: 'system',
+  sales: 'sales',
+  cash: 'sales',
+  'sales-incidents': 'sales',
 };
 
 /** Área de un permiso; un recurso nuevo sin mapear cae en «Otros» (nunca se oculta). */
@@ -52,7 +57,11 @@ export function groupPermissions(codes: readonly Permission[] = ALL_PERMISSIONS)
     label: area.label,
     permissions: codes
       .filter((code) => permissionArea(code) === area.code)
-      .map((code) => ({ code, description: PERMISSION_DESCRIPTIONS[code] })),
+      .map((code) => ({
+        code,
+        description: PERMISSION_DESCRIPTIONS[code],
+        adminOnly: ADMIN_ONLY_PERMISSIONS.includes(code),
+      })),
   })).filter((area) => area.permissions.length > 0);
 }
 
@@ -69,6 +78,14 @@ export function lockedPermissionsFor(role: { code: string; isSystem: boolean }):
   const defaults = DEFAULT_ROLE_PERMISSIONS[role.code as RoleCode] as
     (typeof DEFAULT_ROLE_PERMISSIONS)[RoleCode] | undefined;
   return defaults ? [...defaults.permissions] : [];
+}
+
+/**
+ * Permisos exclusivos del Administrador presentes en una lista que se quiere asignar a un rol que NO
+ * es el Administrador (ver `ADMIN_ONLY_PERMISSIONS`). La API rechaza la operación si no está vacía.
+ */
+export function adminOnlyPermissionsIn(codes: readonly string[]): Permission[] {
+  return ADMIN_ONLY_PERMISSIONS.filter((code) => codes.includes(code));
 }
 
 const permissionCodeSchema = z.enum(PERMISSIONS, { error: 'Permiso inexistente' });
@@ -124,7 +141,14 @@ export const permissionCatalogSchema = z.array(
   z.object({
     code: z.string(),
     label: z.string(),
-    permissions: z.array(z.object({ code: z.string(), description: z.string() })),
+    permissions: z.array(
+      z.object({
+        code: z.string(),
+        description: z.string(),
+        /** Exclusivo del Administrador: la pantalla no lo puede conceder a otro rol. */
+        adminOnly: z.boolean(),
+      }),
+    ),
   }),
 );
 

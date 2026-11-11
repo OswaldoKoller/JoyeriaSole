@@ -1,4 +1,5 @@
 import {
+  adminOnlyPermissionsIn,
   groupPermissions,
   lockedPermissionsFor,
   ROLES,
@@ -71,6 +72,21 @@ function slug(name: string) {
   return base.slice(0, CODE_MAX - CUSTOM_PREFIX.length - 4) || 'ROL';
 }
 
+/**
+ * Los permisos exclusivos del Administrador (`cash:correct`, `sales-incidents:manage`,
+ * `settings:manage`) no se conceden a ningún otro rol, ni siquiera por un Administrador: lo decidió
+ * el responsable (R-17, R-09, R-27). El rol Administrador no se edita por pantalla.
+ */
+function assertNoAdminOnly(permissions: readonly string[]) {
+  const forbidden = adminOnlyPermissionsIn(permissions);
+  if (forbidden.length > 0) {
+    throw new BusinessRuleError(
+      `Estos permisos son exclusivos del rol Administrador y no se pueden asignar a otro rol: ${forbidden.join(', ')}`,
+      { permissions: forbidden },
+    );
+  }
+}
+
 export class RolesService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -87,6 +103,7 @@ export class RolesService {
   }
 
   async create(input: CreateRoleInput, request: FastifyRequest) {
+    assertNoAdminOnly(input.permissions);
     this.assertCanGrant(input.permissions, [], request);
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ROLES_LOCK}::bigint)`;
@@ -141,6 +158,7 @@ export class RolesService {
             { permissions: locked },
           );
         }
+        assertNoAdminOnly(next);
         this.assertCanGrant(next, current, request);
         const permissionIds = await this.permissionIds(tx, next);
         await tx.rolePermission.deleteMany({
