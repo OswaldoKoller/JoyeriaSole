@@ -230,6 +230,44 @@ export const router = createBrowserRouter([
               { permissions: [PERMISSIONS.STOCK_ENTRIES_READ] },
             ),
           },
+          // Caja única (E3, plan 11 §5.1).
+          {
+            path: 'caja',
+            element: lazyPage(
+              () => import('../features/cash/cash-page.tsx').then((m) => ({ default: m.CashPage })),
+              { anyPermissions: [PERMISSIONS.CASH_READ, PERMISSIONS.SALES_CREATE] },
+            ),
+          },
+          {
+            path: 'caja/cierre',
+            element: lazyPage(
+              () =>
+                import('../features/cash/cash-close-page.tsx').then((m) => ({
+                  default: m.CashClosePage,
+                })),
+              { permissions: [PERMISSIONS.CASH_CLOSE, PERMISSIONS.CASH_READ] },
+            ),
+          },
+          {
+            path: 'caja/historial',
+            element: lazyPage(
+              () =>
+                import('../features/cash/cash-history-page.tsx').then((m) => ({
+                  default: m.CashHistoryPage,
+                })),
+              { permissions: [PERMISSIONS.CASH_READ] },
+            ),
+          },
+          {
+            path: 'caja/sesiones/:id',
+            element: lazyPage(
+              () =>
+                import('../features/cash/cash-session-page.tsx').then((m) => ({
+                  default: m.CashSessionPage,
+                })),
+              { permissions: [PERMISSIONS.CASH_READ] },
+            ),
+          },
         ],
       },
     ],

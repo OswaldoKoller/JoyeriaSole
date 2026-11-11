@@ -131,7 +131,9 @@ describe('panel lateral', () => {
       expect(within(nav).getByText(name)).toBeVisible();
       expect(within(nav).queryByRole('link', { name })).not.toBeInTheDocument();
     }
-    expect(within(nav).getAllByText('Próximamente').length).toBeGreaterThanOrEqual(3);
+    expect(within(nav).getAllByText('Próximamente').length).toBeGreaterThanOrEqual(2);
+    // Nunca se ofrece «Devoluciones»: una venta confirmada no se revierte (DEC-V07).
+    expect(within(nav).queryByText('Devoluciones')).not.toBeInTheDocument();
     // Los ajustes ya están implementados (ADR-017): es un enlace real, no «Próximamente».
     expect(within(nav).getByRole('link', { name: 'Ajustes' })).toHaveAttribute(
       'href',

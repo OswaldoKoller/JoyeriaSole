@@ -6,7 +6,6 @@ import {
   FilePlus2,
   PackagePlus,
   Receipt,
-  RotateCcw,
   ScrollText,
   ShieldCheck,
   ShoppingCart,
@@ -23,6 +22,7 @@ import {
   Truck,
   UserRound,
   Users,
+  Wallet,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -159,7 +159,8 @@ const GROUPS: Group[] = [
     items: [
       { label: 'Punto de venta', icon: ShoppingCart },
       { label: 'Historial de ventas', icon: Receipt },
-      { label: 'Devoluciones', icon: RotateCcw },
+      // Sin «Devoluciones»: una venta confirmada no se anula ni se revierte (DEC-V07, C9).
+      { label: 'Caja', to: '/caja', icon: Wallet, permission: PERMISSIONS.CASH_READ },
     ],
   },
 ];
