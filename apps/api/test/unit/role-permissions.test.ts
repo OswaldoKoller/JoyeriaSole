@@ -36,6 +36,7 @@ describe('permisos por defecto de los roles', () => {
     for (const permission of [
       PERMISSIONS.USERS_READ,
       PERMISSIONS.USERS_MANAGE,
+      PERMISSIONS.ROLES_READ,
       PERMISSIONS.ROLES_MANAGE,
     ]) {
       expect(has('INVENTORY_MANAGER', permission)).toBe(false);

@@ -9,6 +9,8 @@
 export const PERMISSIONS = {
   USERS_READ: 'users:read',
   USERS_MANAGE: 'users:manage',
+  /** Ver roles, sus permisos y cuántos usuarios los tienen (P-46). Solo el Administrador. */
+  ROLES_READ: 'roles:read',
   ROLES_MANAGE: 'roles:manage',
 
   CATALOG_READ: 'catalog:read',
@@ -58,6 +60,7 @@ export const ALL_PERMISSIONS: readonly Permission[] = Object.values(PERMISSIONS)
 export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'users:read': 'Ver usuarios',
   'users:manage': 'Crear, editar y desactivar usuarios',
+  'roles:read': 'Ver roles y sus permisos',
   'roles:manage': 'Administrar roles y sus permisos',
   'catalog:read': 'Ver catálogo (categorías, atributos, productos, variantes)',
   'catalog:manage': 'Crear y editar catálogo',
@@ -95,9 +98,11 @@ export type RoleCode = (typeof ROLES)[keyof typeof ROLES];
  *
  * Respuestas del cliente (2026-10-09): vendedor sin costos (P-02), responsable de almacén
  * puede aprobar sus propios conteos físicos (P-01 parcial). Reunión 2026-11-05 (Q-01 B): los
- * ajustes manuales los solicita el responsable y solo los aprueba el administrador.
+ * ajustes manuales se solicitan y luego se aprueban; regla posterior del 2026-11-05: los aprueban el
+ * Administrador y el Responsable de inventario.
  * Conteo físico (E6/Q-01 B, ADR-021): el Responsable también aprueba los conteos.
- * Solo se usa en el seed inicial; luego los roles se administran en base de datos.
+ * Solo se usa en el seed; luego los roles se administran en base de datos y en la pantalla «Roles»
+ * (P-46). El seed solo AGREGA a los roles de sistema los permisos que les falten (nunca quita).
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<
   RoleCode,

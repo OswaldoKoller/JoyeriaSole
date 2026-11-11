@@ -12,6 +12,7 @@ export * from './reference-types.ts';
 export * from './schemas/auth.ts';
 export * from './schemas/suppliers.ts';
 export * from './schemas/users.ts';
+export * from './schemas/roles.ts';
 export * from './schemas/categories.ts';
 export * from './schemas/attributes.ts';
 export * from './schemas/products.ts';

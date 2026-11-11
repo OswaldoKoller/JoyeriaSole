@@ -301,4 +301,12 @@ Cuando se agregan o reasignan permisos (p. ej. `prices:propose`/`prices:approve`
 `inventory:adjust-approve` o `inventory:initial-stock`) hay que **volver a ejecutar el seed** en las
 bases existentes. Desde la regla de autorización compartida (2026-11-05) el Responsable de inventario
 también tiene `inventory:adjust-approve`, `prices:approve` e `inventory:initial-stock`; en bases ya
-sembradas se le asignan al volver a ejecutar el seed o desde la pantalla de roles.
+sembradas se le asignan al volver a ejecutar el seed o desde la pantalla «Roles».
+
+Seed y pantalla «Roles» (P-46): el seed solo actualiza los tres roles de sistema (`ADMIN`,
+`INVENTORY_MANAGER`, `SELLER`): restablece nombre, descripción e `is_system` y **agrega** los permisos
+base que falten, sin quitar ninguno. Los roles creados por pantalla llevan código `CUSTOM_*` y el seed
+no los toca. En los roles de sistema la pantalla no cambia nombre ni descripción ni quita permisos base,
+de modo que volver a ejecutar el seed no deshace nada hecho por pantalla. Un rol solo se elimina
+físicamente si no tiene usuarios (`user_roles`, `ON DELETE RESTRICT`); su rastro queda en `audit_logs`.
+Sin cambios en el modelo.

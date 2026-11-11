@@ -80,6 +80,20 @@ describe('panel lateral', () => {
     );
   });
 
+  it('Roles aparece solo con roles:read (P-46)', async () => {
+    mockUser(['users:read', 'catalog:read']);
+    const { unmount } = renderWithProviders(<AppShell />);
+    const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
+    await within(nav).findByRole('link', { name: 'Usuarios' });
+    expect(within(nav).queryByRole('link', { name: 'Roles' })).not.toBeInTheDocument();
+    unmount();
+
+    vi.restoreAllMocks();
+    mockUser(['roles:read']);
+    renderWithProviders(<AppShell />);
+    expect(await screen.findByRole('link', { name: 'Roles' })).toHaveAttribute('href', '/roles');
+  });
+
   it('abre y cierra el cajón móvil con teclado', async () => {
     mockUser([]);
     renderWithProviders(<AppShell />);

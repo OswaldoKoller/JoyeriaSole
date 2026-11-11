@@ -8,6 +8,7 @@ import {
   Receipt,
   RotateCcw,
   ScrollText,
+  ShieldCheck,
   ShoppingCart,
   Wrench,
   FolderTree,
@@ -143,6 +144,7 @@ const GROUPS: Group[] = [
     label: 'Acceso',
     items: [
       { label: 'Usuarios', to: '/usuarios', icon: Users, permission: PERMISSIONS.USERS_READ },
+      { label: 'Roles', to: '/roles', icon: ShieldCheck, permission: PERMISSIONS.ROLES_READ },
       {
         label: 'Auditoría',
         to: '/auditoria',

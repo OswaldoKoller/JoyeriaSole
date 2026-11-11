@@ -45,6 +45,14 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: 'roles',
+            element: lazyPage(
+              () =>
+                import('../features/roles/roles-page.tsx').then((m) => ({ default: m.RolesPage })),
+              { permissions: [PERMISSIONS.ROLES_READ] },
+            ),
+          },
+          {
             path: 'categorias',
             element: lazyPage(
               () =>
