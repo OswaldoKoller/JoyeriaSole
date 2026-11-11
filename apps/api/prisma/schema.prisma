@@ -1339,6 +1339,8 @@ model SaleIncident {
   resolvedBy User? @relation("SaleIncidentResolvedBy", fields: [resolvedById], references: [id], onDelete: Restrict)
 
   @@index([status, reportedAt])
+  /// Listado sin filtro de estado, ordenado por fecha (B-6, migración 20261111010000).
+  @@index([reportedAt])
   @@index([saleId])
   @@index([reportedById])
   @@index([resolvedById])

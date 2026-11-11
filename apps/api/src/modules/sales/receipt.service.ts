@@ -1,4 +1,5 @@
 import {
+  receiptPrintEventSchema,
   SALE_CURRENCY,
   type ReceiptPrintEvent,
   type ReceiptPrintInput,
@@ -6,8 +7,10 @@ import {
 } from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import { NotFoundError } from '../../lib/errors.ts';
+import { idempotentTransaction } from '../../lib/idempotency.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
+import { idempotencyOf } from '../../plugins/idempotency.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { readBusinessSettings } from '../settings/business-settings.service.ts';
 import type { SalesService } from './sales.service.ts';
@@ -77,6 +80,8 @@ export class ReceiptService {
    * V6 · Registra una solicitud de impresión. Bloquea SOLO la fila de la venta (FOR UPDATE no la
    * modifica, el trigger de inmutabilidad no se dispara) para numerar las copias sin huecos ni
    * repetidos; la primera es el original y desde la segunda se marca «COPIA» (D-19).
+   * Acepta `Idempotency-Key` OPCIONAL (B-5): con la misma clave, un doble clic o un reintento de red
+   * devuelve el mismo evento en vez de registrar una «COPIA» falsa. La web debe enviarla siempre.
    */
   async print(
     id: string,
@@ -84,7 +89,11 @@ export class ReceiptService {
     request: FastifyRequest,
   ): Promise<ReceiptPrintEvent> {
     const { user } = getAuth(request);
-    return this.prisma.$transaction(async (tx) => {
+    const idempotency = {
+      context: idempotencyOf(request),
+      responseSchema: receiptPrintEventSchema,
+    };
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       await this.sales.assertVisible(tx, id, request);
       await tx.$queryRaw`SELECT id FROM sales WHERE id = ${id}::uuid FOR UPDATE`;
       const last = await tx.saleReceiptPrint.aggregate({

@@ -7,6 +7,7 @@ import {
 } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { idempotencyHeadersSchema } from '../../plugins/idempotency.ts';
 import { ReceiptService } from './receipt.service.ts';
 import { SalesService } from './sales.service.ts';
 
@@ -35,14 +36,19 @@ export const receiptRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       preValidation: canRead,
       schema: {
+        headers: idempotencyHeadersSchema,
         params: saleIdParamsSchema,
         body: receiptPrintInputSchema,
-        response: { 201: z.strictObject({ data: receiptPrintEventSchema }) },
+        response: {
+          200: z.strictObject({ data: receiptPrintEventSchema }),
+          201: z.strictObject({ data: receiptPrintEventSchema }),
+        },
       },
     },
-    async (request, reply) =>
-      reply
-        .status(201)
-        .send({ data: await service.print(request.params.id, request.body, request) }),
+    async (request, reply) => {
+      const data = await service.print(request.params.id, request.body, request);
+      // Con Idempotency-Key repetida: el mismo evento, 200 + Idempotent-Replay (B-5).
+      return reply.status(request.idempotentReplay ? 200 : 201).send({ data });
+    },
   );
 };

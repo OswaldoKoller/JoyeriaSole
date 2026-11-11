@@ -1,4 +1,10 @@
-import type { AuthUser, Permission, RoleCode } from '@joyeria/shared';
+import {
+  isAdminOnlyPermission,
+  ROLES,
+  type AuthUser,
+  type Permission,
+  type RoleCode,
+} from '@joyeria/shared';
 import type { FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
 import fp from 'fastify-plugin';
 import type { Env } from '../config/env.ts';
@@ -99,6 +105,12 @@ export async function loadSessionUser(
     await prisma.session.update({ where: { id: row.session_id }, data: { lastSeenAt: now } });
   }
 
+  // Defensa en profundidad (B-1): los permisos exclusivos del Administrador solo son efectivos con
+  // el rol ADMIN. Una concesión anterior a la protección de la pantalla de roles, o hecha por SQL, no
+  // sirve. No se borra nada de role_permissions: solo se ignora al calcular los permisos efectivos.
+  const isAdmin = row.roles.includes(ROLES.ADMIN);
+  const permissions = row.permissions.filter((code) => isAdmin || !isAdminOnlyPermission(code));
+
   return {
     sessionId: row.session_id,
     user: {
@@ -106,7 +118,7 @@ export async function loadSessionUser(
       email: row.email,
       name: row.name,
       roles: [...row.roles].sort() as RoleCode[],
-      permissions: [...row.permissions].sort() as Permission[],
+      permissions: [...permissions].sort() as Permission[],
       mustChangePassword: row.must_change_password,
     },
   };

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  INT32_MAX,
   PAYMENT_METHOD_CODES,
   PAYMENT_REFERENCE_MAX_LENGTH,
   RECEIPT_FORMATS,
@@ -103,7 +104,7 @@ export const saleListQuerySchema = z.strictObject({
   /** Día de venta (calendario de La Paz), ambos extremos incluidos. */
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
-  number: z.coerce.number().int().min(1).optional(),
+  number: z.coerce.number().int().min(1).max(INT32_MAX).optional(),
   /** Solo con `sales:read-all`; sin ese permiso siempre se filtran las ventas propias. */
   sellerId: z.uuid().optional(),
   cashSessionId: z.uuid().optional(),

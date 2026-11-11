@@ -82,6 +82,16 @@ No existe ningún permiso de anulación, devolución, edición de ventas, reaper
 (DEC-V07); una guarda estática lo verifica. Ninguna respuesta de ventas contiene costos, para ningún
 rol. La venta ajena (sin `sales:read-all`) responde `404`, no `403`, para no revelar que existe.
 
+**Defensa en profundidad (B-1):** esos permisos solo son **efectivos con el rol `ADMIN`**. Al cargar
+la sesión (`loadSessionUser`) se descartan para cualquier usuario sin ese rol, aunque una fila de
+`role_permissions` los conceda (asignación anterior a la protección o hecha por SQL); la fila no se
+borra. Rige para `requirePermission`, `requireAnyPermission`, `/auth/me` y toda comprobación interna.
+
+**Kardex y ventas ajenas (M-1, sigue a D-02):** `GET /inventory/movements` y
+`GET /inventory/:variantId/movements` (permiso `inventory:read`, que tiene el Vendedor) devuelven
+`userId: null` en los movimientos `SALE` de otro vendedor a quien no tiene `sales:read-all`. El
+movimiento sigue visible (el saldo debe cuadrar), pero no permite reconstruir ventas ajenas.
+
 **Permisos exclusivos del Administrador frente a la pantalla «Roles»:** `cash:correct`,
 `sales-incidents:manage` y `settings:manage` (`ADMIN_ONLY_PERMISSIONS`) **no se pueden conceder a
 ningún otro rol**, ni siquiera por un Administrador: la API responde `422` con la lista

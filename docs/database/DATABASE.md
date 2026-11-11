@@ -176,6 +176,8 @@ Definidas en la migración inicial (SQL) y en las migraciones posteriores, adem�
     cantidad negada, documento `SALE` de la misma venta y mismo costo unitario).
   - CHECK: `total > 0`, `line_total = quantity × unit_price`, importes > 0, vuelto solo en efectivo y
     `tendered = amount + change_given`, referencia solo fuera del efectivo, hash `^[0-9a-f]{64}$`.
+    `sale_payments_cash_fields_check` se reemplazó en `20261111010000_sales_security_hardening` (B-3):
+    en efectivo, recibido y vuelto son ambos no nulos; fuera del efectivo, ambos nulos.
   - `cash_sessions_single_open_idx`: índice único parcial `(status) WHERE status = 'OPEN'` → **una sola
     sesión abierta**. CHECK de estado coherente (cerrada ⇔ todos los datos de cierre), fondo y contado
     ≥ 0, `cash_movements_net = 0`, `expected_cash = opening_amount + cash_sales_total + cash_movements_net`,
@@ -188,7 +190,11 @@ Definidas en la migración inicial (SQL) y en las migraciones posteriores, adem�
     vigente, `sequence` = última + 1 y cifras «después» recalculadas con los cobros congelados (AE-4).
     CHECK: `NOTE` ⇔ sin valores, valor nuevo ≥ 0 y distinto del anterior, motivo ≥ 10 caracteres.
   - `sale_incidents_guard`: sin `DELETE`; `UPDATE` solo `OPEN → CLOSED` cambiando únicamente estado,
-    resolución, quién y cuándo.
+    resolución, quién y cuándo; desde `20261111010000` también `INSERT`: nace `OPEN` y sin datos de
+    cierre (B-7). Índice `sale_incidents_reported_at_idx` para el listado sin filtro de estado (B-6).
+  - Límite técnico de importes de entrada (Bs 99 999 999,99, `MONEY_INPUT_MAX`) en la API: no es regla
+    de negocio; evita desbordar `numeric(12,2)` al sumar fondo y cobros. Un desbordamiento residual
+    (SQLSTATE 22003) responde 422, no 500.
   - `business_settings`: `CHECK (id = 1)` y nombre comercial no vacío.
 
 Estas garantías están cubiertas por `apps/api/test/integration/database-integrity.test.ts` y, las de

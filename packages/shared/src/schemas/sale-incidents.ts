@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { SALE_INCIDENT_TEXT_MAX_LENGTH, SALE_INCIDENT_TEXT_MIN_LENGTH } from '../sales.ts';
+import {
+  INT32_MAX,
+  SALE_INCIDENT_TEXT_MAX_LENGTH,
+  SALE_INCIDENT_TEXT_MIN_LENGTH,
+} from '../sales.ts';
 import { pageQueryShape, userRefSchema } from './money.ts';
 
 /**
@@ -29,7 +33,7 @@ export const createSaleIncidentSchema = z.strictObject({
   kind: z.enum(SALE_INCIDENT_KINDS),
   description: incidentText('la descripción'),
   /** Número de la venta (entero de `VTA-000123`); opcional si no se conoce. */
-  saleNumber: z.number().int().min(1).optional(),
+  saleNumber: z.number().int().min(1).max(INT32_MAX).optional(),
 });
 
 export const closeSaleIncidentSchema = z.strictObject({

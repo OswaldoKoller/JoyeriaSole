@@ -484,3 +484,73 @@ describe('sin rutas de anulación ni edición (DEC-V07)', () => {
     );
   });
 });
+
+describe('endurecimiento tras la revisión de seguridad', () => {
+  it('M-1: el kardex no revela quién hizo las ventas ajenas a quien no tiene sales:read-all', async () => {
+    const sellerA = await sessionWith(SELLER);
+    const sellerB = await sessionWith(SELLER);
+    const manager = await sessionWith(MANAGER);
+    await openCash(manager.cookie);
+    const variant = await createSellableVariant(app.prisma, { stock: 5, userId: manager.user.id });
+    expect((await sell(sellerA.cookie, cashSale(variant.id))).statusCode).toBe(201);
+    expect((await sell(sellerB.cookie, cashSale(variant.id))).statusCode).toBe(201);
+
+    type Movement = { type: string; userId: string | null; quantity: number };
+    const authors = async (cookie: string) => {
+      const perVariant = (await get(`/api/v1/inventory/${variant.id}/movements`, cookie)).json()
+        .data as Movement[];
+      const global = (await get('/api/v1/inventory/movements', cookie)).json().data as Movement[];
+      return { perVariant, global };
+    };
+
+    // Vendedor A: ve su venta con su autor, la de B sin autor; el stock inicial conserva su autor.
+    for (const list of Object.values(await authors(sellerA.cookie))) {
+      const sales = list.filter((m) => m.type === 'SALE');
+      expect(sales).toHaveLength(2);
+      expect(sales.map((m) => m.userId).sort()).toEqual([null, sellerA.user.id].sort());
+      expect(list.find((m) => m.type === 'INITIAL_STOCK')?.userId).toBe(manager.user.id);
+      // El movimiento sigue visible: el saldo cuadra.
+      expect(sales.reduce((sum, m) => sum + m.quantity, 0)).toBe(-2);
+    }
+    // Quien ve todas las ventas ve todos los autores.
+    for (const list of Object.values(await authors(manager.cookie))) {
+      expect(
+        list
+          .filter((m) => m.type === 'SALE')
+          .map((m) => m.userId)
+          .sort(),
+      ).toEqual([sellerA.user.id, sellerB.user.id].sort());
+    }
+  });
+
+  it('B-4: enteros fuera de rango y páginas absurdas responden 400, no 500', async () => {
+    const manager = await sessionWith(MANAGER);
+    for (const query of ['number=2147483648', 'page=10001', 'page=99999999999']) {
+      const res = await get(`${SALES}?${query}`, manager.cookie);
+      expect(res.statusCode, query).toBe(400);
+    }
+    expect((await get(`${SALES}?number=2147483647`, manager.cookie)).statusCode).toBe(200);
+    expect((await get('/api/v1/cash/sessions?page=10001', manager.cookie)).statusCode).toBe(400);
+    const incident = await app.inject({
+      method: 'POST',
+      url: '/api/v1/sale-incidents',
+      headers: { cookie: manager.cookie, 'idempotency-key': randomUUID() },
+      payload: {
+        kind: 'OTHER',
+        description: 'Número de venta fuera de rango',
+        saleNumber: 2147483648,
+      },
+    });
+    expect(incident.statusCode).toBe(400);
+  });
+
+  it('B-2: importes por encima del límite técnico responden 400 sin registrar nada', async () => {
+    const seller = await sessionWith(SELLER);
+    const manager = await sessionWith(MANAGER);
+    await openCash(manager.cookie);
+    const variant = await createSellableVariant(app.prisma, { stock: 2 });
+    const res = await sell(seller.cookie, cashSale(variant.id, 1, '150.00', '100000000.00'));
+    expect(res.statusCode).toBe(400);
+    expect(await app.prisma.sale.count()).toBe(0);
+  });
+});

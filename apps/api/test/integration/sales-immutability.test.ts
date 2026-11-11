@@ -447,4 +447,44 @@ describe('garantías de la base de datos de ventas y caja', () => {
       ).rejects.toThrow(/business_settings_singleton_check/);
     });
   });
+
+  describe('endurecimiento tras la revisión de seguridad', () => {
+    it('B-3: un pago QR no admite efectivo recibido aunque el vuelto sea nulo', async () => {
+      const { saleId } = await confirmedSale();
+      await expect(
+        app.prisma.$executeRaw`
+          INSERT INTO sale_payments (id, sale_id, method_id, method_is_cash, method_name, amount, tendered_amount, change_given)
+          VALUES (uuidv7(), ${saleId}::uuid, ${qrMethodId}::uuid, false, 'QR', 1, 1, NULL)`,
+      ).rejects.toThrow(/sale_payments_cash_fields_check/);
+      await expect(
+        app.prisma.$executeRaw`
+          INSERT INTO sale_payments (id, sale_id, method_id, method_is_cash, method_name, amount, tendered_amount, change_given)
+          VALUES (uuidv7(), ${saleId}::uuid, ${qrMethodId}::uuid, false, 'QR', 1, NULL, 0)`,
+      ).rejects.toThrow(/sale_payments_cash_fields_check/);
+    });
+
+    it('B-7: una incidencia no se puede insertar ya cerrada ni con datos de cierre', async () => {
+      for (const values of [
+        { status: 'CLOSED', resolution: 'Resuelta fuera del sistema', by: userId },
+        { status: 'OPEN', resolution: 'Resuelta fuera del sistema', by: null },
+      ]) {
+        await expect(
+          app.prisma.$executeRaw`
+            INSERT INTO sale_incidents (id, kind, description, status, reported_by_id, resolution,
+              resolved_by_id, resolved_at, client_request_id)
+            VALUES (uuidv7(), 'OTHER', 'Incidencia insertada por SQL', ${values.status}::sale_incident_status,
+              ${userId}::uuid, ${values.resolution}, ${values.by}::uuid,
+              ${values.by ? new Date() : null}::timestamptz, ${randomUUID()}::uuid)`,
+        ).rejects.toThrow(/se registra abierta/);
+      }
+      expect(await app.prisma.saleIncident.count()).toBe(0);
+    });
+
+    it('B-6: existe el índice por fecha de reporte de las incidencias', async () => {
+      const [row] = await app.prisma.$queryRaw<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM pg_indexes
+        WHERE tablename = 'sale_incidents' AND indexname = 'sale_incidents_reported_at_idx'`;
+      expect(row?.count).toBe(1);
+    });
+  });
 });

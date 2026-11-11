@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/app.ts';
 import { buildTestApp, login } from '../helpers/app.ts';
 import { createTestUser, resetDatabase } from '../helpers/db.ts';
+import { isNumericOverflowError } from '../../src/plugins/error-handler.ts';
 import { createSellableVariant, insertSaleDirect, seedPaymentMethods } from '../helpers/sales.ts';
 
 const BASE = '/api/v1/cash';
@@ -418,5 +419,46 @@ describe('cierre con arqueo', () => {
     expect(
       (await app.prisma.cashSession.findUniqueOrThrow({ where: { id: session.id } })).status,
     ).toBe('OPEN');
+  });
+});
+
+describe('límite técnico de importes (B-2)', () => {
+  it('fondo, contado y valor corregido por encima de Bs 99 999 999,99 responden 400', async () => {
+    const admin = await sessionWith([...ALL_PERMISSIONS]);
+    expect((await post('/sessions', admin.cookie, { openingAmount: '100000000' })).statusCode).toBe(
+      400,
+    );
+    const session = await openSession(admin.cookie, '99999999.99');
+    expect(
+      (await post(`/sessions/${session.id}/close`, admin.cookie, { countedCash: '100000000.00' }))
+        .statusCode,
+    ).toBe(400);
+    const closed = await post(`/sessions/${session.id}/close`, admin.cookie, {
+      countedCash: '99999999.99',
+    });
+    expect(closed.statusCode).toBe(200);
+    const correction = await post(`/sessions/${session.id}/corrections`, admin.cookie, {
+      kind: 'COUNTED_CASH',
+      expectedPreviousValue: '99999999.99',
+      newValue: '100000000',
+      reason: 'Corrección por encima del límite técnico',
+    });
+    expect(correction.statusCode).toBe(400);
+  });
+
+  it('un importe que no cabe en la columna se reconoce como desbordamiento (422, no 500)', async () => {
+    const { user } = await sessionWith(
+      DEFAULT_ROLE_PERMISSIONS.INVENTORY_MANAGER.permissions.slice(),
+    );
+    const error = await app.prisma.cashSession
+      .create({
+        data: { openedById: user.id, openingAmount: '99999999999', openRequestId: randomUUID() },
+      })
+      .then(
+        () => null,
+        (caught: unknown) => caught,
+      );
+    expect(error).not.toBeNull();
+    expect(isNumericOverflowError(error)).toBe(true);
   });
 });

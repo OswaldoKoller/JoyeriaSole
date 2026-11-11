@@ -122,6 +122,20 @@ export function formatIncidentNumber(value: number): string {
 /** Importe en Bs como texto con hasta 2 decimales, sin signo: «0», «12.5», «1500.00». */
 export const MONEY_PATTERN = /^(0|[1-9]\d{0,9})(?:\.\d{1,2})?$/;
 
+/**
+ * LÍMITE TÉCNICO (no regla de negocio) de todo importe que llega a ventas y caja: Bs 99 999 999,99.
+ * Las columnas son `numeric(12,2)` (máximo 9 999 999 999,99); con este tope, fondo + cobros de una
+ * sesión no desbordan salvo con más de cien ventas del importe máximo, y un cierre no queda bloqueado.
+ * D-05 («sin tope de negocio» para el fondo) sigue vigente: esto solo protege la base.
+ */
+export const MONEY_INPUT_MAX = '99999999.99';
+
+/** LÍMITE TÉCNICO de los enteros que llegan a la API (columna `integer` de PostgreSQL). */
+export const INT32_MAX = 2_147_483_647;
+
+/** LÍMITE TÉCNICO de la página de un listado (evita desplazamientos absurdos). */
+export const PAGE_MAX = 10_000;
+
 /** Total de una línea en centavos: cantidad × precio unitario. */
 export function lineTotalCents(quantity: number, unitPrice: string): bigint {
   return BigInt(quantity) * parseMoney(unitPrice);

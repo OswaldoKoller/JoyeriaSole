@@ -42,6 +42,24 @@ export function isTransientDatabaseError(error: unknown): boolean {
   );
 }
 
+/** SQLSTATE numeric_value_out_of_range: un importe no cabe en su columna `numeric`. */
+const NUMERIC_OVERFLOW_SQLSTATE = '22003';
+
+/**
+ * Desbordamiento numérico de la base (P2020 de Prisma o SQLSTATE 22003, directo, en `meta` o en la
+ * causa del adaptador). No es un fallo técnico del servidor: el dato excede un límite técnico, así
+ * que se responde 422 con un mensaje claro en lugar de un 500 (B-2).
+ */
+export function isNumericOverflowError(error: unknown): boolean {
+  const record = asRecord(error);
+  if (!record) return false;
+  if (record.code === 'P2020' || record.code === NUMERIC_OVERFLOW_SQLSTATE) return true;
+  const meta = asRecord(record.meta);
+  if (meta?.code === NUMERIC_OVERFLOW_SQLSTATE) return true;
+  const cause = asRecord(asRecord(meta?.driverAdapterError)?.cause);
+  return cause?.originalCode === NUMERIC_OVERFLOW_SQLSTATE || cause?.kind === 'ValueOutOfRange';
+}
+
 /**
  * Manejo centralizado de errores. Garantiza:
  *   - Formato único: { error: { code, message, details?, requestId } }.
@@ -83,6 +101,15 @@ export const errorHandlerPlugin = fp(
           code: ERROR_CODES.SERVICE_UNAVAILABLE,
           message:
             'El sistema está ocupado procesando otra operación. Espere unos segundos y vuelva a intentarlo.',
+        });
+      }
+
+      if (isNumericOverflowError(error)) {
+        request.log.warn({ err: error }, 'Importe fuera del rango de la base');
+        return send(422, {
+          code: ERROR_CODES.BUSINESS_RULE_VIOLATION,
+          message:
+            'Un importe supera el máximo que el sistema puede registrar. Revise las cifras ingresadas.',
         });
       }
 

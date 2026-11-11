@@ -178,4 +178,26 @@ describe('comprobante interno', () => {
     // Quien ve todas las ventas sí accede.
     expect((await receipt(admin.cookie)).statusCode).toBe(200);
   });
+
+  it('B-5: con la misma Idempotency-Key un doble clic no registra una COPIA falsa', async () => {
+    const key = randomUUID();
+    const send = () =>
+      app.inject({
+        method: 'POST',
+        url: `/api/v1/sales/${saleId}/receipt/print-events`,
+        headers: { cookie: seller.cookie, 'idempotency-key': key },
+        payload: { format: 'A4' },
+      });
+    const [a, b] = await Promise.all([send(), send()]);
+    expect([a.statusCode, b.statusCode].sort()).toEqual([200, 201]);
+    expect(a.json().data).toEqual(b.json().data);
+    expect(a.json().data).toMatchObject({ copyNumber: 1, isCopy: false });
+    expect(await app.prisma.saleReceiptPrint.count()).toBe(1);
+    expect(await app.prisma.auditLog.count({ where: { action: 'sale.receipt_printed' } })).toBe(1);
+    // Con otra clave (otra impresión real) sí es una copia.
+    expect((await printEvent(seller.cookie)).json().data).toMatchObject({
+      copyNumber: 2,
+      isCopy: true,
+    });
+  });
 });

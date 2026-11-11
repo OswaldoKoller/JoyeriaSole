@@ -563,7 +563,13 @@ Contrato para la web (todos los esquemas se exportan desde `@joyeria/shared`):
 
 - Esquemas **estrictos**: una clave no prevista en el cuerpo, la consulta o los parámetros es `400`.
 - Dinero como `string` con 2 decimales (`"150.00"`; diferencias con signo: `"-0.50"`). En la entrada,
-  `"0"`, `"12.5"` o `"150.50"` (punto decimal, hasta 2 decimales; vacío **no** es cero).
+  `"0"`, `"12.5"` o `"150.50"` (punto decimal, hasta 2 decimales; vacío **no** es cero). **Límite
+  técnico** de todo importe de entrada: `MONEY_INPUT_MAX` = Bs 99 999 999,99 (`400` si se supera). No es
+  una regla de negocio (D-05 «sin tope» sigue vigente): evita que fondo + cobros desborden la columna
+  `numeric(12,2)` y dejen una caja sin poder cerrarse. Si aun así un importe no cabe en la base, la API
+  responde `422 BUSINESS_RULE_VIOLATION` («supera el máximo que el sistema puede registrar»), nunca 500.
+- Enteros de consulta y cuerpo (`number`, `saleNumber`) hasta 2 147 483 647 y `page` hasta 10 000
+  (`400` si se superan).
 - Fechas ISO en UTC. Filtros `from`/`to` = días calendario de La Paz (`AAAA-MM-DD`), inclusivos.
 - Números para mostrar: `formatSaleNumber(n)` → `VTA-000001`, `formatCashSessionNumber(n)` →
   `CAJ-000001`, `formatIncidentNumber(n)` → `INC-000001` (valores por defecto D-03 y D-17).
@@ -683,10 +689,10 @@ carrito; ante `CASH_SESSION_REQUIRED`, conservar carrito y clave.
 
 ### Comprobante interno (`/sales/:id/receipt`)
 
-| #   | Método y ruta                          | Permiso                    | Clave | Cuerpo                                                               | Respuesta                                         | Errores              |
-| --- | -------------------------------------- | -------------------------- | ----- | -------------------------------------------------------------------- | ------------------------------------------------- | -------------------- |
-| V5  | `GET /sales/:id/receipt`               | igual que `GET /sales/:id` | no    | —                                                                    | `200 { data: saleReceipt }`                       | `404`                |
-| V6  | `POST /sales/:id/receipt/print-events` | igual que `GET /sales/:id` | no    | `receiptPrintInputSchema`: `{ format }` (`58mm`, `80mm`, `A5`, `A4`) | `201 { data: { copyNumber, isCopy, printedAt } }` | `404`; `400` formato |
+| #   | Método y ruta                          | Permiso                    | Clave                               | Cuerpo                                                               | Respuesta                                         | Errores              |
+| --- | -------------------------------------- | -------------------------- | ----------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------- | -------------------- |
+| V5  | `GET /sales/:id/receipt`               | igual que `GET /sales/:id` | no                                  | —                                                                    | `200 { data: saleReceipt }`                       | `404`                |
+| V6  | `POST /sales/:id/receipt/print-events` | igual que `GET /sales/:id` | opcional (la web **debe** enviarla) | `receiptPrintInputSchema`: `{ format }` (`58mm`, `80mm`, `A5`, `A4`) | `201 { data: { copyNumber, isCopy, printedAt } }` | `404`; `400` formato |
 
 - `saleReceipt` (`saleReceiptSchema`): `saleId`, `number`, `soldAt`, `currency: 'BOB'`,
   `items [{ sku, productName, variantLabel, quantity, unitPrice, lineTotal }]`, `total`,
@@ -697,6 +703,10 @@ carrito; ante `CASH_SESSION_REQUIRED`, conservar carrito y clave.
 - Leyendas y formatos para la web (`@joyeria/shared`): `RECEIPT_TITLE` («Comprobante interno»),
   `RECEIPT_NOT_FISCAL_LEGEND` («No válido como factura fiscal»), `RECEIPT_COPY_LEGEND` («COPIA»),
   `RECEIPT_FORMATS`, `DEFAULT_RECEIPT_FORMAT` (`A4`).
+- `print-events` acepta `Idempotency-Key` **opcional**, y el cliente web **debe enviarla siempre**
+  (una por pulsación de «Imprimir», reutilizada en reintentos): con la misma clave, un doble clic o un
+  reintento de red devuelve el mismo evento (`200` + `Idempotent-Replay: true`) en vez de registrar una
+  «COPIA» falsa. Sin clave, cada llamada registra una impresión más.
 - `print-events` registra la **solicitud** de impresión (append-only) y la audita
   (`sale.receipt_printed` con `{ format, copyNumber }`). La primera es el original (`isCopy: false`); desde
   la segunda, `isCopy: true` → imprimir «COPIA». Llamarlo **antes** de `window.print()`; si falla, no

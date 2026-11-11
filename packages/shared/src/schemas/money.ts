@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { parseMoney } from '../costing.ts';
-import { MONEY_PATTERN } from '../sales.ts';
+import { MONEY_INPUT_MAX, MONEY_PATTERN, PAGE_MAX } from '../sales.ts';
 
 /**
  * Importe en Bs como texto: «0», «12.5», «1500.00» (hasta 10 enteros y 2 decimales, punto decimal).
@@ -9,7 +9,12 @@ import { MONEY_PATTERN } from '../sales.ts';
 export const moneyInputSchema = z
   .string({ error: 'Indique un importe' })
   .trim()
-  .regex(MONEY_PATTERN, 'Importe inválido: use números con hasta 2 decimales (p. ej. 150.50)');
+  .regex(MONEY_PATTERN, 'Importe inválido: use números con hasta 2 decimales (p. ej. 150.50)')
+  // Límite técnico (no de negocio): ver MONEY_INPUT_MAX.
+  .refine(
+    (value) => !MONEY_PATTERN.test(value) || parseMoney(value) <= parseMoney(MONEY_INPUT_MAX),
+    'El importe supera el máximo que el sistema puede registrar (Bs 99 999 999,99)',
+  );
 
 /** Importe estrictamente mayor que cero. */
 export const positiveMoneyInputSchema = moneyInputSchema.refine(
@@ -34,7 +39,7 @@ export function optionalText(max: number, message: string) {
 
 /** Página y tamaño de página de los listados. */
 export const pageQueryShape = {
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(PAGE_MAX).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 };
 

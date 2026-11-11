@@ -8,7 +8,7 @@ import type { FastifyRequest } from 'fastify';
 import { Prisma } from '../../generated/prisma/client.ts';
 import { BusinessRuleError, NotFoundError } from '../../lib/errors.ts';
 import { idempotentTransaction } from '../../lib/idempotency.ts';
-import { canSeeMovementNotes } from '../../lib/permissions.ts';
+import { canSeeMovementNotes, movementAuthorFor } from '../../lib/permissions.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { idempotencyOf } from '../../plugins/idempotency.ts';
@@ -111,6 +111,7 @@ export class InventoryService {
     request: FastifyRequest,
   ) {
     const withNotes = canSeeMovementNotes(request);
+    const authorOf = movementAuthorFor(request);
     const variant = await this.prisma.productVariant.findUnique({ where: { id: variantId } });
     if (!variant) throw new NotFoundError('Variante no encontrada');
     const [rows, total] = await this.prisma.$transaction([
@@ -131,7 +132,7 @@ export class InventoryService {
         balanceAfter: row.balanceAfter,
         reason: row.reason,
         notes: withNotes ? row.notes : null,
-        userId: row.userId,
+        userId: authorOf(row),
         createdAt: row.createdAt.toISOString(),
       })),
       meta: { page: input.page, pageSize: input.pageSize, total },
@@ -141,6 +142,7 @@ export class InventoryService {
   /** Historial global (más reciente primero, por `id`; ver `movements`). */
   async allMovements(input: { page: number; pageSize: number }, request: FastifyRequest) {
     const withNotes = canSeeMovementNotes(request);
+    const authorOf = movementAuthorFor(request);
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.inventoryMovement.findMany({
         include: { variant: { include: { product: true } } },
@@ -163,7 +165,7 @@ export class InventoryService {
         balanceAfter: row.balanceAfter,
         reason: row.reason,
         notes: withNotes ? row.notes : null,
-        userId: row.userId,
+        userId: authorOf(row),
         createdAt: row.createdAt.toISOString(),
       })),
       meta: { page: input.page, pageSize: input.pageSize, total },
