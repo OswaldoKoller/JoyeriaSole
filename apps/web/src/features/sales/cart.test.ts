@@ -6,6 +6,7 @@ import {
   addPiece,
   applyAvailable,
   applyCurrentPrices,
+  linesOverStock,
   cartTotal,
   loadPosDraft,
   pieceFromLookup,
@@ -78,6 +79,14 @@ describe('carrito', () => {
     expect(saleItemsInput(cartWith(ring, ring))).toEqual([
       { variantId: ring.variantId, quantity: 2, expectedUnitPrice: '120.50' },
     ]);
+  });
+
+  it('detecta líneas que superan el stock informado por la API', () => {
+    const cart = applyAvailable(cartWith(ring, chain), [
+      { variantId: ring.variantId, available: 0 },
+    ]);
+    expect(linesOverStock(cart).map((line) => line.sku)).toEqual(['SKU-000001']);
+    expect(linesOverStock(cartWith(ring, chain))).toEqual([]);
   });
 
   it('aplica precios y stock informados por la API', () => {

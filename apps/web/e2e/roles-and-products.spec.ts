@@ -38,8 +38,10 @@ test.describe('login y menú según el rol', () => {
     ]) {
       await expect(menu(page).getByRole('link', { name })).toBeVisible();
     }
-    await expect(menu(page).getByText('Punto de venta')).toBeVisible();
-    await expect(menu(page).getByRole('link', { name: 'Punto de venta' })).toHaveCount(0);
+    // Ventas y caja (Fase 2): el Administrador tiene todo el grupo Ventas.
+    for (const name of ['Punto de venta', 'Historial de ventas', 'Caja', 'Incidencias']) {
+      await expect(menu(page).getByRole('link', { name })).toBeVisible();
+    }
   });
 
   test('el responsable de inventario no ve Usuarios', async ({ page }) => {

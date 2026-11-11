@@ -169,6 +169,32 @@ describe('cierre de caja', () => {
     expect(keys[0]).not.toBe(keys[1]);
   });
 
+  it('el resultado del cierre sigue visible cuando ya no hay caja abierta', async () => {
+    let closed = false;
+    mockApi(
+      {
+        'GET /cash/sessions/current': () =>
+          closed
+            ? [404, apiError('NOT_FOUND', 'Sin caja abierta')]
+            : [200, { data: openSession() }],
+        [CLOSE]: () => {
+          closed = true;
+          return [200, { data: closedSession() }];
+        },
+      },
+      { permissions: CLOSER },
+    );
+    renderWithProviders(<CashClosePage />);
+    const user = await countAndContinue('250');
+    await user.click(screen.getByRole('button', { name: 'Cerrar caja' }));
+    await user.click(await screen.findByRole('button', { name: 'Confirmar cierre' }));
+    expect(await screen.findByRole('heading', { name: 'Caja CAJ-000007 cerrada' })).toBeVisible();
+    // La recarga de la sesión actual (ya cerrada) no reemplaza el resultado.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByRole('heading', { name: 'Caja CAJ-000007 cerrada' })).toBeVisible();
+    expect(screen.queryByText('No hay ninguna caja abierta para cerrar.')).not.toBeInTheDocument();
+  });
+
   it('el contado vacío no es cero', async () => {
     mockApi(
       { 'GET /cash/sessions/current': () => [200, { data: openSession() }] },

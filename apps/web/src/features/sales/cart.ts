@@ -136,6 +136,11 @@ export function removeLine(cart: CartLine[], variantId: string): CartLine[] {
   return cart.filter((line) => line.variantId !== variantId);
 }
 
+/** Líneas cuya cantidad supera el stock conocido (p. ej. tras `422 INSUFFICIENT_STOCK`). */
+export function linesOverStock(cart: CartLine[]): CartLine[] {
+  return cart.filter((line) => line.available !== null && line.quantity > line.available);
+}
+
 export function lineTotal(line: CartLine): bigint {
   return lineTotalCents(line.quantity, line.unitPrice);
 }

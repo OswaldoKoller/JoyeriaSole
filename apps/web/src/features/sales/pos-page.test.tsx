@@ -312,6 +312,9 @@ describe('punto de venta', () => {
     expect(screen.getByRole('row', { name: /Anillo Sol/ })).toHaveTextContent(
       'Ya no hay stock de esta pieza: quítela del carrito.',
     );
+    // Mientras la línea supere el stock no se puede volver a revisar.
+    expect(screen.getByRole('button', { name: 'Revisar venta' })).toBeDisabled();
+    expect(screen.getByText(/Hay piezas sin stock suficiente/)).toBeVisible();
     const stored = JSON.parse(window.sessionStorage.getItem(POS_DRAFT_STORAGE_KEY) ?? '{}') as {
       attempt: unknown;
     };

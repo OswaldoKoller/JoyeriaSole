@@ -45,6 +45,8 @@ export function CashClosePage() {
   useDocumentTitle('Cerrar caja');
   const current = useCurrentCashSession();
   const session = current.data ?? null;
+  // El resultado vive aquí: al cerrar, la «sesión actual» pasa a vacía y el formulario se desmonta.
+  const [closed, setClosed] = useState<CashSessionDetail | null>(null);
 
   return (
     <section className="space-y-6">
@@ -56,12 +58,13 @@ export function CashClosePage() {
         </p>
         <h1 className="text-2xl font-semibold">Cerrar caja</h1>
       </div>
-      {current.isPending && (
+      {closed && <ClosedResult closed={closed} />}
+      {!closed && current.isPending && (
         <p role="status" className="text-sm">
           Cargando la caja…
         </p>
       )}
-      {current.isError && (
+      {!closed && current.isError && (
         <p role="alert" className="text-sm text-red-700">
           No se pudo cargar la caja.{' '}
           <button className="underline" onClick={() => void current.refetch()}>
@@ -69,7 +72,7 @@ export function CashClosePage() {
           </button>
         </p>
       )}
-      {current.isSuccess && !session && (
+      {!closed && current.isSuccess && !session && (
         <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-5">
           <p className="text-sm text-amber-950">No hay ninguna caja abierta para cerrar.</p>
           <ButtonLink to="/caja/historial" variant="secondary">
@@ -77,7 +80,14 @@ export function CashClosePage() {
           </ButtonLink>
         </div>
       )}
-      {session && <CloseForm key={session.id} session={session} onRefresh={current.refetch} />}
+      {!closed && session && (
+        <CloseForm
+          key={session.id}
+          session={session}
+          onRefresh={current.refetch}
+          onClosed={setClosed}
+        />
+      )}
     </section>
   );
 }
@@ -85,9 +95,11 @@ export function CashClosePage() {
 function CloseForm({
   session,
   onRefresh,
+  onClosed,
 }: {
   session: CashSessionDetail;
   onRefresh: () => Promise<unknown>;
+  onClosed: (session: CashSessionDetail) => void;
 }) {
   const close = useCloseCash(session.id);
   const [step, setStep] = useState<Step>('count');
@@ -98,10 +110,8 @@ function CloseForm({
   const [serverExpected, setServerExpected] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
-  const [closed, setClosed] = useState<CashSessionDetail | null>(null);
   const summaryRef = useRef<HTMLHeadingElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
-  const resultRef = useRef<HTMLHeadingElement>(null);
   const notesId = useId();
   // Pedir el foco en la observación DESPUÉS de cerrar el diálogo (que devuelve el foco al abrirlo).
   const [focusNotes, setFocusNotes] = useState(0);
@@ -113,9 +123,6 @@ function CloseForm({
   useEffect(() => {
     if (step === 'summary') summaryRef.current?.focus();
   }, [step]);
-  useEffect(() => {
-    if (closed) resultRef.current?.focus();
-  }, [closed]);
   useEffect(() => {
     if (focusNotes > 0) notesRef.current?.focus();
   }, [focusNotes]);
@@ -161,7 +168,7 @@ function CloseForm({
     try {
       const result = await close.mutateAsync(input);
       setConfirming(false);
-      setClosed(result);
+      onClosed(result);
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === ERROR_CODES.CASH_DIFFERENCE_NOTE_REQUIRED) {
         const details = readNoteDetails(cause.details);
@@ -186,30 +193,6 @@ function CloseForm({
             : 'No se pudo cerrar la caja.',
       );
     }
-  }
-
-  if (closed) {
-    return (
-      <div className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-        <h2 ref={resultRef} tabIndex={-1} className="text-lg font-semibold text-emerald-900">
-          Caja {formatCashSessionNumber(closed.number)} cerrada
-        </h2>
-        <FiguresList
-          label="Arqueo registrado"
-          rows={[
-            { label: 'Efectivo esperado', value: formatBs(closed.expectedCash) },
-            { label: 'Efectivo contado', value: formatBs(closed.countedCash) },
-            { label: 'Diferencia', value: <DifferenceText amount={closed.difference} /> },
-          ]}
-        />
-        <div className="flex flex-wrap gap-2">
-          <ButtonLink to={`/caja/sesiones/${closed.id}`}>Ver el detalle del cierre</ButtonLink>
-          <ButtonLink to="/caja" variant="secondary">
-            Volver a la caja
-          </ButtonLink>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -351,6 +334,35 @@ function CloseForm({
           </div>
         </Dialog>
       )}
+    </div>
+  );
+}
+
+/** Resultado del cierre (el foco pasa al título para anunciarlo). */
+function ClosedResult({ closed }: { closed: CashSessionDetail }) {
+  const resultRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    resultRef.current?.focus();
+  }, []);
+  return (
+    <div className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+      <h2 ref={resultRef} tabIndex={-1} className="text-lg font-semibold text-emerald-900">
+        Caja {formatCashSessionNumber(closed.number)} cerrada
+      </h2>
+      <FiguresList
+        label="Arqueo registrado"
+        rows={[
+          { label: 'Efectivo esperado', value: formatBs(closed.expectedCash) },
+          { label: 'Efectivo contado', value: formatBs(closed.countedCash) },
+          { label: 'Diferencia', value: <DifferenceText amount={closed.difference} /> },
+        ]}
+      />
+      <div className="flex flex-wrap gap-2">
+        <ButtonLink to={`/caja/sesiones/${closed.id}`}>Ver el detalle del cierre</ButtonLink>
+        <ButtonLink to="/caja" variant="secondary">
+          Volver a la caja
+        </ButtonLink>
+      </div>
     </div>
   );
 }

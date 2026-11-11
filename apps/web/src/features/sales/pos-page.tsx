@@ -26,6 +26,7 @@ import {
   applyCurrentPrices,
   cartTotal,
   cartUnits,
+  linesOverStock,
   loadPosDraft,
   pieceName,
   pieceFromLookup,
@@ -195,7 +196,7 @@ export function PosPage() {
 
   /** Entra a la revisión: fija el cuerpo de la venta y su clave (la misma si nada cambió). */
   function toReview() {
-    if (!summary.ready || !cashOpen) return;
+    if (!summary.ready || !cashOpen || linesOverStock(lines).length > 0) return;
     const body = JSON.stringify({
       items: saleItemsInput(lines),
       payments: summary.payments,
@@ -596,11 +597,13 @@ function PaymentPanel({
     ? 'Agregue piezas al carrito.'
     : !cashOpen
       ? 'No hay caja abierta.'
-      : summary.error
-        ? summary.error
-        : summary.remainingCents > 0n
-          ? `Falta cobrar ${formatBs(centsToAmount(summary.remainingCents))}.`
-          : null;
+      : linesOverStock(lines).length > 0
+        ? 'Hay piezas sin stock suficiente: corrija o quite las líneas marcadas.'
+        : summary.error
+          ? summary.error
+          : summary.remainingCents > 0n
+            ? `Falta cobrar ${formatBs(centsToAmount(summary.remainingCents))}.`
+            : null;
 
   return (
     <aside
