@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/app.ts';
 import { buildTestApp, login } from '../helpers/app.ts';
 import { createTestUser, resetDatabase } from '../helpers/db.ts';
+import { setStock } from '../helpers/stock.ts';
 
 const MANAGER: Permission[] = [
   PERMISSIONS.CATALOG_READ,
@@ -315,7 +316,7 @@ describe('catálogo', () => {
     it('muestra stock y nivel solo a quien también puede leer inventario', async () => {
       const product = (await createProduct({ minStock: 5 })).json().data;
       const variantId = product.variants[0].id as string;
-      await app.prisma.inventoryBalance.create({ data: { variantId, quantity: 3 } });
+      await setStock(app.prisma, variantId, 3);
 
       const withStock = await sessionWith([PERMISSIONS.CATALOG_READ, PERMISSIONS.INVENTORY_READ]);
       const catalogOnly = await sessionWith([PERMISSIONS.CATALOG_READ]);

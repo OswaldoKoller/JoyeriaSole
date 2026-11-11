@@ -9,6 +9,7 @@
 #   3. El seed de producción compilado (`node dist/seed.js`, paso 6 de DEPLOYMENT.md) corre dentro de la
 #      imagen, dos veces (es idempotente), con las variables SEED_ADMIN_*.
 #   4. El administrador sembrado inicia sesión (200) y una contraseña incorrecta se rechaza (401).
+#   5. El CMD quitó el permiso TRUNCATE al rol de la aplicación en todas las tablas (D3).
 #
 # Es el MISMO script que ejecuta el CI (job `docker`) y el que se usa en local: lo validado aquí es lo que
 # corre en GitHub Actions. No toca ningún otro contenedor: crea red y contenedores con prefijo `smoke-` y
@@ -104,6 +105,17 @@ echo "health: 200"
 code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${BASE_URL}/")"
 [ "$code" = "200" ] || fail "la SPA no se sirve en / (HTTP ${code})"
 echo "SPA en /: 200"
+
+step "El rol de la aplicación no tiene TRUNCATE (D3: CMD real, prisma/privileges/revoke-app-truncate.sql)"
+# Se lee la ACL efectiva (aclexplode): en esta base efímera el rol es superusuario y has_table_privilege
+# siempre devolvería verdadero, pero la ACL demuestra que el CMD quitó el permiso.
+truncate_grants="$(docker exec "$DB" psql -U joyeria -d joyeria_smoke -tAc "
+  SELECT count(*) FROM pg_class c
+  CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) a
+  WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p')
+    AND a.privilege_type = 'TRUNCATE' AND a.grantee = 'joyeria'::regrole")"
+[ "$truncate_grants" = "0" ] || fail "el rol de la aplicación conserva TRUNCATE en ${truncate_grants} tablas"
+echo "sin TRUNCATE en ninguna tabla"
 
 step "Seed de producción compilado dentro de la imagen: node dist/seed.js (1.ª y 2.ª ejecución)"
 for run in 1 2; do
