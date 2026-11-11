@@ -42,20 +42,101 @@ Error:
 }
 ```
 
-| HTTP | `code`                      | Cuándo                                                                                                           |
-| ---- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 400  | `VALIDATION_ERROR`          | Datos de entrada inválidos (Zod) o JSON mal formado                                                              |
-| 401  | `UNAUTHENTICATED`           | Sin sesión, sesión expirada/revocada, credenciales inválidas                                                     |
-| 403  | `FORBIDDEN`                 | Sesión válida sin el permiso requerido; origen no permitido                                                      |
-| 403  | `PASSWORD_CHANGE_REQUIRED`  | Clave temporal asignada por el Administrador: solo se puede cambiarla (`/auth/change-password`) o cerrar sesión  |
-| 404  | `NOT_FOUND`                 | Recurso o ruta inexistente                                                                                       |
-| 409  | `CONFLICT`                  | Duplicado (SKU, código de barras, NIT...)                                                                        |
-| 422  | `BUSINESS_RULE_VIOLATION`   | Regla de negocio (p. ej. confirmar un ingreso ya confirmado)                                                     |
-| 422  | `STOCK_BLOCKS_DEACTIVATION` | No se desactiva un producto o variante con stock > 0 (P-22); `details.variants` lista SKU y cantidad             |
-| 413  | `PAYLOAD_TOO_LARGE`         | Archivo subido de más de 5 MB (fotos) o demasiadas partes en la petición multipart                               |
-| 429  | `RATE_LIMITED`              | Demasiadas solicitudes                                                                                           |
-| 503  | `SERVICE_UNAVAILABLE`       | Conflicto transitorio de la base (deadlock, tiempo agotado): cabecera `Retry-After`; reintentar en unos segundos |
-| 500  | `INTERNAL_ERROR`            | Error técnico. Nunca incluye detalles internos; ver logs con el `requestId`                                      |
+| HTTP | `code`                      | Cuándo                                                                                                            |
+| ---- | --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 400  | `VALIDATION_ERROR`          | Datos de entrada inválidos (Zod) o JSON mal formado                                                               |
+| 401  | `UNAUTHENTICATED`           | Sin sesión, sesión expirada/revocada, credenciales inválidas                                                      |
+| 403  | `FORBIDDEN`                 | Sesión válida sin el permiso requerido; origen no permitido                                                       |
+| 403  | `PASSWORD_CHANGE_REQUIRED`  | Clave temporal asignada por el Administrador: solo se puede cambiarla (`/auth/change-password`) o cerrar sesión   |
+| 404  | `NOT_FOUND`                 | Recurso o ruta inexistente                                                                                        |
+| 409  | `CONFLICT`                  | Duplicado (SKU, código de barras, NIT...)                                                                         |
+| 409  | `IDEMPOTENCY_KEY_REUSED`    | La `Idempotency-Key` ya se usó con otro cuerpo, otra ruta u otro usuario; no se ejecutó nada (ver «Idempotencia») |
+| 400  | `IDEMPOTENCY_KEY_REQUIRED`  | La operación exige `Idempotency-Key` y no llegó (hoy ninguna ruta la exige; previsto para Ventas y Caja)          |
+| 422  | `BUSINESS_RULE_VIOLATION`   | Regla de negocio (p. ej. confirmar un ingreso ya confirmado)                                                      |
+| 422  | `STOCK_BLOCKS_DEACTIVATION` | No se desactiva un producto o variante con stock > 0 (P-22); `details.variants` lista SKU y cantidad              |
+| 413  | `PAYLOAD_TOO_LARGE`         | Archivo subido de más de 5 MB (fotos) o demasiadas partes en la petición multipart                                |
+| 429  | `RATE_LIMITED`              | Demasiadas solicitudes                                                                                            |
+| 503  | `SERVICE_UNAVAILABLE`       | Conflicto transitorio de la base (deadlock, tiempo agotado): cabecera `Retry-After`; reintentar en unos segundos  |
+| 500  | `INTERNAL_ERROR`            | Error técnico. Nunca incluye detalles internos; ver logs con el `requestId`                                       |
+
+## Idempotencia (`Idempotency-Key`)
+
+Autorizada por el responsable el 2026-11-10 (etapa E0, «validar idempotencia»). Evita que un doble
+clic, un reintento tras un corte de red o un `503` repitan una operación crítica.
+
+**Contrato HTTP**
+
+- El cliente envía `Idempotency-Key: <UUID>` (cualquier versión; no distingue mayúsculas). Una clave
+  por **intento de operación del usuario**, reutilizada en todos sus reintentos.
+- Clave nueva: la operación se ejecuta y su respuesta se guarda en `idempotency_keys` **en la misma
+  transacción** (usuario + método y ruta + SHA-256 del JSON canónico de `{ params, body }` + respuesta).
+- Misma clave, mismo usuario, misma ruta y mismo cuerpo: se devuelve **la respuesta original** (mismo
+  código HTTP y mismo `data`) con la cabecera `Idempotent-Replay: true`. No se repite ningún efecto: ni
+  movimientos, ni saldos, ni auditoría.
+- Misma clave con otro cuerpo, otros parámetros de ruta, otra ruta u otro usuario: `409
+IDEMPOTENCY_KEY_REUSED`; no se ejecuta nada ni se devuelve la respuesta guardada.
+- Dos peticiones simultáneas con la misma clave: solo una ejecuta; la otra espera a que termine (en el
+  `INSERT … ON CONFLICT` de la clave, primer paso de la transacción) y recibe la respuesta repetida.
+- Si la operación falla (4xx/5xx), la transacción revierte también la clave: un reintento con la misma
+  clave vuelve a ejecutar. Solo se guardan respuestas exitosas.
+- Clave con formato inválido: `400 VALIDATION_ERROR` (`headers.idempotency-key`). 401/403 se evalúan
+  antes y la clave no se reclama sin permiso.
+- **Sin clave** las rutas funcionan como antes (compatibilidad con clientes y pruebas existentes): las
+  confirmaciones siguen protegidas por estado (`422` al repetir) y un cambio de pieza sin clave crea un
+  documento nuevo en cada `POST`.
+- **Vigencia:** 24 horas por defecto (`DEFAULT_IDEMPOTENCY_TTL_HOURS`). Una clave vencida puede
+  reutilizarse (se trata como nueva) y el plugin `idempotency` elimina cada hora las vencidas. Los
+  documentos de diseño no fijan una política; esta es la simple adoptada, ajustable por operación con
+  `ttlHours`.
+
+**Rutas que la aceptan hoy** (opcional en todas): `POST /stock-entries/:id/confirm`,
+`POST /inventory/:variantId/initial`, `POST /inventory/adjustments/:id/approve`,
+`POST /inventory/exchanges`, `POST /inventory/counts/:id/close` y `POST /inventory/counts/:id/approve`.
+
+**Uso desde un servicio (p. ej. el futuro módulo de Ventas)**
+
+```ts
+// Ruta: declarar la cabecera (esquema «loose»: no borra cookie ni user-agent).
+schema: { headers: idempotencyHeadersSchema, body: createSaleSchema, response: { 201: detail } },
+
+// Servicio: la clave se reclama como PRIMER paso de la transacción (antes de cualquier bloqueo).
+async create(input: CreateSaleInput, request: FastifyRequest) {
+  const idempotency = {
+    context: idempotencyOf(request, { required: true }), // sin cabecera: 400
+    responseSchema: saleDetailSchema, // valida la respuesta guardada al repetirla
+  };
+  return idempotentTransaction(this.prisma, idempotency, async (tx) => {
+    // ...lockVariants, applyStockChanges, recordAudit(tx, ...)...
+    return this.detail(tx, saleId); // esto es lo que se guarda y se repite
+  });
+}
+```
+
+- `idempotencyOf(request, { required?, ttlHours? })` (`src/plugins/idempotency.ts`): arma el contexto
+  (clave, usuario, ruta, hash) o devuelve `null` si no hay cabecera.
+- `idempotentTransaction(prisma, { context, responseSchema, transaction? }, fn)` y
+  `runIdempotent(tx, contexto, esquema, fn)` (`src/lib/idempotency.ts`): con una transacción ya
+  abierta, `runIdempotent` debe llamarse antes de cualquier bloqueo o escritura. La respuesta repetida
+  se valida con el esquema, así que el llamador recibe el mismo tipo.
+- La respuesta guardada debe ser JSON puro (montos como string, fechas ISO), que es lo que ya devuelven
+  los servicios.
+- Cubre el **mismo envío repetido**; no impide que una persona registre dos veces la misma operación
+  con dos intentos distintos (RV-04.7).
+
+**Uso desde el cliente web**
+
+```ts
+const attempt = useAttemptKeys(); // apps/web/src/lib/idempotency.ts
+return useMutation({
+  mutationFn: (input) => api.post(path, input, { idempotencyKey: attempt.keyFor(input) }),
+  onSettled: (_data, error) => attempt.settle(error), // éxito o 409 REUSED: la próxima, clave nueva
+});
+```
+
+`keyFor` devuelve la misma clave mientras los datos no cambien (reintentos) y una nueva si cambian.
+`newIdempotencyKey()` usa `crypto.randomUUID` o, fuera de un contexto seguro (HTTP en la red local),
+`crypto.getRandomValues`. Para Ventas, la clave del cobro debería además persistirse en
+`sessionStorage` hasta la respuesta definitiva (RV-04.1); eso corresponde al módulo de Ventas.
 
 ## Endpoints implementados
 

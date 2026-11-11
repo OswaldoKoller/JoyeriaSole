@@ -55,6 +55,7 @@ model User {
   priceChangesRequested    PriceChange[]           @relation("PriceChangeRequestedBy")
   priceChangesDecided      PriceChange[]           @relation("PriceChangeDecidedBy")
   productPhotosCreated     ProductPhoto[]          @relation("ProductPhotoCreatedBy")
+  idempotencyKeys          IdempotencyKey[]
 
   @@map("users")
 }
@@ -1053,4 +1054,32 @@ model AuditLog {
   // Reemplaza al índice solo por created_at (lo cubre por lectura inversa); migración 20261106040000.
   @@index([createdAt(sort: Desc), id(sort: Desc)], map: "audit_logs_created_at_id_idx")
   @@map("audit_logs")
+}
+
+// -----------------------------------------------------------------------------
+// IDEMPOTENCIA (E0) — claves `Idempotency-Key` de las operaciones críticas
+// -----------------------------------------------------------------------------
+
+/// Una fila por clave usada con éxito. Se inserta en la MISMA transacción que la operación, así que
+/// solo existe (confirmada) si la operación se completó; un error revierte también la clave.
+/// La clave la genera el cliente (UUID de cualquier versión), por eso es la clave primaria y no un
+/// UUID v7 del servidor. Lógica en `src/lib/idempotency.ts`; ver docs/api/API.md «Idempotencia».
+model IdempotencyKey {
+  key         String   @id @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  /// Método y patrón de la ruta: `POST /api/v1/stock-entries/:id/confirm`.
+  scope       String   @db.VarChar(200)
+  /// SHA-256 (hex) del JSON canónico de `{ params, body }` validados.
+  requestHash String   @map("request_hash") @db.Char(64)
+  /// Respuesta `data` original; NULL solo dentro de la transacción que reclama la clave.
+  response    Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// Pasada esta fecha la clave se puede reutilizar y la limpieza periódica la elimina.
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([userId])
+  @@map("idempotency_keys")
 }

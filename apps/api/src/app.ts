@@ -32,6 +32,7 @@ import { inventoryCountsRoutes } from './modules/inventory-counts/inventory-coun
 import { stockEntriesRoutes } from './modules/stock-entries/stock-entries.routes.ts';
 import { authPlugin } from './plugins/auth.ts';
 import { errorHandlerPlugin } from './plugins/error-handler.ts';
+import { idempotencyPlugin } from './plugins/idempotency.ts';
 import { prismaPlugin } from './plugins/prisma.ts';
 import { securityPlugin } from './plugins/security.ts';
 
@@ -107,6 +108,7 @@ export async function buildApp(env: Env) {
   await app.register(securityPlugin, { env });
   await app.register(prismaPlugin, { databaseUrl: env.DATABASE_URL });
   await app.register(authPlugin, { env });
+  await app.register(idempotencyPlugin);
 
   // API versionada. Cada módulo de negocio se registra aquí con su propio prefijo.
   await app.register(

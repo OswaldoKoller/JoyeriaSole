@@ -1,12 +1,14 @@
 import {
   PERMISSIONS,
   globalInventoryMovementSchema,
+  initialStockResultSchema,
   initialStockSchema,
   inventoryItemSchema,
   inventoryMovementSchema,
 } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { idempotencyHeadersSchema } from '../../plugins/idempotency.ts';
 import { InventoryService } from './inventory.service.ts';
 
 const params = z.object({ variantId: z.uuid() });
@@ -64,9 +66,10 @@ export const inventoryRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       preValidation: app.requirePermission(PERMISSIONS.INVENTORY_INITIAL_STOCK),
       schema: {
+        headers: idempotencyHeadersSchema,
         params,
         body: initialStockSchema,
-        response: { 201: z.object({ data: z.object({ quantity: z.number() }) }) },
+        response: { 201: z.object({ data: initialStockResultSchema }) },
       },
     },
     async (request, reply) =>

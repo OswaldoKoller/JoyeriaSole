@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { PERMISSIONS, documentDateBounds, type Permission } from '@joyeria/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/app.ts';
@@ -1054,6 +1055,82 @@ describe('ingresos de mercadería', () => {
       expect(
         (list.json().data as { variantId: string }[]).map((item) => item.variantId),
       ).not.toContain(variant.id);
+    });
+  });
+
+  describe('idempotencia de la confirmación (Idempotency-Key)', () => {
+    const confirmWithKey = (id: string, key: string) =>
+      app.inject({
+        method: 'POST',
+        url: `${URL}/${id}/confirm`,
+        headers: { cookie, 'idempotency-key': key },
+      });
+
+    async function readyDraft(variantId: string, quantity: number) {
+      const draft = await createDraft();
+      const res = await call(
+        'PUT',
+        `${URL}/${draft.id}/items`,
+        lines([[variantId, quantity, '10']]),
+      );
+      expect(res.statusCode, res.body).toBe(200);
+      return draft;
+    }
+
+    it('repetir con la misma clave devuelve el ingreso confirmado sin duplicar stock ni auditoría', async () => {
+      const variant = await createVariant();
+      const draft = await readyDraft(variant.id, 4);
+      const key = randomUUID();
+
+      const first = await confirmWithKey(draft.id, key);
+      expect(first.statusCode, first.body).toBe(200);
+      const again = await confirmWithKey(draft.id, key);
+      expect(again.statusCode).toBe(200);
+      expect(again.headers['idempotent-replay']).toBe('true');
+      expect(again.json()).toEqual(first.json());
+
+      expect(await stockOf(variant.id)).toBe(4);
+      expect(await app.prisma.inventoryMovement.count({ where: { referenceId: draft.id } })).toBe(
+        1,
+      );
+      expect(await app.prisma.auditLog.count({ where: { action: 'stock_entry.confirmed' } })).toBe(
+        1,
+      );
+
+      // Sin clave, la protección por estado responde como siempre.
+      expect((await call('POST', `${URL}/${draft.id}/confirm`)).statusCode).toBe(422);
+    });
+
+    it('la misma clave para confirmar otro ingreso es un conflicto (409) y no lo confirma', async () => {
+      const variant = await createVariant();
+      const a = await readyDraft(variant.id, 1);
+      const b = await readyDraft(variant.id, 2);
+      const key = randomUUID();
+      expect((await confirmWithKey(a.id, key)).statusCode).toBe(200);
+
+      const res = await confirmWithKey(b.id, key);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('IDEMPOTENCY_KEY_REUSED');
+      expect((await detailOf(b.id)).status).toBe('DRAFT');
+      expect(await stockOf(variant.id)).toBe(1);
+    });
+
+    it('dos confirmaciones simultáneas con la misma clave: un solo movimiento', async () => {
+      const variant = await createVariant();
+      const draft = await readyDraft(variant.id, 3);
+      const key = randomUUID();
+      const responses = await Promise.all([
+        confirmWithKey(draft.id, key),
+        confirmWithKey(draft.id, key),
+      ]);
+      for (const res of responses) expect(res.statusCode, res.body).toBe(200);
+      expect(responses.filter((res) => res.headers['idempotent-replay'] === 'true')).toHaveLength(
+        1,
+      );
+      expect(await stockOf(variant.id)).toBe(3);
+      expect(await app.prisma.inventoryMovement.count({ where: { referenceId: draft.id } })).toBe(
+        1,
+      );
     });
   });
 

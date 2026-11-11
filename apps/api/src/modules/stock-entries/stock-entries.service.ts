@@ -10,6 +10,7 @@ import {
   parseExchangeRate,
   parseMoney,
   parseUnitCost,
+  stockEntryDetailSchema,
   unitsToCents,
   type CreateStockEntryInput,
   type EntryCostLine,
@@ -26,8 +27,10 @@ import {
   NotFoundError,
   ValidationError,
 } from '../../lib/errors.ts';
+import { idempotentTransaction } from '../../lib/idempotency.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
+import { idempotencyOf } from '../../plugins/idempotency.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { ProductsService } from '../catalog/products.service.ts';
 import { applyStockChanges } from '../inventory/stock-ledger.ts';
@@ -727,7 +730,9 @@ export class StockEntriesService {
    */
   async confirm(id: string, request: FastifyRequest) {
     const userId = getAuth(request).user.id;
-    return this.prisma.$transaction(async (tx) => {
+    // Idempotente: un reintento con la misma Idempotency-Key devuelve el detalle ya confirmado.
+    const idempotency = { context: idempotencyOf(request), responseSchema: stockEntryDetailSchema };
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       const entry = await this.lockDraft(tx, id);
       const analysis = analyze(entry);
       if (analysis.blockers.length > 0 || !analysis.result.ok) {

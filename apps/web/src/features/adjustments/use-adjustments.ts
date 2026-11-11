@@ -8,6 +8,7 @@ import type {
 } from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
+import { useAttemptKeys } from '../../lib/idempotency.ts';
 import { PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
 const key = ['adjustments'] as const;
@@ -100,11 +101,22 @@ export function useCancelAdjustment(id: string) {
   });
 }
 
+/** Aprobar mueve stock: idempotente con una clave por intento (reintentos sin duplicar). */
 export function useApproveAdjustment(id: string) {
   const after = useAfterChange();
+  const attempt = useAttemptKeys();
   return useMutation({
     mutationFn: async () =>
-      (await api.post<{ data: AdjustmentDetail }>(`/inventory/adjustments/${id}/approve`)).data,
+      (
+        await api.post<{ data: AdjustmentDetail }>(
+          `/inventory/adjustments/${id}/approve`,
+          undefined,
+          { idempotencyKey: attempt.keyFor(id) },
+        )
+      ).data,
+    onSettled: (_data, error) => {
+      attempt.settle(error);
+    },
     onSuccess: (detail) => after(detail, true),
   });
 }

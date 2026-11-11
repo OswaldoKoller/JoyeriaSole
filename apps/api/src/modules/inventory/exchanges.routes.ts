@@ -1,6 +1,7 @@
 import { PERMISSIONS, createExchangeSchema, exchangeSchema } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { idempotencyHeadersSchema } from '../../plugins/idempotency.ts';
 import { ExchangesService } from './exchanges.service.ts';
 
 const params = z.object({ referenceId: z.uuid() });
@@ -19,7 +20,11 @@ export const exchangesRoutes: FastifyPluginAsyncZod = async (app) => {
     '/',
     {
       preValidation: app.requirePermission(PERMISSIONS.INVENTORY_EXCHANGE),
-      schema: { body: createExchangeSchema, response: { 201: detail } },
+      schema: {
+        headers: idempotencyHeadersSchema,
+        body: createExchangeSchema,
+        response: { 201: detail },
+      },
     },
     async (request, reply) =>
       reply.status(201).send({ data: await service.create(request.body, request) }),
