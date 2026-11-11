@@ -51,11 +51,12 @@ Error:
 | 404  | `NOT_FOUND`                 | Recurso o ruta inexistente                                                                                        |
 | 409  | `CONFLICT`                  | Duplicado (SKU, código de barras, NIT...)                                                                         |
 | 409  | `IDEMPOTENCY_KEY_REUSED`    | La `Idempotency-Key` ya se usó con otro cuerpo, otra ruta u otro usuario; no se ejecutó nada (ver «Idempotencia») |
-| 400  | `IDEMPOTENCY_KEY_REQUIRED`  | La operación exige `Idempotency-Key` y no llegó (hoy ninguna ruta la exige; previsto para Ventas y Caja)          |
+| 400  | `IDEMPOTENCY_KEY_REQUIRED`  | La operación exige `Idempotency-Key` y no llegó (ventas, caja e incidencias; ver «Ventas y caja»)                 |
 | 422  | `BUSINESS_RULE_VIOLATION`   | Regla de negocio (p. ej. confirmar un ingreso ya confirmado)                                                      |
 | 422  | `STOCK_BLOCKS_DEACTIVATION` | No se desactiva un producto o variante con stock > 0 (P-22); `details.variants` lista SKU y cantidad              |
 | 413  | `PAYLOAD_TOO_LARGE`         | Archivo subido de más de 5 MB (fotos) o demasiadas partes en la petición multipart                                |
 | 429  | `RATE_LIMITED`              | Demasiadas solicitudes                                                                                            |
+| 4xx  | Códigos de ventas y caja    | `CASH_SESSION_REQUIRED`, `PRICE_CHANGED`, `PAYMENT_MISMATCH`… ver [Ventas y caja](#ventas-y-caja-fase-2)          |
 | 503  | `SERVICE_UNAVAILABLE`       | Conflicto transitorio de la base (deadlock, tiempo agotado): cabecera `Retry-After`; reintentar en unos segundos  |
 | 500  | `INTERNAL_ERROR`            | Error técnico. Nunca incluye detalles internos; ver logs con el `requestId`                                       |
 
@@ -89,7 +90,14 @@ IDEMPOTENCY_KEY_REUSED`; no se ejecuta nada ni se devuelve la respuesta guardada
   documentos de diseño no fijan una política; esta es la simple adoptada, ajustable por operación con
   `ttlHours`.
 
-**Rutas que la aceptan hoy** (opcional en todas): `POST /stock-entries/:id/confirm`,
+**Rutas que la EXIGEN** (sin clave: `400 IDEMPOTENCY_KEY_REQUIRED`): `POST /cash/sessions`,
+`POST /cash/sessions/:id/close` y `POST /cash/sessions/:id/corrections` (ver
+[Ventas y caja](#ventas-y-caja-fase-2)). En ellas la primera ejecución responde `201` (el cierre, `200`)
+y una repetición responde **`200`** con `Idempotent-Replay: true` (plan 11 §4.4–4.6). Además de
+`idempotency_keys`, la clave queda en una columna única de la tabla de dominio, de modo que la
+repetición funciona aunque la clave genérica haya vencido.
+
+**Rutas que la aceptan como opcional:** `POST /stock-entries/:id/confirm`,
 `POST /inventory/:variantId/initial`, `POST /inventory/adjustments/:id/approve`,
 `POST /inventory/exchanges`, `POST /inventory/counts/:id/close` y `POST /inventory/counts/:id/approve`.
 
@@ -542,6 +550,88 @@ Filtros de `GET /audit` (todos opcionales; 400 `VALIDATION_ERROR` si son inváli
 - `GET /audit/actions` → `{ "data": { "actions": ["auth.login", …], "entityTypes": ["Product", …], "users": [{ "id", "name", "email" }] } }`
   (hasta 300 valores por lista, ordenados).
 - Web: pantalla `/auditoria` (los filtros también van por URL: `/auditoria?entityType=Product&entityId=…&from=2026-11-01`).
+
+## Ventas y caja (Fase 2)
+
+Autorizado el 2026-11-10 ([RESOLUCIONES-2026-11-10](../business/RESOLUCIONES-2026-11-10.md); plan
+[11](../propuestas/fase-2-ventas/11-plan-de-implementacion.md); ADR-022, ADR-023 y ADR-024).
+**Una venta confirmada no se anula, no se borra y no se modifica (DEC-V07):** no existen rutas
+`PATCH`, `PUT` ni `DELETE` bajo `/sales`, `/cash` ni `/sale-incidents`, ni rutas de anulación,
+devolución, reapertura o movimientos de caja.
+
+Contrato para la web (todos los esquemas se exportan desde `@joyeria/shared`):
+
+- Esquemas **estrictos**: una clave no prevista en el cuerpo, la consulta o los parámetros es `400`.
+- Dinero como `string` con 2 decimales (`"150.00"`; diferencias con signo: `"-0.50"`). En la entrada,
+  `"0"`, `"12.5"` o `"150.50"` (punto decimal, hasta 2 decimales; vacío **no** es cero).
+- Fechas ISO en UTC. Filtros `from`/`to` = días calendario de La Paz (`AAAA-MM-DD`), inclusivos.
+- Números para mostrar: `formatSaleNumber(n)` → `VTA-000001`, `formatCashSessionNumber(n)` →
+  `CAJ-000001`, `formatIncidentNumber(n)` → `INC-000001` (valores por defecto D-03 y D-17).
+- `Idempotency-Key` (UUID) **obligatoria** donde se indica: misma clave y cuerpo → la misma respuesta
+  con `200` e `Idempotent-Replay: true`; misma clave con otro cuerpo u otro usuario → `409
+IDEMPOTENCY_KEY_REUSED`; sin clave → `400 IDEMPOTENCY_KEY_REQUIRED`.
+- Autorización en `preValidation`: `401`/`403` antes que `400`. Con clave temporal: `403
+PASSWORD_CHANGE_REQUIRED`.
+
+### Códigos de error de ventas y caja
+
+| HTTP | `code`                          | Cuándo                                                                                                                                                    |
+| ---- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 422  | `CASH_SESSION_REQUIRED`         | Venta sin caja abierta, incluida la que llega durante o después del cierre. No se registra nada                                                           |
+| 409  | `CASH_SESSION_ALREADY_OPEN`     | Apertura con otra sesión abierta. `details: { sessionId, number }`                                                                                        |
+| 409  | `CASH_SESSION_CLOSED`           | Cierre de una sesión ya cerrada con otra clave. `details: { sessionId, number }`                                                                          |
+| 409  | `CASH_SESSION_NOT_CLOSED`       | Corrección sobre una sesión abierta                                                                                                                       |
+| 422  | `CASH_DIFFERENCE_NOTE_REQUIRED` | Cierre con diferencia ≠ 0 y observación de menos de 3 caracteres. `details: { expectedCash, countedCash, difference }`. **No se guarda nada**             |
+| 409  | `CASH_CORRECTION_CONFLICT`      | `expectedPreviousValue` ya no es el valor vigente (otra persona corrigió). `details: { currentValue }`                                                    |
+| 409  | `PRICE_CHANGED`                 | Precio o total distinto del vigente. `details: { items: [{ variantId, expectedUnitPrice, currentUnitPrice }], expectedTotal, currentTotal }`              |
+| 422  | `INSUFFICIENT_STOCK`            | Stock insuficiente. `details: { items: [{ variantId, sku, available, requested }] }`                                                                      |
+| 422  | `VARIANT_NOT_SELLABLE`          | Variante inexistente o inactiva, producto inactivo o sin precio. `details: { items: [{ variantId, sku, reason }] }` (`NOT_FOUND`, `INACTIVE`, `NO_PRICE`) |
+| 422  | `PAYMENT_MISMATCH`              | Σ pagos ≠ total, efectivo recibido < aplicado o medio inactivo. `details: { total, paid, reason }`                                                        |
+| 503  | `SERVICE_UNAVAILABLE`           | El cierre esperó más de 5 s a ventas en curso (`lock_timeout`): reintentar con la **misma** clave tras `Retry-After`                                      |
+
+### Caja (`/cash`)
+
+| #   | Método y ruta                         | Permiso                             | Clave       | Cuerpo o consulta                                                                                                        | Respuesta                                                         | Errores propios                                                                                                                 |
+| --- | ------------------------------------- | ----------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | `GET /cash/status`                    | uno de `sales:create`, `cash:read`  | no          | —                                                                                                                        | `200 { data: cashStatus }` (sin cifras)                           | —                                                                                                                               |
+| C2  | `POST /cash/sessions`                 | `cash:open`                         | **exigida** | `openCashSessionSchema`: `{ openingAmount }`                                                                             | `201 { data: cashSessionDetail }` (`200` si es repetición)        | `409 CASH_SESSION_ALREADY_OPEN`                                                                                                 |
+| C3  | `GET /cash/sessions/current`          | `cash:read`                         | no          | —                                                                                                                        | `200 { data: cashSessionDetail }` con cifras en vivo              | `404` sin caja abierta                                                                                                          |
+| C4  | `GET /cash/sessions`                  | `cash:read`                         | no          | `cashSessionListQuerySchema`: `page`, `pageSize` ≤ 100, `status` (`all`/`OPEN`/`CLOSED`), `from`, `to` (día de apertura) | `200 { data: [cashSessionSummary], meta }`, más recientes primero | —                                                                                                                               |
+| C5  | `GET /cash/sessions/:id`              | `cash:read`                         | no          | —                                                                                                                        | `200 { data: cashSessionDetail }`                                 | `404`                                                                                                                           |
+| C6  | `POST /cash/sessions/:id/close`       | `cash:close`                        | **exigida** | `closeCashSessionSchema`: `{ countedCash, notes? }` (`notes` ≤ 500; **no** admite `expectedCash`)                        | `200 { data: cashSessionDetail }`                                 | `404`; `409 CASH_SESSION_CLOSED`; `422 CASH_DIFFERENCE_NOTE_REQUIRED`; `503`                                                    |
+| C7  | `POST /cash/sessions/:id/corrections` | `cash:correct` (solo Administrador) | **exigida** | `createCashCorrectionSchema` (abajo)                                                                                     | `201 { data: { correction, session } }` (`200` repetición)        | `400` (valor igual al vigente, tipos o claves prohibidos); `404`; `409 CASH_SESSION_NOT_CLOSED`; `409 CASH_CORRECTION_CONFLICT` |
+| C8  | `GET /cash/sessions/:id/corrections`  | `cash:read`                         | no          | —                                                                                                                        | `200 { data: [cashCorrection] }` por `sequence`                   | `404`                                                                                                                           |
+
+- `cashStatus`: `{ open, session: { id, number, openedAt, openedByName } | null }`. Lo usa el punto de
+  venta para saber si puede vender; el Vendedor no ve cifras de caja.
+- `cashSessionDetail` (`cashSessionDetailSchema`): `id`, `number`, `status`, `openedAt`,
+  `openedBy { id, name }`, `openingAmount`, `closedAt`, `closedBy`, `cashSalesTotal`, `expectedCash`,
+  `countedCash`, `difference`, `notes` (cifras **originales** del cierre; `null` mientras está
+  abierta), `liveExpectedCash` (solo abierta: fondo + efectivo cobrado), `totalsByMethod [{ methodCode,
+methodName, isCash, amount, paymentsCount }]` (todos los medios activos, también en cero; QR y
+  transferencia se informan aparte, no son efectivo), `salesCount`, `salesTotal`, `mixedSales { count,
+amount }` (ventas con más de un medio), `current { openingAmount, expectedCash, countedCash,
+difference }` (cifras **vigentes** tras las correcciones; en una abierta, contado y diferencia
+  `null`) y `corrections { count, lastAt }` (para la marca «Corregida (N)»).
+- `cashSessionSummary`: `id`, `number`, `status`, `openedAt`, `openedByName`, `closedAt`,
+  `closedByName`, `openingAmount`, `expectedCash`, `countedCash`, `difference` (originales),
+  `salesCount`, `salesTotal`, `current` (vigentes) y `correctionsCount`.
+- Esperado = fondo + Σ pagos en efectivo **aplicados** (netos de vuelto); sin gastos ni retiros (B6).
+  Diferencia = contado − esperado (positivo sobrante, negativo faltante). Toda diferencia ≠ 0 exige
+  observación (≥ 3 caracteres); no hay tolerancia. El esperado nunca lo envía el cliente.
+- Cierre: espera a las ventas en curso (máximo 5 s) y las incluye; una venta posterior recibe `422
+CASH_SESSION_REQUIRED`. Si responde `CASH_DIFFERENCE_NOTE_REQUIRED`, mostrar las cifras de
+  `details` y pedir la observación; usar una clave **nueva** si cambia el contado o la observación.
+- Corrección (`createCashCorrectionSchema`, unión por `kind`):
+  `{ kind: 'NOTE', reason }` o `{ kind: 'COUNTED_CASH' | 'OPENING_AMOUNT', expectedPreviousValue,
+newValue, reason }`; `reason` de 10 a 500 caracteres; `newValue` ≥ 0 y distinto del vigente. Claves
+  como `saleId`, `paymentId`, `methodId`, `expectedCash` o `cashSalesTotal` → `400`. No modifica la
+  sesión: agrega una fila y devuelve la sesión con sus cifras vigentes.
+- `cashCorrection`: `id`, `sequence`, `kind`, `previousValue`, `newValue`, `expectedCashAfter`,
+  `countedCashAfter`, `differenceAfter`, `reason`, `correctedBy { id, name }`, `correctedAt`.
+- Auditoría: `cash_session.opened` (`after { number, openingAmount }`), `cash_session.closed`
+  (`before`/`after` con las cifras del arqueo), `cash_session.corrected` (`before`/`after` con valor,
+  esperado, contado y diferencia; `metadata { kind, reason, sequence }`).
 
 ## Cómo agregar un endpoint
 

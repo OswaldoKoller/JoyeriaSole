@@ -64,6 +64,19 @@ export function idempotencyOf(
 }
 
 /**
+ * Como `idempotencyOf(request, { required: true })`, con el tipo no nulo: para las operaciones que
+ * EXIGEN la clave (ventas, caja, incidencias). Sin cabecera: 400 `IDEMPOTENCY_KEY_REQUIRED`.
+ */
+export function requiredIdempotencyOf(
+  request: FastifyRequest,
+  options: { ttlHours?: number } = {},
+): IdempotencyContext {
+  const context = idempotencyOf(request, { ...options, required: true });
+  if (!context) throw new IdempotencyKeyRequiredError();
+  return context;
+}
+
+/**
  * Plugin de idempotencia: marca las respuestas repetidas con `Idempotent-Replay: true` y elimina
  * cada hora las claves vencidas (sin tareas externas: el contenedor es uno solo, ADR-012).
  */

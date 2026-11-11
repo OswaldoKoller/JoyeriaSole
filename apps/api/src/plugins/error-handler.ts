@@ -11,8 +11,11 @@ import { AppError } from '../lib/errors.ts';
 /** Segundos sugeridos al cliente (cabecera Retry-After) ante un conflicto transitorio de la base. */
 const TRANSIENT_RETRY_AFTER_SECONDS = 2;
 
-/** SQLSTATE de conflictos transitorios: deadlock_detected y serialization_failure. */
-const TRANSIENT_SQLSTATES = new Set(['40P01', '40001']);
+/**
+ * SQLSTATE de conflictos transitorios: deadlock_detected, serialization_failure y lock_not_available
+ * (vence `lock_timeout`, p. ej. el cierre de caja espera como máximo 5 s a las ventas en curso).
+ */
+const TRANSIENT_SQLSTATES = new Set(['40P01', '40001', '55P03']);
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null

@@ -30,6 +30,7 @@ import { costHistoryRoutes } from './modules/stock-entries/cost-history.routes.t
 import { costTypesRoutes } from './modules/stock-entries/cost-types.routes.ts';
 import { inventoryCountsRoutes } from './modules/inventory-counts/inventory-counts.routes.ts';
 import { stockEntriesRoutes } from './modules/stock-entries/stock-entries.routes.ts';
+import { cashRoutes } from './modules/cash/cash.routes.ts';
 import { authPlugin } from './plugins/auth.ts';
 import { errorHandlerPlugin } from './plugins/error-handler.ts';
 import { idempotencyPlugin } from './plugins/idempotency.ts';
@@ -137,6 +138,8 @@ export async function buildApp(env: Env) {
       await api.register(pricingRoutes, { prefix: '/pricing' });
       await api.register(approvalsRoutes, { prefix: '/approvals' });
       await api.register(auditRoutes, { prefix: '/audit' });
+      // Ventas y caja (plan 11 de fase-2-ventas): sin rutas de anulación ni de edición (DEC-V07).
+      await api.register(cashRoutes, { prefix: '/cash' });
     },
     { prefix: API_PREFIX },
   );
