@@ -99,7 +99,8 @@ repetición funciona aunque la clave genérica haya vencido.
 
 **Rutas que la aceptan como opcional:** `POST /stock-entries/:id/confirm`,
 `POST /inventory/:variantId/initial`, `POST /inventory/adjustments/:id/approve`,
-`POST /inventory/exchanges`, `POST /inventory/counts/:id/close` y `POST /inventory/counts/:id/approve`.
+`POST /inventory/exchanges`, `POST /inventory/counts/:id/close`, `POST /inventory/counts/:id/approve` y
+`POST /sales/:id/receipt/print-events` (la web la envía siempre).
 
 **Uso desde un servicio (p. ej. el futuro módulo de Ventas)**
 
@@ -251,11 +252,9 @@ Ejemplos ejecutables: [`requests.http`](../../requests.http) (extensión REST Cl
 
 ## Endpoints previstos (pendientes de implementar)
 
-| Módulo                      | Rutas tentativas                                    | Permisos      |
-| --------------------------- | --------------------------------------------------- | ------------- |
-| Reportes y exportaciones    | Por definir según las respuestas G1–G6 del cliente  | Por definir   |
-| Carga inicial de datos      | Importador con vista previa (S11, respuestas H1–H3) | Por definir   |
-| Salidas por ventas (Fase 2) | Fuera del alcance de la Fase 1                      | `inventory:*` |
+| Módulo                   | Rutas tentativas                                   | Permisos    |
+| ------------------------ | -------------------------------------------------- | ----------- |
+| Reportes y exportaciones | Por definir según las respuestas G1–G6 del cliente | Por definir |
 
 ### Pendientes de aprobación (Q-14)
 

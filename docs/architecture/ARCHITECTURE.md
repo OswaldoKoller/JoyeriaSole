@@ -53,7 +53,7 @@ apps/api/src/
 ├── app.ts               # buildApp(): registra plugins y módulos (usado también por los tests)
 ├── config/env.ts        # variables de entorno validadas con Zod (falla al arrancar si falta algo)
 ├── lib/                 # utilidades sin dependencias de dominio (errores, password, tokens, prisma, permisos, sku)
-├── plugins/             # transversales: security, error-handler, prisma, auth
+├── plugins/             # transversales: security, error-handler, prisma, auth, idempotency
 ├── modules/<modulo>/    # un módulo por área de negocio
 │   ├── <modulo>.routes.ts    # HTTP: esquemas Zod, permisos, códigos de respuesta
 │   ├── <modulo>.service.ts   # reglas de negocio y transacciones
@@ -65,18 +65,12 @@ Reglas de capas:
 
 1. **routes** solo traducen HTTP ↔ servicio. Sin lógica de negocio.
 2. **services** contienen las reglas, abren transacciones y escriben auditoría.
-3. El cambio de stock se concentra en el módulo `inventory`. La operación genérica `applyStockChanges`
-   (`modules/inventory/stock-ledger.ts`) bloquea la fila de la variante, inserta el movimiento y
-   actualiza el saldo en la misma transacción del llamador; la usan los **ajustes**, los **cambios de
-   pieza** y los **conteos físicos**. Hay dos **excepciones vigentes** que escriben el movimiento y el
-   saldo por su cuenta, dentro de su propia transacción: la **confirmación de ingresos**
-   (`stock-entries.service.ts`) y el **stock inicial** (`inventory.service.ts`). Además, la eliminación
-   física de una ficha sin movimientos borra sus saldos (`catalog/products.service.ts`). Si estas
-   excepciones se unifican con `applyStockChanges` o se enmienda la regla (ADR-007) es una decisión
-   pendiente del responsable del proyecto; ver INC-05 del
-   [informe técnico](../informe-tecnico/01-historia-y-decisiones.md).
-4. Los módulos no acceden a tablas de otro módulo para escribir: llaman a su servicio (con las
-   excepciones del punto 3).
+3. El cambio de stock se concentra en el módulo `inventory`. **Toda** escritura en el libro pasa por
+   `applyStockChanges` (`modules/inventory/stock-ledger.ts`): ingresos, stock inicial, ajustes, cambios de
+   pieza, conteos y ventas (unificado en E0, commit `d2584b5`; una prueba-guarda lo vigila). Los bloqueos
+   auxiliares viven en `modules/inventory/stock-locks.ts`. Además la base garantiza saldo = libro (I-01)
+   y unicidad por documento y variante (I-02).
+4. Los módulos no acceden a tablas de otro módulo para escribir: llaman a su servicio.
 
 Módulos implementados (`apps/api/src/modules`, registrados en `app.ts` bajo `/api/v1`):
 
@@ -95,6 +89,11 @@ Módulos implementados (`apps/api/src/modules`, registrados en `app.ts` bajo `/a
 - `pricing` (`/pricing`): precios de venta con solicitud, aprobación e historial.
 - `approvals` (`/approvals/pending`): bandeja de pendientes de aprobación del Inicio.
 - `audit` (`/audit`): consulta de auditoría (solo lectura, solo Administrador) y `recordAudit`.
+- `roles` (`/roles`): gestión de roles y permisos (P-46).
+- `cash` (`/cash`): caja única: apertura, cierre con arqueo y correcciones append-only (ADR-023).
+- `sales` (`/sales`, `/payment-methods`, `/sale-incidents`): venta de mostrador inmutable, comprobante
+  interno e incidencias sin efecto en stock ni importes (ADR-022, ADR-024; sin anulaciones, DEC-V07).
+- `settings` (`/settings/business`): datos del negocio para el comprobante (solo Administrador).
 
 ## Estructura del frontend
 

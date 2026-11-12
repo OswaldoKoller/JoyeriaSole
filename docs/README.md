@@ -50,7 +50,7 @@ de negocio y su estado están en [PENDIENTES.md](business/PENDIENTES.md).
 
 ## Informe técnico y propuestas
 
-| Documento                                                            | Naturaleza                | Contenido                                                                          |
-| -------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------- |
-| [informe-tecnico/](informe-tecnico/00-resumen-ejecutivo-e-indice.md) | Fotografía del 2026-11-07 | Informe técnico en 7 partes: historia, arquitectura, API, datos, frontend y estado |
-| [propuestas/fase-2-ventas/](propuestas/fase-2-ventas/README.md)      | Propuesta para revisión   | Análisis de la Fase 2 (Ventas) para revisión; no autoriza implementar nada         |
+| Documento                                                            | Naturaleza              | Contenido                                                                          |
+| -------------------------------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------- |
+| [informe-tecnico/](informe-tecnico/00-resumen-ejecutivo-e-indice.md) | 2026-11-07 + act. 11-11 | Informe técnico en 7 partes: historia, arquitectura, API, datos, frontend y estado |
+| [propuestas/fase-2-ventas/](propuestas/fase-2-ventas/README.md)      | Propuesta para revisión | Análisis de la Fase 2; el plan 11 se implementó con la autorización del 2026-11-10 |

@@ -6,7 +6,7 @@
 ## Proyecto
 
 Sistema web de inventario para una tienda de joyería y productos de moda (Bolivia). Pyme, pocos
-usuarios, acceso desde Internet.
+usuarios. Despliegue previsto: LOCAL en la PC de la tienda (decisión D5 del 2026-11-09; pendiente de preparar).
 
 **Fase actual:** Fase 1 implementada e integrada en `main` (2026-11-06; el cierre formal sigue pendiente: reportes, importador, puesta en marcha y aceptación, ver `docs/informe-tecnico/`) tras las reuniones del 2026-11-05 (catálogo, ingresos, precios, inventario, ajustes, conteos, usuarios); ver `docs/engineering/PLAN-DESARROLLO-F1-2026-11.md` §12. **Alcance de Fase 1:** catálogo (categorías,
 atributos, productos, variantes, SKU, códigos de barras, proveedores, costos, precios, stock mínimo,
@@ -111,7 +111,7 @@ Si se descubre una decisión no listada: agregarla a PENDIENTES.md.
 - Errores: lanzar subclases de `AppError` (`ValidationError`, `NotFoundError`, `ConflictError`,
   `BusinessRuleError`, `ForbiddenError`...). Nunca devolver errores internos.
 - Respuestas: `{ data }` / `{ data, meta }`. Montos `Decimal` serializados como string.
-- Stock: **solo** a través del futuro servicio de inventario (`modules/inventory`). Ningún otro módulo
+- Stock: **solo** a través del servicio de inventario (`applyStockChanges`, `modules/inventory`). Ningún otro módulo
   escribe en `inventory_movements` / `inventory_balances`.
 - Importaciones relativas con extensión `.ts` (`import { x } from './x.ts'`).
 - Usar `getAuth(request)` para obtener el usuario en rutas protegidas.
@@ -179,8 +179,9 @@ permisos · 005 categorías en árbol · 006 atributos · 007 libro de movimient
 014 conteos con movimientos · 015 reparto de centavos y valor cero · 016 compras en dólares e
 importación · 017 ajustes con solicitud y aprobación · 018 aprobación e historial de precios ·
 019 cambios de pieza · 020 fotos de producto · 021 conteo a ciegas con segundo recuento.
-Los ADR 022 en adelante que aparecen en `docs/informe-tecnico/` y `docs/propuestas/` son PROPUESTAS
-sin aprobar: no existen en `docs/decisions/`.
+022 venta de mostrador inmutable · 023 caja única, arqueo y correcciones · 024 comprobante interno
+(aceptados con la autorización del 2026-11-10). Otros números de ADR citados en `docs/informe-tecnico/`
+o `docs/propuestas/` (p. ej. 025 anulaciones) son propuestas no emitidas; ver `docs/decisions/README.md`.
 
 ## Agentes y skills
 

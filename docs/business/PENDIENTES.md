@@ -301,8 +301,10 @@ Notas:
   negocio nuevas: el Administrador es inmutable; los otros roles de sistema no se renombran ni pierden
   sus permisos base (el seed los volvería a agregar); un rol con usuarios no se elimina; nadie concede
   permisos que no tiene; todo queda auditado. Detalle en `docs/api/API.md` («Roles y permisos»).
-  Queda abierto: marcar permisos «exclusivos del Administrador» que la pantalla no deje asignar a otros
-  roles (p. ej. `cash:correct` de la propuesta de caja), si el cliente lo pide.
+  Actualización 2026-11-11: los permisos exclusivos del Administrador (`ADMIN_ONLY_PERMISSIONS`:
+  `cash:correct`, `sales-incidents:manage`, `settings:manage`) ya no se pueden asignar a otros roles y
+  solo son efectivos con el rol Administrador. Falta que el responsable confirme la lista (ver nota «Nueva
+  (2026-11-11)»).
   Antes (2026-11-09): el seed de producción ejecutable sí estaba autorizado (A3 a), pero no la pantalla ni la API
   de roles.
 - **P-47:** material para la sesión en
