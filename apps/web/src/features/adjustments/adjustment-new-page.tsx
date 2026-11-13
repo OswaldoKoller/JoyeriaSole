@@ -341,7 +341,8 @@ function AdjustmentForm({ initialLines }: { initialLines: FormLine[] }) {
           </p>
         )}
         <p className="text-sm text-stone-600">
-          La solicitud no cambia el stock: queda pendiente hasta que el Administrador la apruebe.
+          La solicitud no cambia el stock: queda pendiente hasta que la apruebe quien autoriza
+          ajustes (por defecto, el Administrador o el Responsable de inventario).
         </p>
         <div className="flex flex-wrap gap-3">
           <Button type="submit" disabled={create.isPending}>
@@ -394,8 +395,8 @@ export function AdjustmentNewPage() {
         </Link>
         <h1 className="text-2xl font-semibold">Solicitar ajuste</h1>
         <p className="text-sm text-stone-600">
-          Indique cuántas piezas entran o salen de cada variante y el motivo. El Administrador
-          revisa y aprueba.
+          Indique cuántas piezas entran o salen de cada variante y el motivo. Quien autoriza ajustes
+          (por defecto, el Administrador o el Responsable de inventario) revisa y aprueba.
         </p>
       </div>
       {waiting ? (

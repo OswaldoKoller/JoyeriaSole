@@ -33,6 +33,7 @@ export function InventoryPage() {
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState('Stock inicial');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const list = useInventory(page, search, level, initialOnly);
   const movements = useInventoryMovements(selected?.variantId ?? null);
   const initialItem = (list.data?.data ?? []).find((item) => item.variantId === initialFor);
@@ -55,8 +56,17 @@ export function InventoryPage() {
       return;
     }
     setError('');
+    setSuccess('');
+    const label = initialItem ? `${initialItem.productName} (${initialItem.sku})` : 'la pieza';
     try {
       await initial.mutateAsync({ variantId: initialFor, input: parsed.data });
+      const pieces =
+        parsed.data.quantity === 1 ? '1 pieza' : `${String(parsed.data.quantity)} piezas`;
+      setSuccess(
+        initialOnly
+          ? `Stock inicial registrado: ${pieces} de ${label}. Ya no aparece en esta lista porque ahora tiene movimientos; su saldo se consulta en Saldos y alertas.`
+          : `Stock inicial registrado: ${pieces} de ${label}.`,
+      );
       setInitialFor(null);
       setQuantity('');
     } catch (cause) {
@@ -69,9 +79,16 @@ export function InventoryPage() {
       <div>
         <h1 className="text-2xl font-semibold">{initialOnly ? 'Stock inicial' : 'Inventario'}</h1>
         <p className="text-sm text-stone-600">
-          Saldos por variante, alertas e historial de movimientos.
+          {initialOnly
+            ? 'Primera carga de piezas. Solo se listan las variantes que todavía no tienen ningún movimiento.'
+            : 'Saldos por variante, alertas e historial de movimientos.'}
         </p>
       </div>
+      {success && (
+        <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
+          {success}
+        </p>
+      )}
       <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-xs">
         <form onSubmit={submitSearch} className="flex flex-wrap items-end gap-3">
           <div className="min-w-52 flex-1">
@@ -120,8 +137,18 @@ export function InventoryPage() {
             </button>
           </p>
         )}
-        {list.isSuccess && items.length === 0 && (
+        {list.isSuccess && items.length === 0 && !initialOnly && (
           <p className="py-6 text-sm text-stone-600">No hay variantes para este filtro.</p>
+        )}
+        {list.isSuccess && items.length === 0 && initialOnly && (
+          <p className="py-6 text-sm text-stone-600">
+            No hay variantes pendientes de stock inicial para este filtro. Las que ya tienen
+            movimientos no se listan aquí: consulte su saldo en{' '}
+            <Link to="/inventario" className="text-brand-700 underline">
+              Saldos y alertas
+            </Link>
+            .
+          </p>
         )}
         {list.isSuccess && items.length > 0 && (
           <div aria-busy={list.isPlaceholderData} className="mt-4 overflow-x-auto">
@@ -186,6 +213,7 @@ export function InventoryPage() {
                           onClick={() => {
                             setInitialFor(item.variantId);
                             setError('');
+                            setSuccess('');
                           }}
                         >
                           Stock inicial de {item.sku}
