@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -290,6 +290,81 @@ describe('filtros y paginación de productos', () => {
       expect(last?.get('q')).toBe('anillo');
       expect(last?.get('incomplete')).toBe('true');
     });
+  });
+
+  it('limpiar la búsqueda y cambiar de inmediato el estado de la ficha conserva ambos cambios', async () => {
+    // Regresión (fallaba en CI): el cambio de URL de React Router es diferido (transición). Un render
+    // urgente intermedio con la URL anterior reescribía la «URL vigente» y el filtro siguiente partía
+    // de la búsqueda vieja, que volvía a aplicarse junto con él.
+    const requests = mockApi();
+    renderPage('/productos?q=SKU-000001');
+    await screen.findByRole('link', { name: 'Ver ficha de Producto 1' });
+
+    const form = searchBox().closest('form');
+    if (!form) throw new Error('No se encontró el formulario de búsqueda');
+    act(() => {
+      fireEvent.change(searchBox(), { target: { value: '' } });
+    });
+    act(() => {
+      fireEvent.submit(form);
+      fireEvent.change(screen.getByLabelText('Estado de la ficha'), {
+        target: { value: 'incomplete' },
+      });
+    });
+
+    await waitFor(() => {
+      const search = new URLSearchParams(screen.getByTestId('url-search').textContent);
+      expect(search.get('incomplete')).toBe('1');
+      expect(search.has('q')).toBe(false);
+    });
+    await waitFor(() => {
+      const last = listRequests(requests).at(-1)?.params;
+      expect(last?.get('incomplete')).toBe('true');
+      expect(last?.get('q') ?? '').toBe('');
+    });
+  });
+
+  it('vaciar el campo justo después de una coincidencia por código no lo repone cuando llega la URL', async () => {
+    // Regresión (fallaba en CI): la URL de la búsqueda llega diferida y la pantalla reescribía el
+    // campo con ese valor aunque el usuario ya lo hubiera vaciado; el siguiente «Buscar» repetía
+    // la búsqueda por el SKU en vez de limpiar.
+    const requests = mockApi({
+      lookup: () =>
+        jsonResponse(200, {
+          data: {
+            variantId: '00000000-0000-7000-8000-000000000201',
+            sku: 'SKU-000001',
+            productName: 'Producto 1',
+            label: 'Talla 7',
+            matchedBy: 'BARCODE',
+          },
+        }),
+    });
+    renderPage();
+    await screen.findByRole('link', { name: 'Ver ficha de Producto 1' });
+    const form = searchBox().closest('form');
+    if (!form) throw new Error('No se encontró el formulario de búsqueda');
+
+    // Dentro de un mismo `act` React no aplica la transición de la URL hasta salir de él: el campo
+    // se vacía después de la coincidencia y antes de que la URL nueva se renderice.
+    await act(async () => {
+      fireEvent.change(searchBox(), { target: { value: '7701234567890' } });
+      fireEvent.submit(form);
+      await vi.waitFor(() => {
+        expect(requests.some((request) => request.url.includes('/variants/lookup'))).toBe(true);
+      });
+      // Se deja terminar la respuesta de la búsqueda (la pantalla fija el SKU en el campo) y recién
+      // entonces el usuario vacía el campo; la URL nueva todavía no se renderizó.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      fireEvent.change(searchBox(), { target: { value: '' } });
+    });
+
+    await waitFor(() => {
+      expect(new URLSearchParams(screen.getByTestId('url-search').textContent).get('q')).toBe(
+        'SKU-000001',
+      );
+    });
+    expect(searchBox()).toHaveValue('');
   });
 
   it('arranca con los filtros de la URL (enlace compartido, recarga o botón Atrás)', async () => {

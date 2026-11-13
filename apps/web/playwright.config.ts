@@ -51,6 +51,9 @@ export default defineConfig({
         TRUST_PROXY_HOPS: '0',
         // La suite inicia sesión muchas veces desde una sola IP; en producción el límite es 10.
         LOGIN_RATE_LIMIT_MAX: '1000',
+        // Idem para el límite global (300/min en producción): con una sola IP la suite lo agotaba y
+        // las pantallas recibían 429 («No se pudieron cargar…») según la velocidad del servidor.
+        RATE_LIMIT_MAX: '100000',
         WEB_DIST_DIR: '',
       },
       reuseExistingServer: false,
