@@ -74,10 +74,16 @@ export const adjustmentsRoutes: FastifyPluginAsyncZod = async (app) => {
     '/',
     {
       preValidation: canRequest,
-      schema: { body: createAdjustmentSchema, response: { 201: detail } },
+      schema: {
+        headers: idempotencyHeadersSchema,
+        body: createAdjustmentSchema,
+        response: { 200: detail, 201: detail },
+      },
     },
-    async (request, reply) =>
-      reply.status(201).send({ data: await service.create(request.body, request) }),
+    async (request, reply) => {
+      const data = await service.create(request.body, request);
+      return reply.status(request.idempotentReplay ? 200 : 201).send({ data });
+    },
   );
 
   app.post(

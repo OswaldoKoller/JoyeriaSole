@@ -106,7 +106,12 @@ export const inventoryCountsRoutes: FastifyPluginAsyncZod = async (app) => {
     '/:id/scan',
     {
       preValidation: canManage,
-      schema: { params: idParams, body: scanInventoryCountSchema, response: { 200: scanResult } },
+      schema: {
+        headers: idempotencyHeadersSchema,
+        params: idParams,
+        body: scanInventoryCountSchema,
+        response: { 200: scanResult },
+      },
     },
     async (request) => ({
       data: await service.scan(request.params.id, request.body.code, request),
