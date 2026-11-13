@@ -6,19 +6,21 @@
 ## Proyecto
 
 Sistema web de inventario para una tienda de joyería y productos de moda (Bolivia). Pyme, pocos
-usuarios, acceso desde Internet.
+usuarios. Despliegue previsto: LOCAL en la PC de la tienda (decisión D5 del 2026-11-09; pendiente de preparar).
 
 **Fase actual:** Fase 1 implementada e integrada en `main` (2026-11-06; el cierre formal sigue pendiente: reportes, importador, puesta en marcha y aceptación, ver `docs/informe-tecnico/`) tras las reuniones del 2026-11-05 (catálogo, ingresos, precios, inventario, ajustes, conteos, usuarios); ver `docs/engineering/PLAN-DESARROLLO-F1-2026-11.md` §12. **Alcance de Fase 1:** catálogo (categorías,
 atributos, productos, variantes, SKU, códigos de barras, proveedores, costos, precios, stock mínimo,
 estado), ingresos de mercadería, inventario (saldos, movimientos, ajustes, inventario físico),
 control (sin stock, bajo mínimo, historial) y usuarios/roles/permisos.
 
-**Fase 2 (Ventas): solo ANÁLISIS y planificación** (resolución del responsable del 2026-11-07). La
-implementación requiere una autorización posterior, expresa y delimitada. Decisiones confirmadas que
-ya restringen el diseño: venta de mostrador pagada íntegramente al momento (sin créditos ni apartados),
-pagos en Bs (efectivo, QR, transferencia), facturación fiscal en un sistema externo, **no se anulan las
-ventas confirmadas (DEC-V07)**, caja única con apertura, cierre y arqueo (DEC-V09) y comprobante interno
-imprimible (DEC-V12). Sus subdecisiones siguen pendientes.
+**Fase 2 (Ventas): implementación AUTORIZADA el 2026-11-10** (ver `docs/business/RESOLUCIONES-2026-11-10.md`),
+delimitada por el plan `docs/propuestas/fase-2-ventas/11-plan-de-implementacion.md` (E1 venta de
+mostrador y comprobante interno, E3 caja única). Decisiones confirmadas que restringen el diseño: venta
+de mostrador pagada íntegramente al momento (sin créditos ni apartados), pagos en Bs (efectivo, QR,
+transferencia), facturación fiscal en un sistema externo, **no se anulan las ventas confirmadas
+(DEC-V07)**, caja única con apertura, cierre y arqueo (DEC-V09) y comprobante interno imprimible
+(DEC-V12). Los valores marcados «POR DEFECTO — PENDIENTE DE CONFIRMACIÓN» en el plan no son reglas:
+deben quedar configurables o fáciles de cambiar.
 
 **Principio:** primero se define el negocio y la arquitectura; después se implementa.
 **No implementar funcionalidades de negocio sin aprobación explícita del usuario.**
@@ -109,7 +111,7 @@ Si se descubre una decisión no listada: agregarla a PENDIENTES.md.
 - Errores: lanzar subclases de `AppError` (`ValidationError`, `NotFoundError`, `ConflictError`,
   `BusinessRuleError`, `ForbiddenError`...). Nunca devolver errores internos.
 - Respuestas: `{ data }` / `{ data, meta }`. Montos `Decimal` serializados como string.
-- Stock: **solo** a través del futuro servicio de inventario (`modules/inventory`). Ningún otro módulo
+- Stock: **solo** a través del servicio de inventario (`applyStockChanges`, `modules/inventory`). Ningún otro módulo
   escribe en `inventory_movements` / `inventory_balances`.
 - Importaciones relativas con extensión `.ts` (`import { x } from './x.ts'`).
 - Usar `getAuth(request)` para obtener el usuario en rutas protegidas.
@@ -156,10 +158,11 @@ Si se descubre una decisión no listada: agregarla a PENDIENTES.md.
 ## NO hacer
 
 - ❌ Implementar módulos de Fase 1 sin aprobación explícita.
-- ❌ Punto de venta, facturación, Impuestos Nacionales, contabilidad, multi-sucursal, app móvil, IA,
-  compras automáticas, integraciones bancarias.
+- ❌ Facturación fiscal, Impuestos Nacionales, contabilidad, multi-sucursal, app móvil, IA, compras
+  automáticas, integraciones bancarias. (La venta de mostrador con comprobante interno sí está autorizada
+  desde el 2026-11-10, dentro del plan 11.)
 - ❌ Convertir decisiones PENDIENTES en reglas; inventar requisitos.
-- ❌ Implementar Ventas (Fase 2) sin autorización expresa y delimitada; y, aun con ella, anulación de
+- ❌ Ampliar Ventas más allá del plan 11 sin autorización; y, en ningún caso, anulación de
   ventas confirmadas (`POST /sales/:id/void`, `sales:void`, `SALE_VOID`, estado `VOIDED`) ni ningún
   mecanismo de reversión equivalente o encubierto (DEC-V07).
 - ❌ Modificar stock sin movimiento; editar/borrar movimientos o auditoría.
@@ -176,8 +179,9 @@ permisos · 005 categorías en árbol · 006 atributos · 007 libro de movimient
 014 conteos con movimientos · 015 reparto de centavos y valor cero · 016 compras en dólares e
 importación · 017 ajustes con solicitud y aprobación · 018 aprobación e historial de precios ·
 019 cambios de pieza · 020 fotos de producto · 021 conteo a ciegas con segundo recuento.
-Los ADR 022 en adelante que aparecen en `docs/informe-tecnico/` y `docs/propuestas/` son PROPUESTAS
-sin aprobar: no existen en `docs/decisions/`.
+022 venta de mostrador inmutable · 023 caja única, arqueo y correcciones · 024 comprobante interno
+(aceptados con la autorización del 2026-11-10). Otros números de ADR citados en `docs/informe-tecnico/`
+o `docs/propuestas/` (p. ej. 025 anulaciones) son propuestas no emitidas; ver `docs/decisions/README.md`.
 
 ## Agentes y skills
 

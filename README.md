@@ -3,7 +3,20 @@
 Sistema web para gestionar el catálogo (productos y variantes), los ingresos de mercadería, el
 inventario y su trazabilidad en una tienda de joyería y productos de moda.
 
-**Estado:** Proveedores implementado. F1-02 incluye alta y gestión de usuarios, varios roles y cambio de contraseña; su verificación E2E final sigue pendiente. F1-03 incluye categorías, atributos, productos y ejes de variantes. F1-04 inicia con saldos, alertas, historial y stock inicial; ingresos y ajustes posteriores siguen pendientes. Las decisiones de negocio se registran en
+**Estado (Fase 1):** construida en `main` según el [plan de desarrollo](docs/engineering/PLAN-DESARROLLO-F1-2026-11.md)
+(sección 12, rebanadas S0 a S13) y el [CHANGELOG](CHANGELOG.md).
+
+- **Implementado:** usuarios, roles y permisos; proveedores; catálogo (categorías, atributos, productos, variantes,
+  SKU, códigos, etiquetas y fotos); ingresos de mercadería con costos (también en dólares); precios de venta con
+  solicitud, aprobación e historial; inventario (saldos, movimientos, alertas, stock inicial); ajustes con
+  solicitud y aprobación; conteo físico a ciegas con segundo recuento; base de cambios de pieza (solo API, sin
+  pantalla); bandeja de pendientes de aprobación y auditoría (solo Administrador).
+- **Pendiente:** reportes y exportaciones, importación de datos, y despliegue y demostración al cliente (hosting y
+  dominio sin definir, P-18). El plan detalla además la seguridad residual (S12).
+- **Fase 2 (ventas):** solo hay [propuestas de análisis](docs/propuestas/fase-2-ventas/README.md); no está
+  autorizada su implementación.
+
+Las decisiones de negocio y su estado se registran en
 [`docs/business/PENDIENTES.md`](docs/business/PENDIENTES.md).
 
 ## Stack
@@ -35,8 +48,9 @@ Administrador la auditoría, los usuarios y roles, el borrado físico de product
 en [`docs/security/SECURITY.md`](docs/security/SECURITY.md) y
 [`docs/business/RESOLUCIONES-2026-11-05.md`](docs/business/RESOLUCIONES-2026-11-05.md).
 
-Preparación actual y entregas: [Fase 1](docs/engineering/PHASE-1-PREPARATION.md).
-Orden y criterios de aceptación: [roadmap de Fase 1](docs/engineering/ROADMAP.md).
+Estado por rebanada: [plan de desarrollo de Fase 1](docs/engineering/PLAN-DESARROLLO-F1-2026-11.md), sección 12.
+Documentos de octubre, con el estado de esa fecha: [preparación de Fase 1](docs/engineering/PHASE-1-PREPARATION.md)
+y [roadmap de Fase 1](docs/engineering/ROADMAP.md) (orden y criterios de aceptación; línea base 2026-10-10).
 Para validar sin usar datos de desarrollo: Docker iniciado, `npx playwright install chromium`
 y `npm run qa`. El comando crea y elimina su propia base de pruebas.
 

@@ -1,5 +1,6 @@
 import {
   REFERENCE_TYPES,
+  adjustmentDetailSchema,
   adjustmentLabel,
   dayRangeLaPaz,
   formatMoney,
@@ -13,9 +14,11 @@ import {
 import type { FastifyRequest } from 'fastify';
 import type { Prisma } from '../../generated/prisma/client.ts';
 import { BusinessRuleError, ForbiddenError, NotFoundError } from '../../lib/errors.ts';
+import { idempotentTransaction } from '../../lib/idempotency.ts';
 import { canSeeCosts } from '../../lib/permissions.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
+import { idempotencyOf } from '../../plugins/idempotency.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { applyStockChanges, planBalanceChange } from './stock-ledger.ts';
 
@@ -343,14 +346,11 @@ export class AdjustmentsService {
   async approve(id: string, request: FastifyRequest) {
     const userId = getAuth(request).user.id;
     const showCosts = canSeeCosts(request);
-    return this.prisma.$transaction(async (tx) => {
+    const idempotency = { context: idempotencyOf(request), responseSchema: adjustmentDetailSchema };
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       const adjustment = await this.lockPending(tx, id);
-      for (const item of adjustment.items) {
-        if (item.variant.status !== 'ACTIVE' || item.variant.product.status !== 'ACTIVE') {
-          throw new BusinessRuleError(`La variante ${item.variant.sku} está inactiva.`);
-        }
-      }
 
+      // La variante (y su producto) deben seguir activos: el libro lo comprueba bajo el bloqueo.
       const applied = await applyStockChanges(
         tx,
         adjustment.items.map((item) => ({
@@ -365,6 +365,7 @@ export class AdjustmentsService {
           userId,
           label: item.variant.sku,
         })),
+        { requireActive: true },
       );
 
       const audited: Record<string, string | number>[] = [];

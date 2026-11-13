@@ -14,6 +14,7 @@ import { authRoutes } from './modules/auth/auth.routes.ts';
 import { healthRoutes } from './modules/health/health.routes.ts';
 import { suppliersRoutes } from './modules/suppliers/suppliers.routes.ts';
 import { usersRoutes } from './modules/users/users.routes.ts';
+import { rolesRoutes } from './modules/roles/roles.routes.ts';
 import { categoriesRoutes } from './modules/catalog/categories.routes.ts';
 import { attributesRoutes } from './modules/catalog/attributes.routes.ts';
 import { productsRoutes } from './modules/catalog/products.routes.ts';
@@ -29,8 +30,15 @@ import { costHistoryRoutes } from './modules/stock-entries/cost-history.routes.t
 import { costTypesRoutes } from './modules/stock-entries/cost-types.routes.ts';
 import { inventoryCountsRoutes } from './modules/inventory-counts/inventory-counts.routes.ts';
 import { stockEntriesRoutes } from './modules/stock-entries/stock-entries.routes.ts';
+import { cashRoutes } from './modules/cash/cash.routes.ts';
+import { paymentMethodsRoutes } from './modules/sales/payment-methods.routes.ts';
+import { salesRoutes } from './modules/sales/sales.routes.ts';
+import { receiptRoutes } from './modules/sales/receipt.routes.ts';
+import { saleIncidentsRoutes } from './modules/sales/incidents.routes.ts';
+import { businessSettingsRoutes } from './modules/settings/business-settings.routes.ts';
 import { authPlugin } from './plugins/auth.ts';
 import { errorHandlerPlugin } from './plugins/error-handler.ts';
+import { idempotencyPlugin } from './plugins/idempotency.ts';
 import { prismaPlugin } from './plugins/prisma.ts';
 import { securityPlugin } from './plugins/security.ts';
 
@@ -106,6 +114,7 @@ export async function buildApp(env: Env) {
   await app.register(securityPlugin, { env });
   await app.register(prismaPlugin, { databaseUrl: env.DATABASE_URL });
   await app.register(authPlugin, { env });
+  await app.register(idempotencyPlugin);
 
   // API versionada. Cada módulo de negocio se registra aquí con su propio prefijo.
   await app.register(
@@ -118,6 +127,7 @@ export async function buildApp(env: Env) {
       });
       await api.register(suppliersRoutes, { prefix: '/suppliers' });
       await api.register(usersRoutes, { prefix: '/users' });
+      await api.register(rolesRoutes, { prefix: '/roles' });
       await api.register(categoriesRoutes, { prefix: '/categories' });
       await api.register(attributesRoutes, { prefix: '/attributes' });
       await api.register(productsRoutes, { prefix: '/products' });
@@ -133,6 +143,13 @@ export async function buildApp(env: Env) {
       await api.register(pricingRoutes, { prefix: '/pricing' });
       await api.register(approvalsRoutes, { prefix: '/approvals' });
       await api.register(auditRoutes, { prefix: '/audit' });
+      // Ventas y caja (plan 11 de fase-2-ventas): sin rutas de anulación ni de edición (DEC-V07).
+      await api.register(cashRoutes, { prefix: '/cash' });
+      await api.register(salesRoutes, { prefix: '/sales' });
+      await api.register(receiptRoutes, { prefix: '/sales' });
+      await api.register(paymentMethodsRoutes, { prefix: '/payment-methods' });
+      await api.register(saleIncidentsRoutes, { prefix: '/sale-incidents' });
+      await api.register(businessSettingsRoutes, { prefix: '/settings' });
     },
     { prefix: API_PREFIX },
   );

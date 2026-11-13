@@ -1,5 +1,6 @@
 import {
   PERMISSIONS,
+  REFERENCE_TYPES,
   checkDocumentDate,
   computeEntryCosts,
   convertToBob,
@@ -9,6 +10,7 @@ import {
   parseExchangeRate,
   parseMoney,
   parseUnitCost,
+  stockEntryDetailSchema,
   unitsToCents,
   type CreateStockEntryInput,
   type EntryCostLine,
@@ -25,12 +27,14 @@ import {
   NotFoundError,
   ValidationError,
 } from '../../lib/errors.ts';
+import { idempotentTransaction } from '../../lib/idempotency.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
+import { idempotencyOf } from '../../plugins/idempotency.ts';
 import { recordAudit } from '../audit/audit.service.ts';
 import { ProductsService } from '../catalog/products.service.ts';
+import { applyStockChanges } from '../inventory/stock-ledger.ts';
 
-const MAX_BALANCE = 2_147_483_647; // límite de la columna entera de saldos
 const MAX_ITEMS = 200;
 
 const withDetails = {
@@ -726,7 +730,9 @@ export class StockEntriesService {
    */
   async confirm(id: string, request: FastifyRequest) {
     const userId = getAuth(request).user.id;
-    return this.prisma.$transaction(async (tx) => {
+    // Idempotente: un reintento con la misma Idempotency-Key devuelve el detalle ya confirmado.
+    const idempotency = { context: idempotencyOf(request), responseSchema: stockEntryDetailSchema };
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       const entry = await this.lockDraft(tx, id);
       const analysis = analyze(entry);
       if (analysis.blockers.length > 0 || !analysis.result.ok) {
@@ -735,52 +741,39 @@ export class StockEntriesService {
         });
       }
 
-      // Orden fijo de bloqueo (por variante) para no interbloquear con otras operaciones de stock.
+      // Una sola operación del libro con todas las líneas recibidas: bloquea las variantes y sus
+      // saldos en el orden global, exige variante y producto activos bajo el bloqueo, valida el
+      // máximo de saldo y registra un movimiento STOCK_ENTRY por línea.
+      // Ordenadas por variante, como siempre, para que la auditoría conserve el mismo orden.
       const received = entry.items
         .filter((item) => item.receivedQty > 0)
         .sort((a, b) => (a.variantId < b.variantId ? -1 : 1));
-      for (const item of received) {
-        await tx.$queryRaw`SELECT id FROM product_variants WHERE id = ${item.variantId}::uuid FOR UPDATE`;
-      }
-
-      const audited: Record<string, string | number>[] = [];
-      for (const item of received) {
+      const lines = received.map((item) => {
         const line = analysis.lines.get(item.variantId);
         if (!line) throw new BusinessRuleError('No se pudo calcular el costo de una línea.');
+        return { item, line, unitTotal: formatUnitCost(line.unitTotal) };
+      });
+      const applied = await applyStockChanges(
+        tx,
+        lines.map(({ item, unitTotal }) => ({
+          variantId: item.variantId,
+          type: 'STOCK_ENTRY' as const,
+          quantity: item.receivedQty,
+          unitCost: unitTotal,
+          referenceType: REFERENCE_TYPES.STOCK_ENTRY,
+          referenceId: entry.id,
+          reason: `Ingreso ${label(entry.number)}`,
+          notes: item.notes,
+          userId,
+          label: item.variant.sku,
+        })),
+        { requireActive: true },
+      );
 
-        await tx.$executeRaw`
-          INSERT INTO inventory_balances (variant_id, quantity, updated_at)
-          VALUES (${item.variantId}::uuid, 0, now()) ON CONFLICT (variant_id) DO NOTHING`;
-        const [balance] = await tx.$queryRaw<{ quantity: number }[]>`
-          SELECT quantity FROM inventory_balances WHERE variant_id = ${item.variantId}::uuid FOR UPDATE`;
-        if (!balance) throw new BusinessRuleError('No se pudo leer el saldo de una variante.');
-        const after = balance.quantity + item.receivedQty;
-        if (after > MAX_BALANCE) {
-          throw new BusinessRuleError(
-            `El saldo de ${item.variant.sku} superaría el máximo permitido.`,
-          );
-        }
-
-        const unitTotal = formatUnitCost(line.unitTotal);
-        await tx.inventoryMovement.create({
-          data: {
-            variantId: item.variantId,
-            type: 'STOCK_ENTRY',
-            quantity: item.receivedQty,
-            balanceBefore: balance.quantity,
-            balanceAfter: after,
-            unitCost: unitTotal,
-            referenceType: 'STOCK_ENTRY',
-            referenceId: entry.id,
-            reason: `Ingreso ${label(entry.number)}`,
-            notes: item.notes,
-            userId,
-          },
-        });
-        await tx.inventoryBalance.update({
-          where: { variantId: item.variantId },
-          data: { quantity: after },
-        });
+      const audited: Record<string, string | number>[] = [];
+      for (const [index, { item, line, unitTotal }] of lines.entries()) {
+        const result = applied[index];
+        if (!result) throw new BusinessRuleError('No se pudo aplicar una de las líneas.');
         // Último costo (P-07): el costo unitario total del ingreso reemplaza al vigente.
         await tx.productVariant.update({
           where: { id: item.variantId },
@@ -797,8 +790,8 @@ export class StockEntriesService {
           unitTotalCost: unitTotal,
           totalCost: formatUnitCost(line.totalCost),
           previousCost: item.variant.costPrice.toFixed(4),
-          balanceBefore: balance.quantity,
-          balanceAfter: after,
+          balanceBefore: result.balanceBefore,
+          balanceAfter: result.balanceAfter,
         });
       }
 

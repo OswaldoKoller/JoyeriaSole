@@ -9,7 +9,9 @@ Estados: 🟡 PENDIENTE o PARCIAL · 🟢 APROBADA, CERRADA o IMPLEMENTADA · �
 
 Respuestas comunicadas por el cliente: [2026-10-09](RESOLUCIONES-2026-10-09.md),
 [2026-10-11](RESOLUCIONES-2026-10-11.md) y [2026-11-05](RESOLUCIONES-2026-11-05.md) (la sección 7 de
-esta última prevalece cuando difiere de las anteriores). Una respuesta aprobada puede estar sin
+esta última prevalece cuando difiere de las anteriores); para Ventas (Fase 2),
+[2026-11-07](RESOLUCIONES-2026-11-07.md) y [2026-11-09](RESOLUCIONES-2026-11-09.md). Una respuesta
+aprobada puede estar sin
 implementar: la columna «Lo preparado hoy» indica qué existe en el sistema. Este documento tiene **una
 sola fila por ID** con su estado actual.
 
@@ -22,6 +24,12 @@ sola fila por ID** con su estado actual.
 | P-19 | Política de contraseñas, duración de sesión y si se requiere **2FA**.                                                                                  | 🟢 IMPLEMENTADA | Argon2id, mínimo 10 caracteres, sesión **fija de 8 h** desde el login sin extensión por actividad (Q-02 A; antes 3 h). Sin 2FA. Contraseña olvidada: clave temporal del Administrador con cambio obligatorio (F2). La pregunta de 2FA para administradores (F4/F5) sigue sin respuesta.                                                                                                                                                                | a) Mantener · b) 2FA para ADMIN · c) 2FA para todos                                          |
 | P-21 | ¿Un usuario puede tener **varios roles**?                                                                                                              | 🟢 APROBADA     | Sí (confirmado 2026-11-05). El modelo lo soporta (`user_roles`) y la pantalla de Usuarios permite asignar varios.                                                                                                                                                                                                                                                                                                                                      | a) Un rol por usuario · b) Varios                                                            |
 | P-23 | Tiempo de **retención** de auditoría y sesiones vencidas.                                                                                              | 🟢 APROBADA     | Se guardan indefinidamente.                                                                                                                                                                                                                                                                                                                                                                                                                            | a) Indefinido · b) N años                                                                    |
+
+> **Nota (2026-11-09, sin cambio de estado):** el responsable respondió que **no** habrá 2FA para los
+> administradores ([RESOLUCIONES-2026-11-09](RESOLUCIONES-2026-11-09.md), D7), con lo que la pregunta de
+> 2FA de P-19 queda contestada: se mantiene sin 2FA. Habrá dos administradores («Claudia» y «ADMINI2»);
+> la fecha «01/11/26» que acompañó a esa respuesta es solo la de alta de ese personal (D6), no la de
+> arranque del sistema, que sigue sin definirse.
 
 ## Catálogo y productos
 
@@ -120,6 +128,188 @@ Surgieron al unir las tres pistas de trabajo (catálogo, ingresos/precios e inve
 | P-18 | **Proveedor de hosting**, dominio y presupuesto mensual.                                                                        | 🟡 PENDIENTE | Recomendación en `docs/deployment/DEPLOYMENT.md`.                                                                                                                                                     | Render · Railway · VPS                         |
 | P-26 | **RPO/RTO** aceptables (cuántos datos se pueden perder y cuánto tiempo puede estar caído).                                      | 🟡 PENDIENTE | Propuesta en `docs/deployment/BACKUPS.md`.                                                                                                                                                            | —                                              |
 
+> **Nota (2026-11-09, sin cambio de estado):** el responsable indicó que el despliegue será **local**, en
+> la PC donde se ejecutará el sistema, y lo dejó para después
+> ([RESOLUCIONES-2026-11-09](RESOLUCIONES-2026-11-09.md), D5). Eso contradice la recomendación de
+> Render de `DEPLOYMENT.md` y el «acceso desde Internet» de `CLAUDE.md`. P-18 (hosting) y P-26
+> (RPO/RTO) siguen pendientes: hay que decidir las copias de respaldo en el sitio, el HTTPS en la red
+> local y quién puede acceder.
+
+## Ventas (Fase 2)
+
+Preguntas **Q-V01 a Q-V17** de la propuesta de Fase 2
+([matriz de decisiones](../propuestas/fase-2-ventas/01-matriz-de-decisiones.md) y
+[subdecisiones pendientes](../propuestas/fase-2-ventas/08-subdecisiones-pendientes.md)). Se identifican
+con el prefijo **Q-V** (el informe técnico las llamaba P-V). Fuentes:
+[RESOLUCIONES-2026-11-07](RESOLUCIONES-2026-11-07.md) y
+[RESOLUCIONES-2026-11-09](RESOLUCIONES-2026-11-09.md); los códigos A1 a F4 que aparecen abajo son las
+respuestas de ese cuestionario.
+
+**Actualización 2026-11-10:** el responsable autorizó implementar «todo el módulo de Ventas» según el
+[plan 11](../propuestas/fase-2-ventas/11-plan-de-implementacion.md)
+([RESOLUCIONES-2026-11-10](RESOLUCIONES-2026-11-10.md)). DEC-V07 sigue vigente: no hay anulaciones.
+El backend (S1 a S4) usa los valores por defecto de abajo, que **no son reglas de negocio**.
+
+### Valores POR DEFECTO — PENDIENTE DE CONFIRMACIÓN (plan 11 §2.2)
+
+Implementados para poder construir; el responsable debe revisarlos. Dónde se cambian:
+
+| Id   | Valor aplicado                                                                                                                                                                                                                                                                                | Dónde se cambia (sin migración salvo que se indique)                                          |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| D-01 | Venden (`sales:create`) Vendedor, Responsable y Administrador                                                                                                                                                                                                                                 | `DEFAULT_ROLE_PERMISSIONS` + seed, o pantalla «Roles»                                         |
+| D-02 | El Vendedor ve solo sus ventas (`sales:read`); Responsable y Administrador ven todas (`sales:read-all`). **Sigue a D-02 (M-1, 2026-11-11):** en el kardex (`inventory:read`) los movimientos `SALE` de otro vendedor se muestran sin autor (`userId: null`) a quien no tiene `sales:read-all` | Ídem; si D-02 cambia, revisar también `movementAuthorFor` (`apps/api/src/lib/permissions.ts`) |
+| D-03 | Correlativo `VTA-000001` (la base guarda un entero)                                                                                                                                                                                                                                           | `formatSaleNumber` en `packages/shared/src/sales.ts`                                          |
+| D-04 | Se guarda el nombre del vendedor en cada venta; no se imprime                                                                                                                                                                                                                                 | Interruptor `receiptShowSeller` en los datos del negocio                                      |
+| D-05 | El fondo inicial acepta `0` escrito explícitamente (vacío no es cero); sin tope **de negocio** (hay un límite **técnico** de Bs 99 999 999,99 en todo importe, `MONEY_INPUT_MAX`, para no desbordar la base)                                                                                  | `moneyInputSchema` en `packages/shared/src/schemas/money.ts`                                  |
+| D-06 | Reimprime quien puede ver la venta                                                                                                                                                                                                                                                            | Permiso propio nuevo, sin migración                                                           |
+| D-07 | Datos del negocio provisionales: «Joyería Sole», sin dirección, teléfono ni NIT; sin logo                                                                                                                                                                                                     | Pantalla de datos del negocio (`PUT /settings/business`); `BUSINESS_SETTINGS_DEFAULTS`        |
+| D-08 | El comprobante muestra los datos comerciales **vigentes** (no un snapshot por venta)                                                                                                                                                                                                          | Un snapshot futuro requiere migración                                                         |
+| D-09 | Tres medios fijos (Efectivo, QR, Transferencia); referencia de QR o transferencia opcional (≤ 100), no se imprime                                                                                                                                                                             | `SYSTEM_PAYMENT_METHODS`, `PAYMENT_REFERENCE_MAX_LENGTH` (un medio nuevo es una fila)         |
+| D-10 | Incidencias dentro del sistema, solo trazabilidad (contradice la «hoja fuera del sistema» de la aclaración de C5, ver X-1)                                                                                                                                                                    | Rutas `/sale-incidents` separables; se pueden retirar sin afectar el resto                    |
+| D-11 | Tipos `WRONG_SALE`, `WRONG_PAYMENT`, `DUPLICATE`, `OTHER`; quien reporta no lista; lista y cierra el Administrador                                                                                                                                                                            | Enum de BD (migración); permisos                                                              |
+| D-12 | Arqueo no ciego: quien tiene `cash:read` ve el esperado en vivo                                                                                                                                                                                                                               | Solo interfaz                                                                                 |
+| D-13 | `cash:read` al Responsable                                                                                                                                                                                                                                                                    | Permisos                                                                                      |
+| D-14 | Correcciones sin plazo; un Administrador puede corregir su propio cierre; solo sesiones cerradas                                                                                                                                                                                              | Reglas de servicio (el trigger exige `CLOSED`)                                                |
+| D-15 | 1 a 50 líneas, cantidad 1 a 999 por línea, una línea por variante, un pago por medio (máx. 3)                                                                                                                                                                                                 | `SALE_MAX_ITEMS`, `SALE_MAX_QUANTITY`, `SALE_MAX_PAYMENTS` en `packages/shared/src/sales.ts`  |
+| D-16 | Sin descuentos, sin clientes, sin fecha retroactiva (`sold_at` lo fija la base)                                                                                                                                                                                                               | Columnas nuevas (migración futura)                                                            |
+| D-17 | Número de sesión `CAJ-000001`                                                                                                                                                                                                                                                                 | `formatCashSessionNumber`                                                                     |
+| D-18 | Una sesión puede cruzar días; sin cierre automático                                                                                                                                                                                                                                           | Solo interfaz                                                                                 |
+| D-19 | «COPIA» desde la segunda impresión registrada de una venta                                                                                                                                                                                                                                    | `RECEIPT_COPY_LEGEND`                                                                         |
+
+También por defecto (plan 11 §4.2 y §3.12): el cierre espera como máximo 5 s a las ventas en curso
+(`CLOSE_LOCK_TIMEOUT`, luego `503`); la observación del arqueo con diferencia exige ≥ 3 caracteres y el
+motivo de una corrección ≥ 10 (`packages/shared/src/sales.ts`).
+
+**Contradicción X-1 (requiere confirmación expresa):** la aclaración delegada de C5 (2026-11-09) dice
+que las incidencias van en una hoja fuera del sistema; el encargo del 2026-11-10 las pide dentro. Se
+implementaron como entidad de solo trazabilidad; si el responsable mantiene la hoja, se retiran las
+rutas `/sale-incidents` y la tabla `sale_incidents` (nada más depende de ellas).
+
+**Nueva (2026-11-11):** permisos exclusivos del Administrador frente a la pantalla «Roles». Se
+consideraron exclusivos `cash:correct` (R-17), `sales-incidents:manage` (R-09) y `settings:manage`
+(R-27): la API no los concede a ningún otro rol. Confirmar si la lista es correcta (p. ej. si
+`audit:read` o `users:manage` también deberían quedar bloqueados por pantalla).
+
+| ID    | Decisión                     | Estado        | Lo registrado hoy                                                                   |
+| ----- | ---------------------------- | ------------- | ----------------------------------------------------------------------------------- |
+| Q-V01 | Mínimo para empezar a vender | 🟢 CONFIRMADA | Venta de mostrador con comprobante interno.                                         |
+| Q-V02 | Facturación                  | 🟢 CONFIRMADA | La facturación fiscal se realizará mediante un sistema externo.                     |
+| Q-V03 | Impuestos                    | 🟢 CONFIRMADA | El precio registrado representa el total cobrado; la aplicación no añade impuestos. |
+| Q-V04 | Medios de pago y moneda      | 🟢 CONFIRMADA | Efectivo, QR, transferencia y combinaciones; solo en bolivianos.                    |
+| Q-V05 | Crédito y apartados          | 🟢 CONFIRMADA | Solo ventas pagadas íntegramente al momento; sin créditos ni apartados.             |
+| Q-V06 | Descuentos                   | 🟡 PENDIENTE  | Sin respuesta.                                                                      |
+| Q-V07 | Anulación de ventas          | 🟢 CONFIRMADA | Prohibida por el flujo ordinario. Excepciones: parciales (ver nota).                |
+| Q-V08 | Cambios de pieza (P-30)      | 🟡 PENDIENTE  | Diferida el 2026-11-09: E4 de Ventas queda para después. Rige P-30.                 |
+| Q-V09 | Caja única                   | 🟢 CONFIRMADA | Una caja lógica única. Las 8 subdecisiones se respondieron el 2026-11-09.           |
+| Q-V10 | Clientes                     | 🟡 PENDIENTE  | Sin respuesta.                                                                      |
+| Q-V11 | Stock negativo en ventas     | 🟡 PENDIENTE  | Sin respuesta para ventas; rige P-08 (stock nunca negativo).                        |
+| Q-V12 | Comprobante y numeración     | 🟡 PARCIAL    | Mecanismo confirmado; faltan formato del correlativo y datos reales del negocio.    |
+| Q-V13 | Roles y permisos de ventas   | 🟡 PARCIAL    | Se fijó quién abre y cierra caja; falta quién vende y cobra.                        |
+| Q-V14 | Ventas retroactivas          | 🟡 PENDIENTE  | Sin respuesta.                                                                      |
+| Q-V15 | Reportes de ventas           | 🟡 PENDIENTE  | Diferida el 2026-11-09: E5 de Ventas queda para después.                            |
+| Q-V16 | Venta bajo costo             | 🟡 PENDIENTE  | Depende de Q-V06; sin objeto si no hay descuentos.                                  |
+| Q-V17 | Otros canales de venta       | 🟡 PENDIENTE  | Sin respuesta; Q-V01 acota E1 al mostrador.                                         |
+
+Notas de la tabla:
+
+- **Q-V01 a Q-V05:** la resolución del 2026-11-07 las cita como confirmadas «previamente»; **la fecha de
+  esa confirmación original no consta** en el repositorio ni en la resolución.
+- **Q-V07 (DEC-V07):** no hay anulación por el flujo ordinario: ni `POST /sales/:id/void`, ni permiso
+  `sales:void`, ni movimiento `SALE_VOID`, ni estado `VOIDED`; la venta confirmada es inmutable y
+  auditada. Una **venta errónea ya confirmada** se registra como incidencia y se resuelve **fuera del
+  sistema**, sin ajuste de stock y sin documento compensatorio (C5). El Vendedor y el Responsable de
+  inventario reportan las incidencias y el Administrador las ve (C6), pero **no se definió el flujo ni
+  qué ocurre con el stock**. Siguen abiertos: pagos incorrectos, duplicaciones, devoluciones obligatorias
+  por ley (requiere contador y asesor legal), cambios frente a la prohibición y reportes de incidencias.
+  - Aclaración posterior (2026-11-09, C5 «haz lo recomendable»): el flujo y el tratamiento del stock
+    quedan delegados en la recomendación técnica: hoja de incidencias numerada fuera del sistema; el
+    Administrador atiende y cierra; la incidencia no mueve stock y el desfase se regulariza en el
+    conteo físico ordinario; no se registra una venta compensatoria. Los demás puntos abiertos de esta
+    nota no cambian.
+- **Q-V09 (DEC-V09):** caja única con apertura, cobros, cierre y arqueo. Respondido el 2026-11-09:
+  venta y caja se liberan **juntas** (B1); no se vende sin sesión abierta (B2); abren y cierran el
+  Administrador y el Responsable de inventario (B3); fondo inicial obligatorio y de monto libre (B4);
+  la diferencia de arqueo se registra con observación obligatoria y sin tolerancia automática (B5); sin
+  gastos ni retiros (B6); sin reapertura (B7); QR y transferencias se informan aparte y no afectan el
+  efectivo (B8); cada venta guarda quién la hizo y el arqueo es por sesión (B9). Falta el ADR-028
+  (propuesta) y la autorización para implementar.
+  - Aclaración posterior (2026-11-09) sobre B6 y B7: el responsable reconoció que sin reapertura ni
+    movimientos manuales no había vía para corregir un error de cierre, pidió «lo que sea más
+    recomendable» y fijó que **solo el Administrador** corrige. B6 y B7 siguen vigentes. La
+    recomendación delegada es una corrección append-only de contado, fondo y observación, que no
+    modifica la sesión cerrada ni toca ventas o pagos
+    ([10-correcciones-de-caja](../propuestas/fase-2-ventas/10-correcciones-de-caja.md)); sus
+    subdecisiones menores (SC-1 a SC-6) quedan abiertas.
+  - Aclaración posterior (2026-11-09) sobre B4: el monto del fondo se digita en un campo libre. Si el
+    cero es válido y si hay tope sigue sin decidir (recomendación: 0 explícito, sin tope).
+- **Q-V12 (DEC-V12):** comprobante interno imprimible desde el navegador. Respondido: numeración por
+  secuencia con posibles saltos, a consultar con el contador (B10); no se guarda el número de factura
+  externa (B11); datos comerciales según la recomendación técnica (nombre comercial, dirección,
+  teléfono, NIT opcional, logo opcional), guardados como configuración en la base de datos y **con
+  valores reales pendientes de entrega** (C1, C2); A4 por defecto, recordado por navegador (C3);
+  reimpresión permitida con marca «Copia» y auditoría (C4). Siguen abiertos el formato del correlativo,
+  la identificación del vendedor en el comprobante, quién puede reimprimir y los requisitos del contador.
+- **Q-V13:** quién abre y cierra caja está resuelto (B3); quién vende y cobra y los permisos exactos de
+  `sales:*` y `cash:*` siguen sin aprobarse (los roles ya se administran por pantalla desde el
+  2026-11-10; ver P-46).
+- **Q-V08 y Q-V15:** el responsable las dejó **para después** (F4).
+
+### Subdecisiones de Ventas que siguen abiertas
+
+Detalle y alternativas en [08-subdecisiones-pendientes](../propuestas/fase-2-ventas/08-subdecisiones-pendientes.md).
+
+- Excepciones de DEC-V07: SD-A02 pagos incorrectos, SD-A03 duplicaciones, SD-A04 devoluciones
+  obligatorias por ley, SD-A05 cambios frente a la prohibición, SD-A07 corrección del stock tras una
+  venta errónea y SD-A08 reportes de incidencias. SD-A01 y SD-A06 están respondidas solo en parte (C5,
+  C6).
+- Comprobante: SD-R01 formato del correlativo, SD-R04 identificación del vendedor, SD-R07 requisitos
+  del contador; SD-R03 y SD-R08 con valores reales pendientes; quién reimprime (SD-R06).
+- Cambios de pieza: SD-X01 a SD-X07 (diferidos).
+- Otras: SD-G01 descuentos, SD-G02 clientes, SD-G03 y SD-G04, SD-G05 reportes (diferidos), SD-G06
+  stock negativo en ventas, SD-G07 medios de pago configurables, SD-G09 («precio neto» frente a Q-V03),
+  SD-G10 (qué es la Fase 3 tras Q-V02), SD-G12, SD-G13 y SD-G14.
+- Respondidas el 2026-11-09: SD-C01 a SD-C08 (B3, B2, B4, B5, B6, B7, B8, B9), SD-R02 (B10), SD-R05
+  (C2, C3), SD-R06 (C4), SD-G08 (B11) y SD-G11 (B1).
+
+## Cierre de la Fase 1 (propuestas del informe técnico)
+
+Decisiones nuevas **P-44 a P-47**, propuestas en el
+[informe técnico](../informe-tecnico/06-estado-deuda-y-fase-2.md) (OD-05, OD-06 y OD-14) y resueltas o
+encaminadas con las respuestas del 2026-11-09.
+
+| ID   | Decisión                                     | Estado          | Lo registrado hoy                                                                         |
+| ---- | -------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------- |
+| P-44 | Reportes y exportaciones al cierre de Fase 1 | 🟢 APROBADA     | Resuelta (2026-11-09): CSV de inventario y movimientos, con el valor del inventario (D1). |
+| P-45 | Carga inicial de datos (importador)          | 🟢 APROBADA     | Resuelta (2026-11-09): carga manual, sin importador; la rebanada S11 queda sin construir. |
+| P-46 | Gestión de roles por pantalla                | 🟢 IMPLEMENTADA | Resuelta (2026-11-10): API `/roles` y pantalla «Roles», con salvaguardas (ver nota).      |
+| P-47 | Acta de aceptación de decisiones por defecto | 🟡 PARCIAL      | Sesión de revisión acordada (2026-11-09), todavía sin fecha.                              |
+
+Notas:
+
+- **P-44:** la exportación de auditoría (P-AUD-1) y el valor de inventario (solo con `costs:read`) no
+  se mencionaron y siguen sin decidir.
+  - Actualización 2026-11-09 (aclaración D1 = «SÍ»): el reporte mínimo CSV **incluye el valor del
+    inventario**, visible **solo con `costs:read`** (regla P-02: el Vendedor no ve costos). Sin decidir:
+    valoración a precio de venta, corte a una fecha anterior y la exportación de auditoría (P-AUD-1).
+    Recomendación técnica (no regla): costo vigente × saldo a la fecha de exportación, rotulado «a
+    costo vigente». Ver
+    [RESOLUCIONES-2026-11-09, «Aclaraciones posteriores»](RESOLUCIONES-2026-11-09.md#aclaraciones-posteriores-2026-11-09).
+- **P-45:** con 1.000 a 2.000 piezas, la carga manual es costosa y propensa a errores (informe
+  técnico); el criterio de cierre «datos reales» se cumple entonces con carga manual.
+- **P-46 (resuelta 2026-11-10):** el responsable autorizó la pantalla y la API de gestión de roles
+  (permisos `roles:read` y `roles:manage`, solo el Administrador). Salvaguardas técnicas, no reglas de
+  negocio nuevas: el Administrador es inmutable; los otros roles de sistema no se renombran ni pierden
+  sus permisos base (el seed los volvería a agregar); un rol con usuarios no se elimina; nadie concede
+  permisos que no tiene; todo queda auditado. Detalle en `docs/api/API.md` («Roles y permisos»).
+  Actualización 2026-11-11: los permisos exclusivos del Administrador (`ADMIN_ONLY_PERMISSIONS`:
+  `cash:correct`, `sales-incidents:manage`, `settings:manage`) ya no se pueden asignar a otros roles y
+  solo son efectivos con el rol Administrador. Falta que el responsable confirme la lista (ver nota «Nueva
+  (2026-11-11)»).
+  Antes (2026-11-09): el seed de producción ejecutable sí estaba autorizado (A3 a), pero no la pantalla ni la API
+  de roles.
+- **P-47:** material para la sesión en
+  [REVISION-DECISIONES-POR-DEFECTO](REVISION-DECISIONES-POR-DEFECTO.md).
+
 ## Sin respuesta del cliente
 
 No bloquean el código; sí la carga real de datos y la puesta en marcha. Detalle en la sección 6 de
@@ -127,6 +317,12 @@ No bloquean el código; sí la carga real de datos y la puesta en marcha. Detall
 usuarios reales (F1), acceso desde Internet y 2FA (F4/F5), reportes y exportaciones (G), inventario actual
 y carga inicial (H), hosting, dominio y copias (I, ver P-18 y P-26), identidad visual (J, ver P-16) y
 aceptación y plazos (K).
+
+Actualización 2026-11-09 ([RESOLUCIONES-2026-11-09](RESOLUCIONES-2026-11-09.md)): ya respondieron
+parcialmente los administradores reales (dos), el 2FA (no), los reportes mínimos (P-44) y la carga
+inicial (manual, P-45). Siguen sin respuesta el acceso desde Internet, el hosting concreto, la fecha de
+arranque del sistema, la impresora, el lector y el rollo, la identidad visual y la aceptación y los
+plazos.
 
 ## Nota de numeración
 

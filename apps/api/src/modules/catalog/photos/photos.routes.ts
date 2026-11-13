@@ -1,10 +1,14 @@
 import multipart from '@fastify/multipart';
 import {
   MAX_PHOTO_UPLOAD_BYTES,
+  MAX_VARIANT_COVERS_PER_REQUEST,
   PERMISSIONS,
   PHOTO_FIELD_NAME,
+  PHOTO_THUMB_WIDTHS,
   productPhotoSchema,
   reorderPhotosSchema,
+  variantCoverSchema,
+  type PhotoThumbWidth,
 } from '@joyeria/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -18,6 +22,34 @@ const photoParams = z.object({ id: z.uuid(), photoId: z.uuid() });
 const variantParams = z.object({ variantId: z.uuid() });
 const photoItem = z.object({ data: productPhotoSchema });
 const photoList = z.object({ data: z.array(productPhotoSchema) });
+
+/**
+ * `?w=` pide una miniatura de ese ancho (DT-DAT-18). Solo los anchos de la lista blanca: un
+ * tamaño libre obligaría a procesar y guardar imágenes a pedido de cualquiera (riesgo de DoS).
+ */
+const imageQuery = z.object({
+  w: z.coerce
+    .number()
+    .pipe(
+      z.literal(PHOTO_THUMB_WIDTHS, {
+        error: `Ancho de miniatura no permitido. Use ${PHOTO_THUMB_WIDTHS.join(', ')}.`,
+      }),
+    )
+    .optional(),
+});
+
+/** `?ids=a,b,c`: variantes (sin repetir) cuya portada se quiere conocer. */
+const coversQuery = z.object({
+  ids: z
+    .string()
+    .max(MAX_VARIANT_COVERS_PER_REQUEST * 37)
+    .transform((value) => [...new Set(value.split(','))])
+    .pipe(z.array(z.uuid()).min(1).max(MAX_VARIANT_COVERS_PER_REQUEST)),
+});
+const coverList = z.object({ data: z.array(variantCoverSchema) });
+
+/** La foto completa y sus miniaturas nunca cambian (cada subida tiene un id nuevo). */
+const IMMUTABLE_CACHE = 'private, max-age=31536000, immutable';
 
 /** Holgura del cuerpo multipart sobre el archivo (cabeceras de las partes y el delimitador). */
 const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
@@ -61,6 +93,7 @@ const NO_PHOTO_ETAG = '"sin-foto-1"';
 
 /** Lista blanca de tipos que se sirven; cualquier otro valor guardado se trata como inexistente. */
 const SERVED_TYPES = new Set<string>([STORED_PHOTO_TYPE, 'image/jpeg', 'image/png']);
+const isServable = (contentType: string) => SERVED_TYPES.has(contentType);
 
 /** ¿La cabecera If-None-Match (puede traer varios ETag, débiles o `*`) coincide con este ETag? */
 function etagMatches(header: string | undefined, etag: string) {
@@ -75,7 +108,9 @@ function etagMatches(header: string | undefined, etag: string) {
  * Fotos de producto (Q-09, ADR-020). Se registran bajo `/products`:
  *   GET    /:id/photos             lista de metadatos (catalog:read)
  *   GET    /:id/photos/:photoId    bytes de la imagen (catalog:read u otra pantalla con fotos) — ETag, caché, nosniff
- *   GET    /variants/:variantId/cover  portada de la pieza (o imagen «Sin foto») — ETag
+ *                                  `?w=160|320|640`: miniatura de ese ancho (DT-DAT-18)
+ *   GET    /variants/covers?ids=   portadas de varias piezas (metadatos; DT-DAT-17)
+ *   GET    /variants/:variantId/cover  portada de la pieza (o imagen «Sin foto») — ETag, `?w=`
  *   POST   /:id/photos             sube una foto, multipart campo «file» (catalog:manage)
  *   PUT    /:id/photos/order       reordena (catalog:manage)
  *   PUT    /:id/photos/:photoId/cover  marca la portada (catalog:manage)
@@ -106,14 +141,20 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => ({ data: await service.list(request.params.id) }),
   );
 
-  /** Cabeceras y cuerpo de una foto (con ETag: responde 304 si no cambió). */
+  /**
+   * Cabeceras y cuerpo de una foto o de su miniatura (con ETag: responde 304 sin leer bytes).
+   * Si se pide un ancho igual o mayor que la foto, se sirve la original (no se amplía).
+   */
   async function sendPhoto(
     request: FastifyRequest,
     reply: FastifyReply,
-    photo: { id: string; contentType: string; sha256: string },
+    photo: { id: string; contentType: string; sha256: string; width: number },
+    width: PhotoThumbWidth | undefined,
     cacheControl: string,
   ) {
-    const etag = `"${photo.sha256}"`;
+    const thumbWidth = width !== undefined && width < photo.width ? width : undefined;
+    // La miniatura deriva de la foto (mismo sha256) y del ancho: su ETag no necesita leer bytes.
+    const etag = thumbWidth ? `"${photo.sha256}-w${thumbWidth}"` : `"${photo.sha256}"`;
     reply
       .header('etag', etag)
       .header('cache-control', cacheControl)
@@ -122,6 +163,10 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
       .header('content-disposition', 'inline');
     if (etagMatches(request.headers['if-none-match'], etag)) {
       return reply.status(304).send();
+    }
+    if (thumbWidth) {
+      const bytes = await service.readThumbnail(photo.id, thumbWidth);
+      return reply.type(STORED_PHOTO_TYPE).send(Buffer.from(bytes));
     }
     const bytes = await service.readBytes(photo.id);
     return reply.type(photo.contentType).send(Buffer.from(bytes));
@@ -133,15 +178,28 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
       preValidation: app.requireAnyPermission(...IMAGE_VIEW_PERMISSIONS),
       // Una lista muestra decenas de fotos a la vez: tope alto por usuario en vez del global por IP.
       config: { rateLimit: IMAGE_RATE_LIMIT },
-      schema: { params: photoParams },
+      schema: { params: photoParams, querystring: imageQuery },
     },
     async (request, reply) => {
       const photo = await service.meta(request.params.id, request.params.photoId);
-      if (!SERVED_TYPES.has(photo.contentType)) throw new NotFoundError('Foto no encontrada');
-      // El contenido de una foto nunca cambia (el id es nuevo con cada subida); privado porque
-      // exige sesión.
-      return sendPhoto(request, reply, photo, 'private, max-age=31536000, immutable');
+      if (!isServable(photo.contentType)) throw new NotFoundError('Foto no encontrada');
+      // El contenido de una foto (y de sus miniaturas) nunca cambia: el id es nuevo con cada
+      // subida. Privado porque exige sesión.
+      return sendPhoto(request, reply, photo, request.query.w, IMMUTABLE_CACHE);
     },
+  );
+
+  // Portadas de muchas piezas en una sola petición (DT-DAT-17, OD-04): la interfaz las usa para
+  // pedir la foto por su URL inmutable en vez de revalidar `/cover` imagen por imagen.
+  app.get(
+    '/variants/covers',
+    {
+      preValidation: app.requireAnyPermission(...IMAGE_VIEW_PERMISSIONS),
+      schema: { querystring: coversQuery, response: { 200: coverList } },
+    },
+    async (request) => ({
+      data: await service.coversOfVariants(request.query.ids, isServable),
+    }),
   );
 
   // Portada de una pieza a partir de su variante: las pantallas de inventario, ajustes, precios,
@@ -152,12 +210,12 @@ export const productPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       preValidation: app.requireAnyPermission(...IMAGE_VIEW_PERMISSIONS),
       config: { rateLimit: IMAGE_RATE_LIMIT }, // ver la nota de la ruta de fotos por id
-      schema: { params: variantParams },
+      schema: { params: variantParams, querystring: imageQuery },
     },
     async (request, reply) => {
       const photo = await service.coverOfVariant(request.params.variantId);
-      if (photo && SERVED_TYPES.has(photo.contentType)) {
-        return sendPhoto(request, reply, photo, 'private, no-cache');
+      if (photo && isServable(photo.contentType)) {
+        return sendPhoto(request, reply, photo, request.query.w, 'private, no-cache');
       }
       reply
         .header('etag', NO_PHOTO_ETAG)

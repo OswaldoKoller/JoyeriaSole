@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { PERMISSIONS, type Permission } from '@joyeria/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/app.ts';
@@ -519,6 +520,75 @@ describe('ajustes manuales con solicitud y aprobación', () => {
       expect(results.map((res) => res.statusCode)).toEqual([200, 200]);
       expect(await balanceOf(x.id)).toBe(8);
       expect(await balanceOf(y.id)).toBe(8);
+    });
+  });
+
+  describe('idempotencia de la aprobación (Idempotency-Key)', () => {
+    const approveWithKey = (id: string, key: string, cookie = approver.cookie) =>
+      app.inject({
+        method: 'POST',
+        url: `${URL}/${id}/approve`,
+        headers: { cookie, 'idempotency-key': key },
+      });
+
+    it('repetir con la misma clave devuelve el detalle aprobado sin otro movimiento ni auditoría', async () => {
+      const variant = await createVariant(5);
+      const { id } = await requestOk([{ variantId: variant.id, quantityDelta: -2 }]);
+      const key = randomUUID();
+
+      const first = await approveWithKey(id, key);
+      expect(first.statusCode, first.body).toBe(200);
+      const again = await approveWithKey(id, key);
+      expect(again.statusCode).toBe(200);
+      expect(again.headers['idempotent-replay']).toBe('true');
+      expect(again.json()).toEqual(first.json());
+
+      expect(
+        await app.prisma.inventoryMovement.count({
+          where: { type: 'ADJUSTMENT', referenceId: id },
+        }),
+      ).toBe(1);
+      expect(
+        await app.prisma.auditLog.count({ where: { action: 'inventory_adjustment.approved' } }),
+      ).toBe(1);
+      expect(await balanceOf(variant.id)).toBe(3);
+
+      // Sin clave (u otra clave) la protección por estado sigue igual: 422.
+      expect((await approve(id)).statusCode).toBe(422);
+    });
+
+    it('la misma clave para aprobar otro ajuste es un conflicto (409) y no lo aprueba', async () => {
+      const variant = await createVariant(5);
+      const first = await requestOk([{ variantId: variant.id, quantityDelta: -1 }]);
+      const second = await requestOk([{ variantId: variant.id, quantityDelta: -1 }]);
+      const key = randomUUID();
+      expect((await approveWithKey(first.id, key)).statusCode).toBe(200);
+
+      const res = await approveWithKey(second.id, key);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('IDEMPOTENCY_KEY_REUSED');
+      const stored = await app.prisma.inventoryAdjustment.findUniqueOrThrow({
+        where: { id: second.id },
+      });
+      expect(stored.status).toBe('PENDING');
+      expect(await balanceOf(variant.id)).toBe(4);
+    });
+
+    it('dos aprobaciones simultáneas con la misma clave: un solo movimiento, misma respuesta', async () => {
+      const variant = await createVariant(5);
+      const { id } = await requestOk([{ variantId: variant.id, quantityDelta: 3 }]);
+      const key = randomUUID();
+      const responses = await Promise.all([approveWithKey(id, key), approveWithKey(id, key)]);
+      for (const res of responses) expect(res.statusCode, res.body).toBe(200);
+      expect(responses.filter((res) => res.headers['idempotent-replay'] === 'true')).toHaveLength(
+        1,
+      );
+      expect(
+        await app.prisma.inventoryMovement.count({
+          where: { type: 'ADJUSTMENT', referenceId: id },
+        }),
+      ).toBe(1);
+      expect(await balanceOf(variant.id)).toBe(8);
     });
   });
 

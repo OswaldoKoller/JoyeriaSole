@@ -16,6 +16,7 @@ import {
 } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { idempotencyHeadersSchema } from '../../plugins/idempotency.ts';
 import { InventoryCountsService } from './inventory-counts.service.ts';
 
 const idParams = z.object({ id: z.uuid() });
@@ -140,13 +141,19 @@ export const inventoryCountsRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.post(
     '/:id/close',
-    { preValidation: canManage, schema: { params: idParams, response: { 200: detail } } },
+    {
+      preValidation: canManage,
+      schema: { headers: idempotencyHeadersSchema, params: idParams, response: { 200: detail } },
+    },
     async (request) => ({ data: await service.close(request.params.id, request) }),
   );
 
   app.post(
     '/:id/approve',
-    { preValidation: canApprove, schema: { params: idParams, response: { 200: detail } } },
+    {
+      preValidation: canApprove,
+      schema: { headers: idempotencyHeadersSchema, params: idParams, response: { 200: detail } },
+    },
     async (request) => ({ data: await service.approve(request.params.id, request) }),
   );
 

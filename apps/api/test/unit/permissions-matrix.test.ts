@@ -50,10 +50,13 @@ describe('matriz de permisos de ajustes de inventario', () => {
     expect(has('SELLER', PERMISSIONS.INVENTORY_EXCHANGE)).toBe(false);
   });
 
-  it('el Vendedor solo consulta catálogo e inventario', () => {
+  it('el Vendedor consulta catálogo e inventario, vende y reporta incidencias (plan 11 §4.1)', () => {
     expect(DEFAULT_ROLE_PERMISSIONS.SELLER.permissions).toEqual([
       PERMISSIONS.CATALOG_READ,
       PERMISSIONS.INVENTORY_READ,
+      PERMISSIONS.SALES_CREATE,
+      PERMISSIONS.SALES_READ,
+      PERMISSIONS.SALES_INCIDENTS_REPORT,
     ]);
   });
 

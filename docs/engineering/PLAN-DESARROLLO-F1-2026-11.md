@@ -208,6 +208,14 @@ disposición para venta.
 - Rotación de `AUTH_SECRET`, copias de seguridad y prueba de restauración, avisos de caída.
 - **Requiere:** S1–S8 terminadas y respuestas I1–I8.
 
+> **Actualización 2026-11-09.** Por decisión del responsable (E4 de
+> [RESOLUCIONES-2026-11-09](../business/RESOLUCIONES-2026-11-09.md)), la revisión de seguridad y
+> rendimiento archivada es el [informe técnico](../informe-tecnico/). Contiene análisis estático del
+> código y de la documentación, mediciones de tamaño de _bundle_ obtenidas compilando (`vite build`) y
+> cifras de pruebas y tiempos tomadas del CI. **No contiene** la prueba de ataque en entorno aislado ni
+> pruebas de rendimiento con el volumen del cliente: ambas **siguen pendientes**. No existen la sección
+> «Revisión ofensiva» de `SECURITY.md` ni `docs/testing/PERFORMANCE.md`.
+
 ### S13 · Aceptación y puesta en marcha — M
 
 - Guion de demostración y acta por módulo, manual de usuario, capacitación, hosting y dominio (I),
@@ -340,6 +348,9 @@ Pistas: **T1** `feature/f1-catalogo` · **T2** `feature/f1-ingresos-precios` · 
 
 1. **Reportes y exportaciones** (S10) y **importación de datos** (S11): esperan las respuestas G1–G6 y H1–H3.
 2. **Seguridad residual** (S12): B5, B7, `npm audit` y rotación de secretos.
+   - Actualización 2026-11-09: la «revisión de seguridad estática» y las cifras de 60–220 ms de la
+     tabla no tienen informe propio; la revisión archivada es el [informe técnico](../informe-tecnico/)
+     (E4), que no incluye pruebas ofensivas ejecutadas ni mediciones de carga (siguen pendientes).
 3. **Listas de valores de atributos** que entrega el cliente.
 4. **Despliegue y demostración** (S13): `npm run local:up -- --demo` sirve para enseñar la Fase 1; el hosting
    real depende de las respuestas del bloque I.

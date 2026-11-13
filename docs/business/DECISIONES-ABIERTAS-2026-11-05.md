@@ -1,5 +1,7 @@
 # Decisiones abiertas tras la reunión del 2026-11-05
 
+> **Superado por la sección 7 de [RESOLUCIONES-2026-11-05](RESOLUCIONES-2026-11-05.md) y por el estado vigente de [PENDIENTES.md](PENDIENTES.md).** Las preguntas Q-xx de este documento ya fueron respondidas; donde difiere (por ejemplo, Q-01: quién aprueba), prevalece la regla de autorización compartida.
+
 Lo que **no** quedó claro en las respuestas del cliente, convertido en opciones concretas según la
 estructura actual del sistema. Contexto: [RESOLUCIONES-2026-11-05.md](RESOLUCIONES-2026-11-05.md).
 Plan que depende de estas respuestas: [PLAN-DESARROLLO-F1-2026-11.md](../engineering/PLAN-DESARROLLO-F1-2026-11.md).

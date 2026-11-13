@@ -73,6 +73,17 @@ jobs:
       - name: E2E con PostgreSQL efímero y servidores exclusivos
         run: npm run qa:e2e
 
+      # Trazas de Playwright (capturas, red y pasos) solo si algo falla: sin ellas un fallo del
+      # runner no se puede diagnosticar. Contienen credenciales efímeras de la base de pruebas.
+      - name: Guardar trazas de E2E si fallan
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-trazas
+          path: apps/web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
   docker:
     name: Imagen Docker de producción
     runs-on: ubuntu-latest
@@ -86,9 +97,17 @@ jobs:
         with:
           context: .
           push: false
+          # `load` deja la imagen en el Docker del runner para la prueba de arranque siguiente.
+          load: true
           tags: joyeria-sole:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # Prueba de arranque (smoke): PostgreSQL efímero propio, CMD real (migrate deploy + servidor),
+      # GET /api/v1/health = 200, seed compilado `node dist/seed.js` (dos veces) y login del admin
+      # sembrado. Credenciales efímeras generadas por el script con openssl; no se imprimen.
+      - name: Prueba de arranque de la imagen
+        timeout-minutes: 5
+        run: bash scripts/smoke-image.sh joyeria-sole:ci
 
   # Despliegue: PENDIENTE hasta elegir proveedor y crear las cuentas (ver docs/deployment/DEPLOYMENT.md).
   # Con Render, el despliegue se dispara solo al hacer merge a `main` (auto-deploy),

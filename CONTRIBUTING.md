@@ -4,8 +4,8 @@
 
 | Rama                          | Uso                                                                                             |
 | ----------------------------- | ----------------------------------------------------------------------------------------------- |
-| `main`                        | Producción. Solo recibe merges desde `develop` (o `hotfix/*`). Protegida. Cada merge despliega. |
-| `develop`                     | Integración. Base de todo trabajo nuevo. Protegida: requiere CI verde.                          |
+| `main`                        | Producción. Solo recibe merges desde `develop` (o `hotfix/*`). Despliegue aún pendiente (P-18). |
+| `develop`                     | Integración. Base de todo trabajo nuevo. Protección recomendada: CI verde.                      |
 | `feature/<desc>`              | Funcionalidad nueva, desde `develop`. Ej.: `feature/catalogo-variantes`.                        |
 | `fix/<desc>`                  | Corrección no urgente, desde `develop`.                                                         |
 | `hotfix/<desc>`               | Corrección urgente en producción, desde `main`; se mergea a `main` y a `develop`.               |

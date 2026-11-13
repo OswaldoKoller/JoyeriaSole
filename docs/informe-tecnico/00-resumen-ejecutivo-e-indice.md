@@ -19,6 +19,12 @@ línea como evidencia.
 | 05  | [Frontend, pruebas y calidad](05-frontend-y-pruebas.md)                 | Rutas, features, componentes compartidos, accesibilidad, rendimiento, inventario de las 758 pruebas, CI real y deuda del frontend                                                                                                   |    875 |
 | 06  | [Estado, deuda técnica, opciones y Fase 2](06-estado-deuda-y-fase-2.md) | Estado ejecutivo, cierre de Fase 1, **registro de deuda (93 abiertos o parciales)**, 18 decisiones por tomar, plan de la Fase 2 en etapas, hoja de ruta y riesgos                                                                   |  1.195 |
 
+> **Actualización 2026-11-11.** Se añadió la sección
+> [07 · Actualización del 2026-11-11](07-actualizacion-2026-11-11.md), un informe autocontenido del
+> estado tras la estabilización E0, las garantías de base de datos, la idempotencia, la gestión de
+> roles, las miniaturas y el módulo de Ventas y caja. Su resumen está en la sección 11 de este
+> documento. Las secciones 1 a 10 se conservan como fotografía del 2026-11-07.
+
 ## 1. Qué es el sistema, en una página
 
 - **Producto.** Inventario para joyería y productos de moda: catálogo con variantes, SKU y códigos de barras,
@@ -132,6 +138,15 @@ efecto:
 **Por regla del proyecto, el agente no edita `CLAUDE.md`:** hacerlo requiere tu aprobación expresa. La sección 01 §6
 trae la lista priorizada de 23 correcciones documentales, 7 de las cuales piden una decisión tuya.
 
+> **Actualización 2026-11-09.** Por decisión del responsable (E4 de
+> [RESOLUCIONES-2026-11-09](../business/RESOLUCIONES-2026-11-09.md)), **este informe queda archivado
+> como la revisión de seguridad y rendimiento** que citan otros documentos. Alcance real: análisis
+> estático del código y de la documentación, mediciones de tamaño de _bundle_ obtenidas compilando
+> (`vite build`) y cifras de pruebas y tiempos tomadas del CI. **No incluye** pruebas ofensivas
+> ejecutadas ni mediciones de carga o rendimiento con el volumen del cliente: siguen pendientes. Los
+> documentos que citaban la «Revisión ofensiva» de `SECURITY.md` o `PERFORMANCE.md` llevan ahora una nota
+> que remite aquí (fila «Revisiones inexistentes» y DT-DOC-05, atendidas solo en ese sentido).
+
 ## 8. Fase 2 «Ventas» en breve
 
 Detalle completo en la sección 06 §5 y el informe de arquitectura. CLAUDE.md prohíbe hoy el punto de venta: hace
@@ -175,3 +190,31 @@ ventas a crédito o apartados. Hay 17 preguntas Q-V01 a Q-V17 en la sección 06.
 2. Sección 06 §3 y §4 (deuda y decisiones): lo que requiere acción tuya.
 3. Sección 01 §4 (incoherencias) y §6 (correcciones documentales).
 4. Secciones 02 a 05 como referencia técnica, según el área.
+
+## 11. Actualización 2026-11-11
+
+Detalle completo y autocontenido en [07 · Actualización del 2026-11-11](07-actualizacion-2026-11-11.md).
+Este resumen se añade sin modificar las secciones anteriores.
+
+- **Autorizaciones.** El 2026-11-09 el responsable autorizó unificar el libro de inventario y el seed de
+  producción con prueba de arranque; el 2026-11-10, idempotencia, garantías de base de datos, gestión de
+  roles, miniaturas y todo el módulo de Ventas (E1 venta de mostrador y E3 caja). DEC-V07 (no se anulan
+  ventas confirmadas) sigue vigente y está garantizada por guarda estática, triggers y ausencia de rutas.
+- **Entregado** en `feature/f2-integracion` (`7e36948`): un solo escritor del libro (`applyStockChanges`),
+  seed `node dist/seed.js` con `scripts/smoke-image.sh`, triggers I-01 e índice I-02, revocación de
+  `TRUNCATE` al arrancar la imagen, `Idempotency-Key` en 12 rutas, API y pantalla de roles, miniaturas
+  160/320/640 y venta de mostrador con caja única, comprobante interno, incidencias y datos del negocio.
+- **Cifras:** 127 endpoints (antes 101), 45 tablas (34), 22 migraciones (17), 23 triggers (8), 34
+  permisos (24) y 24 ADR aceptados (21).
+- **Seguridad:** la revisión de Ventas dio 1 hallazgo medio y 6 bajos, todos corregidos en `57c8bdd`;
+  `cash:correct`, `sales-incidents:manage` y `settings:manage` son exclusivos del Administrador.
+- **Deuda de la sección 5 resuelta:** escritores del libro, variante activa bajo bloqueo, verificación
+  saldo = libro, seed en la imagen, gestión de roles y miniaturas. La idempotencia queda parcial: faltan
+  las creaciones de borradores y las lecturas de conteo.
+- **Sigue abierto:** push y PR sin autorizar, CI bloqueado por facturación, despliegue en la PC de la
+  tienda (D5) con un rol de base no superusuario, copias con restauración ensayada y la consulta al
+  contador y a un asesor legal (SD-R07, SD-A04) antes de operar con dinero real.
+- **Decisiones tuyas:** los valores por defecto D-01 a D-19, la contradicción X-1 (incidencias dentro o
+  fuera del sistema) y la lista de permisos exclusivos del Administrador (sección 10 del 07).
+- **Incoherencias nuevas:** nueve documentos que no siguieron al código (sección 12 del 07), entre ellos
+  `ARCHITECTURE.md` y `CLAUDE.md`; este último solo cambia con tu aprobación.

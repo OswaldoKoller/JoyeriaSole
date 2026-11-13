@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/app.ts';
 import { buildTestApp, login } from '../helpers/app.ts';
 import { createTestUser, resetDatabase } from '../helpers/db.ts';
+import { setStock } from '../helpers/stock.ts';
 
 const BASE = '/api/v1/pricing';
 const UNKNOWN_ID = '01900000-0000-7000-8000-000000000000';
@@ -192,7 +193,7 @@ describe('precios de venta: solicitud, aprobación e historial', () => {
   describe('listado con panel de costos', () => {
     it('muestra precio, stock, costos y la solicitud pendiente a quien tiene costs:read', async () => {
       const variant = await createVariant({ salePrice: '150', costPrice: '12.5000' });
-      await app.prisma.inventoryBalance.create({ data: { variantId: variant.id, quantity: 7 } });
+      await setStock(app.prisma, variant.id, 7, { userId: admin.id });
       const supplier = await app.prisma.supplier.create({ data: { name: 'Prov' } });
       const confirmedAt = new Date('2026-11-01T12:00:00Z');
       const entry = await app.prisma.stockEntry.create({

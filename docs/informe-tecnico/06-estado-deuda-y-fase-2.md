@@ -313,6 +313,8 @@ Lectura: de 11 criterios, **ninguno está plenamente cumplido y verificado**; 3 
 | DT-DAT-22 | **Búsqueda**: no se exige `q` ≥ 3 (el índice trigram no ayuda con menos); `contains` sin escapar `%`/`_` en usuarios, proveedores, precios y productos (`users.service.ts:80-81`, `suppliers.service.ts:44-47`, `pricing.service.ts:137-140`); `escapeLike` existe solo en auditoría (`audit-query.service.ts:124`). Origen: F-05 (resto), S-20 | Baja  |  S   | Resultados inesperados con comodines; escaneos de tabla con 1-2 letras | PARCIAL | Ninguna                          | `escapeLike` común y mínimo de 3 caracteres en búsquedas libres                                                                                                       |
 | DT-DAT-23 | **Dinero**: `pricing.service.ts:293` compara con `Number(...).toFixed(2)` en vez de `parseMoney` (BigInt); `costing.ts:235` valida `unitPrice` y costo en Bs pero no se verificó `unitTotal ≤ MAX` (`:136`) †. Origen: M-02, M-04                                                                                                               | Baja  |  S   | Redondeos de coma flotante en montos grandes                           | ABIERTO | Ninguna                          | Usar `parseMoney`/`formatMoney` de `shared`; validar `unitTotal`                                                                                                      |
 
+> **Nota 2026-11-10 (posterior al informe):** DT-DAT-17 y DT-DAT-18 quedan **resueltas** en la rama `feature/f2-miniaturas` (OD-04: portadas por lotes con URL inmutable y miniaturas 160/320/640 con `srcset`). Ver la nota de [ADR-020](../decisions/ADR-020-fotos-de-producto.md) y el CHANGELOG. El resto de la tabla no se modifica.
+
 #### 3.4.3 Seguridad (SEG)
 
 | ID        | Descripción y evidencia                                                                                                                                                                                                                                                | Sev.  | Esf. | Riesgo si se ignora                             | Estado  | Dependencia  | Recomendación                                                                                  |
@@ -379,6 +381,13 @@ Lectura: de 11 criterios, **ninguno está plenamente cumplido y verificado**; 3 
 | DT-DOC-07 | PLAN §12 (S12) lista B7 como abierto aunque `TRUST_PROXY_HOPS` ya está en código                                                                                                                                                  | Baja  |  XS  | Estado desactualizado                    | ABIERTO | Ninguna              | Actualizar                                                                     |
 | DT-DOC-08 | **Faltan manual de usuario por rol y guía de contingencia en papel** (A5; criterio C-9)                                                                                                                                           | Media |  M   | Capacitación y aceptación sin material   | ABIERTO | Ninguna              | Redactar con el guion de aceptación                                            |
 | DT-DOC-09 | **Decisiones nuevas sin registrar en `PENDIENTES.md`**: P-44 a P-47 (reportes en el cierre, carga inicial, roles por pantalla, acta de aceptación) propuestas en el informe de arquitectura; el archivo termina en P-43 y P-AUD-2 | Media |  XS  | Decisiones sin dueño ni seguimiento      | ABIERTO | Ninguna              | Registrarlas; las de Fase 2 como P-V01…P-V17 (ver 5.16)                        |
+
+> **Actualización 2026-11-09 (DT-DOC-05).** El responsable decidió archivar este informe como la
+> revisión de seguridad y rendimiento (E4 de
+> [RESOLUCIONES-2026-11-09](../business/RESOLUCIONES-2026-11-09.md)); `F1-ANALISIS-FASES-2026-10-13.md`
+> y el PLAN llevan una nota que remite aquí. Ese archivo cubre análisis estático, tamaños de _bundle_
+> por compilación y cifras de CI; **no** cubre pruebas ofensivas ejecutadas ni mediciones de carga, que
+> siguen pendientes (C-3 y C-11 siguen parciales). La fila se conserva como se redactó.
 
 #### 3.4.7 Operación y entrega (OPS)
 

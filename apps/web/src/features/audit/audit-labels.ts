@@ -76,12 +76,25 @@ const ACTION_LABELS: Record<string, string> = {
   'supplier.updated': 'Proveedor modificado',
   'supplier.activated': 'Proveedor activado',
   'supplier.deactivated': 'Proveedor desactivado',
+  // Caja y ventas (Fase 2). Una venta confirmada no se anula ni se modifica (DEC-V07).
+  'cash_session.opened': 'Caja abierta',
+  'cash_session.closed': 'Caja cerrada (arqueo)',
+  'cash_session.corrected': 'Cierre de caja corregido',
+  'sale.created': 'Venta registrada',
+  'sale.receipt_printed': 'Comprobante interno impreso',
+  'sale_incident.reported': 'Incidencia de venta reportada',
+  'sale_incident.closed': 'Incidencia de venta cerrada',
+  'business_settings.updated': 'Datos del negocio modificados',
 };
 
 const ENTITY_LABELS: Record<string, string> = {
   Attribute: 'Atributo',
   AttributeOption: 'Opción de atributo',
+  BusinessSettings: 'Datos del negocio',
+  CashSession: 'Sesión de caja',
   Category: 'Categoría',
+  Sale: 'Venta',
+  SaleIncident: 'Incidencia de venta',
   InventoryAdjustment: 'Ajuste de inventario',
   InventoryCount: 'Conteo físico',
   InventoryExchange: 'Cambio de pieza',

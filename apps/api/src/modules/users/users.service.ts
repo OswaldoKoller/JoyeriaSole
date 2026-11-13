@@ -46,6 +46,7 @@ export class UsersService {
       if (roles.length !== input.roleIds.length)
         throw new ValidationError('Uno o más roles no existen');
       this.assertCanGrantAdmin(roles, request);
+      await this.assertCanGrantRolePermissions(tx, input.roleIds, request);
       const user = await tx.user.create({
         data: {
           email: input.email,
@@ -146,6 +147,27 @@ export class UsersService {
     }
   }
 
+  /**
+   * Nadie concede lo que no tiene (P-46): al dar roles NUEVOS a una persona (o a sí mismo), sus
+   * permisos deben estar incluidos en los de quien los asigna. Con roles creados por pantalla, evita
+   * que un rol con `users:manage` + `roles:manage` se asigne un rol con más permisos que el suyo.
+   */
+  private async assertCanGrantRolePermissions(
+    tx: Prisma.TransactionClient,
+    roleIds: string[],
+    request: FastifyRequest,
+  ) {
+    if (roleIds.length === 0) return;
+    const own = new Set<string>(getAuth(request).user.permissions);
+    const granted = await tx.rolePermission.findMany({
+      where: { roleId: { in: roleIds } },
+      select: { permission: { select: { code: true } } },
+    });
+    if (granted.some(({ permission }) => !own.has(permission.code))) {
+      throw new ForbiddenError('No puede asignar un rol con permisos que usted no tiene');
+    }
+  }
+
   async update(id: string, input: UpdateUserInput, request: FastifyRequest) {
     return this.prisma.$transaction(async (tx) => {
       const previous = await this.lockedUser(tx, id);
@@ -230,6 +252,12 @@ export class UsersService {
       if (roles.length !== input.roleIds.length)
         throw new ValidationError('Uno o más roles no existen');
       this.assertCanGrantAdmin(roles, request);
+      const previousRoleIds = new Set(previous.roles.map(({ roleId }) => roleId));
+      await this.assertCanGrantRolePermissions(
+        tx,
+        input.roleIds.filter((roleId) => !previousRoleIds.has(roleId)),
+        request,
+      );
       const removesAdmin =
         previous.roles.some(({ role }) => role.code === 'ADMIN') &&
         !roles.some((role) => role.code === 'ADMIN');

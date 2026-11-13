@@ -9,6 +9,7 @@
  *   - Definiciones de atributos mencionadas en el requerimiento, SIN valores (P-15)
  *   - Catálogo de motivos de ajuste de inventario (P-20)
  *   - Tipos de costo adicional de ingresos del sistema (Q-08)
+ *   - Medios de pago de la venta de mostrador (D-09) y la fila única de datos del negocio (D-07)
  *
  * NO carga productos, categorías, proveedores ni stock: esos datos los define el cliente.
  */
@@ -16,12 +17,14 @@ import path from 'node:path';
 import { config as loadEnv } from 'dotenv';
 import {
   ALL_PERMISSIONS,
+  BUSINESS_SETTINGS_DEFAULTS,
   DEFAULT_ADJUSTMENT_REASONS,
   DEFAULT_ROLE_PERMISSIONS,
   PASSWORD_MIN_LENGTH,
   PERMISSION_DESCRIPTIONS,
   ROLES,
   SYSTEM_COST_TYPES,
+  SYSTEM_PAYMENT_METHODS,
   type RoleCode,
 } from '@joyeria/shared';
 import type { AttributeDataType, AttributeUsage } from '../src/generated/prisma/client.ts';
@@ -89,6 +92,9 @@ async function seedPermissionsAndRoles() {
     });
 
     // Solo se AGREGAN permisos faltantes; no se quitan los que un administrador haya asignado.
+    // Pantalla «Roles» (P-46): los roles creados allí llevan código `CUSTOM_*` y el seed nunca los toca.
+    // En los de sistema la pantalla no cambia nombre ni descripción ni quita estos permisos base, de
+    // modo que el seed no deshace nada hecho por pantalla (los permisos extra agregados se conservan).
     await prisma.rolePermission.createMany({
       data: def.permissions.map((p) => {
         const id = permissionId.get(p);
@@ -177,12 +183,39 @@ async function seedCostTypes() {
   console.log(`✔ ${SYSTEM_COST_TYPES.length} tipos de costo de ingreso del sistema`);
 }
 
+/**
+ * Medios de pago fijos (D-09). La migración ya los siembra; aquí se restablecen nombre, tipo y marca
+ * de sistema sin pisar `isActive` (igual que los tipos de costo).
+ */
+async function seedPaymentMethods() {
+  for (const method of SYSTEM_PAYMENT_METHODS) {
+    await prisma.paymentMethod.upsert({
+      where: { code: method.code },
+      update: { name: method.name, isSystem: true, sortOrder: method.sortOrder },
+      create: { ...method, isSystem: true },
+    });
+  }
+  console.log(`✔ ${SYSTEM_PAYMENT_METHODS.length} medios de pago`);
+}
+
+/** Fila única de datos del negocio (D-07): se crea si falta y NUNCA se sobrescribe. */
+async function seedBusinessSettings() {
+  await prisma.businessSettings.upsert({
+    where: { id: 1 },
+    update: {},
+    create: { id: 1, ...BUSINESS_SETTINGS_DEFAULTS },
+  });
+  console.log('✔ Datos del negocio (sin sobrescribir los existentes)');
+}
+
 try {
   await seedPermissionsAndRoles();
   await seedAdmin();
   await seedAttributes();
   await seedAdjustmentReasons();
   await seedCostTypes();
+  await seedPaymentMethods();
+  await seedBusinessSettings();
 } finally {
   await prisma.$disconnect();
 }

@@ -46,7 +46,7 @@ export const securityPlugin = fp<{ env: Env }>(
 
     await app.register(rateLimit, {
       global: true,
-      max: 300,
+      max: env.RATE_LIMIT_MAX,
       timeWindow: '1 minute',
     });
 

@@ -6,6 +6,7 @@ import type {
 } from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
+import { useAttemptKeys } from '../../lib/idempotency.ts';
 import { PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
 const key = ['inventory-counts'] as const;
@@ -59,11 +60,26 @@ export function useCreateInventoryCount() {
 
 type Transition = 'start' | 'take' | 'close' | 'approve';
 
+/** Transiciones idempotentes en la API: cerrar la ronda y aprobar (aplica diferencias al stock). */
+const IDEMPOTENT_TRANSITIONS: ReadonlySet<Transition> = new Set(['close', 'approve']);
+
 export function useCountTransition(id: string, transition: Transition) {
   const after = useAfterChange();
+  const attempt = useAttemptKeys();
   return useMutation({
     mutationFn: async () =>
-      (await api.post<{ data: InventoryCountDetail }>(`${base}/${id}/${transition}`)).data,
+      (
+        await api.post<{ data: InventoryCountDetail }>(
+          `${base}/${id}/${transition}`,
+          undefined,
+          IDEMPOTENT_TRANSITIONS.has(transition)
+            ? { idempotencyKey: attempt.keyFor([id, transition]) }
+            : undefined,
+        )
+      ).data,
+    onSettled: (_data, error) => {
+      attempt.settle(error);
+    },
     onSuccess: (detail) => after(detail, transition === 'approve'),
   });
 }

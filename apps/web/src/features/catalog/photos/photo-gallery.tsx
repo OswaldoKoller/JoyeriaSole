@@ -2,7 +2,7 @@ import type { Product } from '@joyeria/shared';
 import { useState } from 'react';
 import { Button } from '../../../components/ui/button.tsx';
 import { formatBytes } from './photo-files.ts';
-import { isSafePhotoUrl } from './photo-url.ts';
+import { isSafePhotoUrl, photoSrc, photoSrcSet } from './photo-url.ts';
 import { PhotoUploader } from './photo-uploader.tsx';
 import { useDeletePhoto, useReorderPhotos, useSetCoverPhoto } from './use-product-photos.ts';
 
@@ -59,7 +59,9 @@ export function PhotoGallery({ product, canManage }: Props) {
                 className="space-y-2 rounded-lg border border-stone-200 bg-white p-2"
               >
                 <img
-                  src={photo.url}
+                  src={photoSrc(photo.url, photo.width, 640)}
+                  srcSet={photoSrcSet(photo.url, photo.width)}
+                  sizes="(min-width: 1024px) 18rem, (min-width: 640px) 50vw, 100vw"
                   alt={`Foto ${index + 1} de ${product.name}`}
                   width={photo.width}
                   height={photo.height}

@@ -9,7 +9,7 @@
 | Clave temporal (F2)      | El Administrador restablece la clave de otra persona (`users:manage`): mínimo 10 caracteres, revoca sus sesiones, auditoría sin la clave. Con `must_change_password` la API solo atiende `/auth/*` (403 `PASSWORD_CHANGE_REQUIRED`) hasta que la cambie.                                                                                                                                                                                                                                                                                                            | `users.service.ts`, `plugins/auth.ts`                              |
 | Cookie                   | `httpOnly`, `SameSite=Strict`, `Secure` en producción, prefijo `__Host-`, firmada con `AUTH_SECRET`. Al cerrar sesión o cambiar la clave, la cookie se borra con los mismos atributos (con `__Host-` el navegador ignora un borrado sin `Secure`). Con `COOKIE_SECURE=false` en `production` la API registra un aviso al arrancar (solo para probar la imagen en local sin HTTPS).                                                                                                                                                                                  |
 | Enumeración de usuarios  | Mismo mensaje y tiempo de respuesta para correo inexistente y contraseña incorrecta (hash ficticio).                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `auth.service.ts`                                                  |
-| Fuerza bruta             | Rate limit global 300 req/min por IP; login y cambio de clave 10 intentos / 15 min por IP. La IP sale de `TRUST_PROXY_HOPS` (ver «Proxy»). Las **imágenes** (`/products/:id/photos/:photoId` y `/products/variants/:variantId/cover`) no cuentan para el límite global (una lista muestra decenas de miniaturas): tienen un tope alto de **3000/min por usuario** (se evalúa tras autenticar). `/health` tiene su propio límite de **60/min por IP**.                                                                                                               |
+| Fuerza bruta             | Rate limit global 300 req/min por IP (`RATE_LIMIT_MAX`; solo el servidor de pruebas E2E lo sube, porque todos sus navegadores comparten una IP); login y cambio de clave 10 intentos / 15 min por IP. La IP sale de `TRUST_PROXY_HOPS` (ver «Proxy»). Las **imágenes** (`/products/:id/photos/:photoId` y `/products/variants/:variantId/cover`) no cuentan para el límite global (una lista muestra decenas de miniaturas): tienen un tope alto de **3000/min por usuario** (se evalúa tras autenticar). `/health` tiene su propio límite de **60/min por IP**.    |
 | Autorización             | RBAC por **permiso** (no por rol) en cada endpoint con `requirePermission(...)`. Denegaciones logueadas.                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `plugins/auth.ts`                                                  |
 | CSRF                     | Cookie SameSite=Strict + rechazo de métodos que modifican datos desde orígenes no permitidos.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `plugins/security.ts`                                              |
 | CORS                     | Lista blanca explícita (`CORS_ORIGIN`). En producción no se necesita (mismo origen).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `plugins/security.ts`                                              |
@@ -41,8 +41,8 @@
 ## Roles y permisos: quién puede qué
 
 Fuente de verdad: `packages/shared/src/permissions.ts` (`DEFAULT_ROLE_PERMISSIONS`, solo para el seed
-inicial; luego los roles se administran en base de datos). La API autoriza siempre por permiso, nunca por
-nombre de rol.
+inicial; luego los roles se administran en base de datos y en la pantalla «Roles», P-46). La API
+autoriza siempre por permiso, nunca por nombre de rol.
 
 **Regla de autorización compartida (cliente, 2026-11-05):** tanto el **Administrador** como el
 **Responsable de inventario** pueden autorizar. Ver [RESOLUCIONES-2026-11-05](../business/RESOLUCIONES-2026-11-05.md).
@@ -58,16 +58,63 @@ Pueden **Administrador y Responsable de inventario** (el Vendedor no puede ningu
 Son **exclusivos del Administrador** (el Responsable no los tiene):
 
 - Auditoría (`audit:read`, Q-15.3).
-- Usuarios, roles y restablecer claves (`users:read`, `users:manage`, `roles:manage`).
+- Usuarios, roles y restablecer claves (`users:read`, `users:manage`, `roles:read`, `roles:manage`).
 - Borrado físico de fichas de producto (`catalog:delete`).
-- Configuración del sistema (`settings:manage`).
+- Configuración del sistema y datos del negocio (`settings:manage`).
+- Corregir cierres de caja (`cash:correct`) y ver, atender y cerrar incidencias de venta
+  (`sales-incidents:manage`).
 
-El Vendedor solo tiene `catalog:read` e `inventory:read`, sin costos (P-02).
+**Ventas y caja** (plan 11, autorizado el 2026-11-10; D-01, D-02 y D-13 son valores por defecto
+pendientes de confirmación):
+
+| Permiso                   | Administrador | Responsable | Vendedor |
+| ------------------------- | :-----------: | :---------: | :------: |
+| `sales:create`            |      sí       |     sí      |    sí    |
+| `sales:read` (propias)    |      sí       |     sí      |    sí    |
+| `sales:read-all`          |      sí       |     sí      |    no    |
+| `cash:read`               |      sí       |     sí      |    no    |
+| `cash:open`, `cash:close` |      sí       |     sí      |    no    |
+| `cash:correct`            |      sí       |     no      |    no    |
+| `sales-incidents:report`  |      sí       |     sí      |    sí    |
+| `sales-incidents:manage`  |      sí       |     no      |    no    |
+
+No existe ningún permiso de anulación, devolución, edición de ventas, reapertura o movimientos de caja
+(DEC-V07); una guarda estática lo verifica. Ninguna respuesta de ventas contiene costos, para ningún
+rol. La venta ajena (sin `sales:read-all`) responde `404`, no `403`, para no revelar que existe.
+
+**Defensa en profundidad (B-1):** esos permisos solo son **efectivos con el rol `ADMIN`**. Al cargar
+la sesión (`loadSessionUser`) se descartan para cualquier usuario sin ese rol, aunque una fila de
+`role_permissions` los conceda (asignación anterior a la protección o hecha por SQL); la fila no se
+borra. Rige para `requirePermission`, `requireAnyPermission`, `/auth/me` y toda comprobación interna.
+
+**Kardex y ventas ajenas (M-1, sigue a D-02):** `GET /inventory/movements` y
+`GET /inventory/:variantId/movements` (permiso `inventory:read`, que tiene el Vendedor) devuelven
+`userId: null` en los movimientos `SALE` de otro vendedor a quien no tiene `sales:read-all`. El
+movimiento sigue visible (el saldo debe cuadrar), pero no permite reconstruir ventas ajenas.
+
+**Permisos exclusivos del Administrador frente a la pantalla «Roles»:** `cash:correct`,
+`sales-incidents:manage` y `settings:manage` (`ADMIN_ONLY_PERMISSIONS`) **no se pueden conceder a
+ningún otro rol**, ni siquiera por un Administrador: la API responde `422` con la lista
+(`details.permissions`) y `GET /roles/permissions` los marca con `adminOnly: true` para que la
+pantalla los deshabilite.
+
+El Vendedor tiene `catalog:read`, `inventory:read`, `sales:create`, `sales:read` y
+`sales-incidents:report`, sin costos (P-02) ni caja.
 
 **Escalada de privilegios (S-01/S-02):** solo un Administrador puede **conceder o quitar el rol
 `ADMIN`** (al crear un usuario o al reasignar roles) y modificar la cuenta de otro Administrador
 (editar, restablecer clave, reasignar roles). Un rol personalizado con `users:manage` + `roles:manage`
 recibe 403 con un mensaje claro al intentarlo.
+
+**Gestión de roles por pantalla (P-46, 2026-11-10):** el rol Administrador es inmutable (no pierde
+permisos, no se renombra ni se elimina), así que el sistema nunca queda sin un administrador activo con
+todos los permisos. Los otros roles de sistema no pierden sus permisos base. **Nadie concede lo que no
+tiene:** quien administra roles o usuarios sin un permiso no puede agregarlo a un rol, ni asignar a una
+persona (o a sí mismo) un rol que lo incluya (`403`). Todo cambio de rol queda en `audit_logs`
+(`role.created`, `role.updated`, `role.deleted`, con antes/después) en la misma transacción. Los
+permisos se leen en cada petición: un cambio rige de inmediato en las sesiones abiertas.
+Los permisos exclusivos del Administrador (`cash:correct`, `sales-incidents:manage`,
+`settings:manage`) no se pueden asignar a otros roles (ver arriba).
 
 **Notas de movimientos (S-03):** `GET /inventory/movements` y `GET /inventory/:variantId/movements`
 devuelven `notes` solo si la persona tiene `inventory:adjust`, `stock-entries:read` o `audit:read`; el

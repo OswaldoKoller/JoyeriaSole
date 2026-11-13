@@ -53,6 +53,16 @@ El cliente pidió fotografías de producto (B8): hasta 5 por producto, una princ
 4. En una implementación externa `put` no puede participar en la transacción: se sube **antes** de confirmar y, si la transacción falla, se borra el objeto (o un barrido periódico elimina huérfanos). `remove` se ejecuta **después** de confirmar.
 5. Servir por URL firmada de corta duración o seguir proxiando desde la API (para conservar la comprobación de `catalog:read`).
 
+## Nota 2026-11-10: miniaturas y portadas sin revalidación (DT-DAT-17/18, OD-04)
+
+Esta nota complementa la decisión sin reescribirla; deja sin efecto la consecuencia «Sin recorte ni edición de imágenes ni vistas previas en varios tamaños» en lo que respecta a los tamaños.
+
+- **Miniaturas**: además de la versión de ≤ 1200 px, cada foto tiene miniaturas WebP (calidad 78) de **160, 320 y 640 px de ancho**, solo las menores que la foto. Lista blanca cerrada (`PHOTO_THUMB_WIDTHS`, CHECK en la base): un tamaño arbitrario permitiría agotar CPU y espacio. Se generan con el mismo `sharp` (sin dependencias nuevas) a partir de la foto ya re-codificada, **al subir** y en la misma transacción, en la tabla `product_photo_thumbnails` (migración `20261110000001_product_photo_thumbnails`). Siguen viviendo en PostgreSQL detrás de `PhotoStorage` (`putThumbnails`, `getThumbnail`, `saveThumbnail`), así que el plan de migración a un bucket se extiende a ellas.
+- **Fotos anteriores**: si falta la miniatura, el endpoint la genera desde la original y la guarda (`INSERT … ON CONFLICT DO NOTHING`, fuera de transacción; si la foto se eliminó mientras tanto, no guarda nada). No hace falta un script de migración.
+- **Servir**: `GET /products/:id/photos/:photoId?w=160|320|640` (mismos permisos y cabeceras; `ETag` = `"<sha256>-w<ancho>"`, `304` sin leer bytes, `Cache-Control: private, max-age=31536000, immutable`). Un ancho mayor o igual que la foto devuelve la original. Cualquier otro valor → 400.
+- **Portadas**: en vez de añadir `coverPhotoId` a cada listado (OD-04 A), que cambiaría los esquemas de una docena de respuestas, `GET /products/variants/covers?ids=…` (≤ 100) devuelve los metadatos de la portada de varias piezas en una petición; la web la agrupa por pantalla, la reutiliza 5 minutos (TanStack Query, invalidada al cambiar fotos) y pide la imagen por su URL inmutable. Se logra el mismo objetivo (cero revalidaciones por imagen) sin tocar otros módulos. `/variants/:variantId/cover` se conserva (con `?w=`) como respaldo.
+- **Consecuencias**: ~55 % más espacio por foto en la base y los respaldos (medido en una fotografía real reducida a 1200 × 750 = 44,7 KB; miniaturas de 160 / 320 / 640 px = 2,5 / 6,3 / 15,6 KB). Una lista que muestra miniaturas de 160 px transfiere ~6 % de lo que transfería con la foto completa, y el navegador decodifica imágenes ~50 veces más pequeñas en píxeles.
+
 ## Seguridad
 
 Validación por contenido y re-codificación obligatoria (archivos renombrados, SVG/HTML/GIF, políglotas y EXIF no llegan a guardarse); lista blanca de `Content-Type`, `nosniff` y CSP restrictiva al servir; límites de tamaño, partes y píxeles; permisos por endpoint; tope de subidas; CSRF y CORS como en el resto de la API (la cookie de sesión acompaña a las etiquetas `<img>` del mismo origen). Ver [SECURITY.md](../security/SECURITY.md).

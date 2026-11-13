@@ -1,6 +1,7 @@
 import type { GlobalInventoryMovement, InitialStockInput, InventoryItem } from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
+import { useAttemptKeys } from '../../lib/idempotency.ts';
 import { PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
 type InventoryList = Paged<InventoryItem>;
@@ -47,11 +48,18 @@ export function useInventoryMovements(variantId: string | null) {
   });
 }
 
+/** Stock inicial: idempotente con una clave por intento (la misma mientras no cambien los datos). */
 export function useInitialStock() {
   const client = useQueryClient();
+  const attempt = useAttemptKeys();
   return useMutation({
-    mutationFn: ({ variantId, input }: { variantId: string; input: InitialStockInput }) =>
-      api.post(`/inventory/${variantId}/initial`, input),
+    mutationFn: (variables: { variantId: string; input: InitialStockInput }) =>
+      api.post(`/inventory/${variables.variantId}/initial`, variables.input, {
+        idempotencyKey: attempt.keyFor(variables),
+      }),
+    onSettled: (_data, error) => {
+      attempt.settle(error);
+    },
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['inventory'] });
       await client.invalidateQueries({ queryKey: ['inventory-movements'] });

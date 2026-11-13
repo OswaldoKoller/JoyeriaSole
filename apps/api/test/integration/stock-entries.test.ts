@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { PERMISSIONS, documentDateBounds, type Permission } from '@joyeria/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/app.ts';
 import { buildTestApp, login } from '../helpers/app.ts';
 import { seedCostTypes } from '../helpers/cost-types.ts';
 import { createTestUser, resetDatabase } from '../helpers/db.ts';
+import { setStock } from '../helpers/stock.ts';
 
 const URL = '/api/v1/stock-entries';
 const FULL: Permission[] = [
@@ -687,7 +689,7 @@ describe('ingresos de mercadería', () => {
     it('aumenta el stock, fija el último costo y deja movimientos y auditoría (bolivianos)', async () => {
       const a = await createVariant({ salePrice: '99' });
       const b = await createVariant({ salePrice: '49' });
-      await app.prisma.inventoryBalance.create({ data: { variantId: a.id, quantity: 5 } });
+      await setStock(app.prisma, a.id, 5, { userId });
       const draft = await createDraft({ documentNumber: 'F-777' });
       await call(
         'PUT',
@@ -718,7 +720,10 @@ describe('ingresos de mercadería', () => {
       expect(await stockOf(b.id)).toBe(5);
 
       // Un movimiento por línea, con costo total, referencia al ingreso y usuario.
-      const movements = await app.prisma.inventoryMovement.findMany({ orderBy: { id: 'asc' } });
+      const movements = await app.prisma.inventoryMovement.findMany({
+        where: { referenceId: draft.id },
+        orderBy: { id: 'asc' },
+      });
       expect(movements).toHaveLength(2);
       const forA = movements.find((movement) => movement.variantId === a.id);
       expect(forA).toMatchObject({
@@ -1000,9 +1005,7 @@ describe('ingresos de mercadería', () => {
       );
       const [first, second] = variants as [(typeof variants)[number], (typeof variants)[number]];
       // La segunda línea que se procesa desbordaría el saldo máximo.
-      await app.prisma.inventoryBalance.create({
-        data: { variantId: second.id, quantity: 2_147_483_647 },
-      });
+      await setStock(app.prisma, second.id, 2_147_483_647, { userId });
       const draft = await createDraft({ currency: 'USD', exchangeRate: '7' });
       await call('PUT', `${URL}/${draft.id}/costs`, costLines([[types.CUSTOMS, '1']]));
       await call(
@@ -1016,7 +1019,9 @@ describe('ingresos de mercadería', () => {
 
       const res = await call('POST', `${URL}/${draft.id}/confirm`);
       expect(res.statusCode).toBe(422);
-      expect(await app.prisma.inventoryMovement.count()).toBe(0);
+      expect(await app.prisma.inventoryMovement.count({ where: { referenceId: draft.id } })).toBe(
+        0,
+      );
       expect(await stockOf(first.id)).toBe(0);
       expect(
         (
@@ -1050,6 +1055,82 @@ describe('ingresos de mercadería', () => {
       expect(
         (list.json().data as { variantId: string }[]).map((item) => item.variantId),
       ).not.toContain(variant.id);
+    });
+  });
+
+  describe('idempotencia de la confirmación (Idempotency-Key)', () => {
+    const confirmWithKey = (id: string, key: string) =>
+      app.inject({
+        method: 'POST',
+        url: `${URL}/${id}/confirm`,
+        headers: { cookie, 'idempotency-key': key },
+      });
+
+    async function readyDraft(variantId: string, quantity: number) {
+      const draft = await createDraft();
+      const res = await call(
+        'PUT',
+        `${URL}/${draft.id}/items`,
+        lines([[variantId, quantity, '10']]),
+      );
+      expect(res.statusCode, res.body).toBe(200);
+      return draft;
+    }
+
+    it('repetir con la misma clave devuelve el ingreso confirmado sin duplicar stock ni auditoría', async () => {
+      const variant = await createVariant();
+      const draft = await readyDraft(variant.id, 4);
+      const key = randomUUID();
+
+      const first = await confirmWithKey(draft.id, key);
+      expect(first.statusCode, first.body).toBe(200);
+      const again = await confirmWithKey(draft.id, key);
+      expect(again.statusCode).toBe(200);
+      expect(again.headers['idempotent-replay']).toBe('true');
+      expect(again.json()).toEqual(first.json());
+
+      expect(await stockOf(variant.id)).toBe(4);
+      expect(await app.prisma.inventoryMovement.count({ where: { referenceId: draft.id } })).toBe(
+        1,
+      );
+      expect(await app.prisma.auditLog.count({ where: { action: 'stock_entry.confirmed' } })).toBe(
+        1,
+      );
+
+      // Sin clave, la protección por estado responde como siempre.
+      expect((await call('POST', `${URL}/${draft.id}/confirm`)).statusCode).toBe(422);
+    });
+
+    it('la misma clave para confirmar otro ingreso es un conflicto (409) y no lo confirma', async () => {
+      const variant = await createVariant();
+      const a = await readyDraft(variant.id, 1);
+      const b = await readyDraft(variant.id, 2);
+      const key = randomUUID();
+      expect((await confirmWithKey(a.id, key)).statusCode).toBe(200);
+
+      const res = await confirmWithKey(b.id, key);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('IDEMPOTENCY_KEY_REUSED');
+      expect((await detailOf(b.id)).status).toBe('DRAFT');
+      expect(await stockOf(variant.id)).toBe(1);
+    });
+
+    it('dos confirmaciones simultáneas con la misma clave: un solo movimiento', async () => {
+      const variant = await createVariant();
+      const draft = await readyDraft(variant.id, 3);
+      const key = randomUUID();
+      const responses = await Promise.all([
+        confirmWithKey(draft.id, key),
+        confirmWithKey(draft.id, key),
+      ]);
+      for (const res of responses) expect(res.statusCode, res.body).toBe(200);
+      expect(responses.filter((res) => res.headers['idempotent-replay'] === 'true')).toHaveLength(
+        1,
+      );
+      expect(await stockOf(variant.id)).toBe(3);
+      expect(await app.prisma.inventoryMovement.count({ where: { referenceId: draft.id } })).toBe(
+        1,
+      );
     });
   });
 

@@ -23,6 +23,11 @@ import type { PrismaClient } from '../../lib/prisma.ts';
 import { skuCandidates } from '../../lib/sku.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { recordAudit } from '../audit/audit.service.ts';
+import {
+  dropEmptyBalances,
+  lockVariantsAndBalances,
+  lockVariantsOfProduct,
+} from '../inventory/stock-locks.ts';
 import { recordInitialPrice } from '../pricing/pricing.service.ts';
 import { toPhotoResponse } from './photos/photo-response.ts';
 
@@ -127,14 +132,18 @@ function toResponse(product: ProductWithDetails, showStock = false) {
 }
 
 /**
- * P-22: un producto o una variante con stock no se desactiva. Bloquea (FOR UPDATE, en orden fijo
- * para no interbloquear con la confirmación de ingresos) los saldos de las variantes indicadas y
- * lanza BusinessRuleError con código estable si alguno es mayor que cero.
+ * P-22: un producto o una variante con stock no se desactiva. Sigue el orden de bloqueo del libro
+ * de inventario (variantes por id y luego saldos por id; ver `inventory/stock-locks.ts`) para no
+ * interbloquear ni dejar pasar una operación de stock en curso: las variantes del producto se
+ * bloquean ANTES de leer los saldos (la variante suelta ya la bloquea quien llama), de modo que
+ * una confirmación de ingreso o un ajuste que ya las tenga termina primero y su stock se ve aquí.
+ * Lanza BusinessRuleError con código estable si algún saldo es mayor que cero.
  */
 async function assertNoStock(
   tx: Prisma.TransactionClient,
   scope: { productId: string } | { variantId: string },
 ) {
+  if ('productId' in scope) await lockVariantsOfProduct(tx, scope.productId);
   const rows =
     'productId' in scope
       ? await tx.$queryRaw<{ sku: string; quantity: number }[]>`
@@ -634,12 +643,9 @@ export class ProductsService {
       const product = await tx.product.findUnique({ where: { id }, include: withDetails });
       if (!product) throw new NotFoundError('Producto no encontrado');
       const variantIds = product.variants.map((variant) => variant.id);
-      // Bloquea los saldos en orden fijo (como la confirmación de ingresos) antes de contar.
-      await tx.$queryRaw`
-        SELECT variant_id FROM inventory_balances
-        WHERE variant_id = ANY(${variantIds}::uuid[])
-        ORDER BY variant_id
-        FOR UPDATE`;
+      // Mismo orden de bloqueo que el libro de inventario (variantes por id y luego saldos), antes
+      // de contar: una operación de stock en curso termina primero y su movimiento se ve abajo.
+      await lockVariantsAndBalances(tx, variantIds);
       const [movements, balances, entryItems, countItems] = await Promise.all([
         tx.inventoryMovement.count({ where: { variantId: { in: variantIds } } }),
         tx.inventoryBalance.count({
@@ -662,7 +668,7 @@ export class ProductsService {
         );
       }
       // Saldos en cero sin movimientos (si existieran) no son historial.
-      await tx.inventoryBalance.deleteMany({ where: { variantId: { in: variantIds } } });
+      await dropEmptyBalances(tx, variantIds);
       await tx.productVariant.deleteMany({ where: { productId: id } });
       await tx.product.delete({ where: { id } });
       await recordAudit(

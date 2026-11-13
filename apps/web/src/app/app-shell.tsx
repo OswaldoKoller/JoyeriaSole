@@ -6,8 +6,8 @@ import {
   FilePlus2,
   PackagePlus,
   Receipt,
-  RotateCcw,
   ScrollText,
+  ShieldCheck,
   ShoppingCart,
   Wrench,
   FolderTree,
@@ -18,10 +18,13 @@ import {
   Menu,
   Package,
   SlidersHorizontal,
+  Store,
   Tag,
+  TriangleAlert,
   Truck,
   UserRound,
   Users,
+  Wallet,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -40,6 +43,8 @@ type Item = {
   /** Visible con AL MENOS UNO de estos permisos (alternativa a `permission`). */
   anyOf?: Permission[];
   end?: boolean;
+  /** Subrutas que tienen su propia entrada y no deben marcar esta (p. ej. /ventas/nueva). */
+  except?: string[];
 };
 type Group = { label: string; items: Item[] };
 
@@ -143,6 +148,7 @@ const GROUPS: Group[] = [
     label: 'Acceso',
     items: [
       { label: 'Usuarios', to: '/usuarios', icon: Users, permission: PERMISSIONS.USERS_READ },
+      { label: 'Roles', to: '/roles', icon: ShieldCheck, permission: PERMISSIONS.ROLES_READ },
       {
         label: 'Auditoría',
         to: '/auditoria',
@@ -155,9 +161,33 @@ const GROUPS: Group[] = [
   {
     label: 'Ventas',
     items: [
-      { label: 'Punto de venta', icon: ShoppingCart },
-      { label: 'Historial de ventas', icon: Receipt },
-      { label: 'Devoluciones', icon: RotateCcw },
+      {
+        label: 'Punto de venta',
+        to: '/ventas/nueva',
+        icon: ShoppingCart,
+        permission: PERMISSIONS.SALES_CREATE,
+      },
+      {
+        label: 'Historial de ventas',
+        to: '/ventas',
+        icon: Receipt,
+        anyOf: [PERMISSIONS.SALES_READ, PERMISSIONS.SALES_READ_ALL],
+        except: ['/ventas/nueva', '/ventas/incidencias'],
+      },
+      // Sin «Devoluciones»: una venta confirmada no se anula ni se revierte (DEC-V07, C9).
+      { label: 'Caja', to: '/caja', icon: Wallet, permission: PERMISSIONS.CASH_READ },
+      {
+        label: 'Incidencias',
+        to: '/ventas/incidencias',
+        icon: TriangleAlert,
+        permission: PERMISSIONS.SALES_INCIDENTS_MANAGE,
+      },
+      {
+        label: 'Datos del negocio',
+        to: '/configuracion/negocio',
+        icon: Store,
+        permission: PERMISSIONS.SETTINGS_MANAGE,
+      },
     ],
   },
 ];
@@ -170,6 +200,7 @@ function isActive(item: Item, pathname: string, search: string) {
   if (!item.to) return false;
   const sameRoute = item.end ? pathname === item.to : pathname.startsWith(item.to);
   if (!sameRoute) return false;
+  if (item.except?.some((path) => pathname.startsWith(path))) return false;
   const params = new URLSearchParams(search);
   if (item.query) {
     const [key = '', value = ''] = item.query.split('=');
