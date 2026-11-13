@@ -45,6 +45,14 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: 'roles',
+            element: lazyPage(
+              () =>
+                import('../features/roles/roles-page.tsx').then((m) => ({ default: m.RolesPage })),
+              { permissions: [PERMISSIONS.ROLES_READ] },
+            ),
+          },
+          {
             path: 'categorias',
             element: lazyPage(
               () =>
@@ -220,6 +228,98 @@ export const router = createBrowserRouter([
                   default: m.StockEntryPage,
                 })),
               { permissions: [PERMISSIONS.STOCK_ENTRIES_READ] },
+            ),
+          },
+          // Caja única (E3, plan 11 §5.1).
+          {
+            path: 'caja',
+            element: lazyPage(
+              () => import('../features/cash/cash-page.tsx').then((m) => ({ default: m.CashPage })),
+              { anyPermissions: [PERMISSIONS.CASH_READ, PERMISSIONS.SALES_CREATE] },
+            ),
+          },
+          {
+            path: 'caja/cierre',
+            element: lazyPage(
+              () =>
+                import('../features/cash/cash-close-page.tsx').then((m) => ({
+                  default: m.CashClosePage,
+                })),
+              { permissions: [PERMISSIONS.CASH_CLOSE, PERMISSIONS.CASH_READ] },
+            ),
+          },
+          {
+            path: 'caja/historial',
+            element: lazyPage(
+              () =>
+                import('../features/cash/cash-history-page.tsx').then((m) => ({
+                  default: m.CashHistoryPage,
+                })),
+              { permissions: [PERMISSIONS.CASH_READ] },
+            ),
+          },
+          {
+            path: 'caja/sesiones/:id',
+            element: lazyPage(
+              () =>
+                import('../features/cash/cash-session-page.tsx').then((m) => ({
+                  default: m.CashSessionPage,
+                })),
+              { permissions: [PERMISSIONS.CASH_READ] },
+            ),
+          },
+          // Ventas de mostrador (E1, plan 11 §5.1): `/ventas/nueva` va antes que `/ventas/:id`.
+          {
+            path: 'ventas/nueva',
+            element: lazyPage(
+              () => import('../features/sales/pos-page.tsx').then((m) => ({ default: m.PosPage })),
+              { permissions: [PERMISSIONS.SALES_CREATE] },
+            ),
+          },
+          {
+            path: 'ventas/incidencias',
+            element: lazyPage(
+              () =>
+                import('../features/sales/incidents-page.tsx').then((m) => ({
+                  default: m.IncidentsPage,
+                })),
+              { permissions: [PERMISSIONS.SALES_INCIDENTS_MANAGE] },
+            ),
+          },
+          {
+            path: 'ventas',
+            element: lazyPage(
+              () =>
+                import('../features/sales/sales-page.tsx').then((m) => ({ default: m.SalesPage })),
+              { anyPermissions: [PERMISSIONS.SALES_READ, PERMISSIONS.SALES_READ_ALL] },
+            ),
+          },
+          {
+            path: 'ventas/:id',
+            element: lazyPage(
+              () =>
+                import('../features/sales/sale-page.tsx').then((m) => ({ default: m.SalePage })),
+              { anyPermissions: [PERMISSIONS.SALES_READ, PERMISSIONS.SALES_READ_ALL] },
+            ),
+          },
+          {
+            path: 'configuracion/negocio',
+            element: lazyPage(
+              () =>
+                import('../features/settings/business-settings-page.tsx').then((m) => ({
+                  default: m.BusinessSettingsPage,
+                })),
+              { permissions: [PERMISSIONS.SETTINGS_MANAGE] },
+            ),
+          },
+          {
+            path: 'ventas/:id/comprobante',
+            element: lazyPage(
+              () =>
+                import('../features/sales/receipt-page.tsx').then((m) => ({
+                  default: m.ReceiptPage,
+                })),
+              { anyPermissions: [PERMISSIONS.SALES_READ, PERMISSIONS.SALES_READ_ALL] },
             ),
           },
         ],

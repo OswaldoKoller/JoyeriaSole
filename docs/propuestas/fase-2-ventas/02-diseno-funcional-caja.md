@@ -4,6 +4,22 @@
 > **Fecha:** 2026-11-09 · **Fuente de verdad:** resolución formal Q-V07, Q-V09 y Q-V12 (07/11/2026), §3 (DEC-V09) y §5 (roadmap).
 > **Verificado contra el repositorio** (lectura, sin ejecutar nada): `apps/api/src/modules/inventory/stock-ledger.ts`, `apps/api/src/plugins/auth.ts`, `apps/api/src/lib/permissions.ts`, `apps/api/src/lib/prisma.ts`, `apps/api/src/modules/audit/audit.service.ts`, `apps/api/src/modules/inventory/exchanges.routes.ts`, `packages/shared/src/{permissions,api,dates,costing}.ts`, `apps/web/src/app/app-shell.tsx`, e informes `docs/informe-tecnico/03`, `05`, `06 §5`.
 
+> **Actualización 2026-11-09.** Las 8 subdecisiones de caja (SD-1 a SD-8) se respondieron (B2 a B9 de
+> [RESOLUCIONES-2026-11-09](../../business/RESOLUCIONES-2026-11-09.md)); las etiquetas
+> **[PENDIENTE] SD-x** de este documento se leen contra esas respuestas y no se reescriben una a una.
+> Aclaraciones posteriores que cambian este diseño:
+>
+> - **Fondo inicial (B4):** obligatorio, digitado en un campo libre en cada apertura. Aceptar 0
+>   explícito y no fijar tope es **recomendación técnica**, pendiente de confirmar.
+> - **Sin gastos ni retiros (B6) y sin reapertura (B7):** `cash_movements` y `cash:movement` no entran
+>   en el MVP; el esperado es fondo + cobros en efectivo.
+> - **Correcciones:** solo el **Administrador** corrige errores de captura del cierre (contado, fondo,
+>   observación) mediante un registro append-only que no modifica la sesión cerrada ni toca ventas o
+>   pagos. Diseño en [10-correcciones-de-caja](10-correcciones-de-caja.md).
+>
+> Solo se corrigieron las frases que estas aclaraciones vuelven falsas (§3.2, §4, §5.1, §8.1, §12,
+> §14 y §16).
+
 ## Cómo leer las etiquetas
 
 | Etiqueta                    | Significado                                                                                                       |
@@ -104,7 +120,7 @@ Se propone granularidad fina porque los roles son filas de base de datos (ADR-00
 Reglas propuestas **[RECOMENDACIÓN TÉCNICA]**:
 
 - Ningún rol salvo Administrador recibe permisos de caja por defecto hasta que SD-1 se cierre (el seed solo asigna lo aprobado).
-- No crear `cash:resolve-difference` ni «ajustar diferencia»: sería un mecanismo alternativo de corrección no autorizado (DEC-V07, §2 de la resolución). Si se desea anotar una explicación a una diferencia, ver §12 (SD-4).
+- No crear `cash:resolve-difference` ni «ajustar diferencia»: sería un mecanismo alternativo de corrección no autorizado (DEC-V07, §2 de la resolución). Si se desea anotar una explicación a una diferencia, ver §12 (SD-4). _Actualización 2026-11-09:_ la única vía posterior al cierre es la corrección de errores de captura del Administrador (permiso propuesto `cash:correct`), acotada a contado, fondo y observación; ver [10](10-correcciones-de-caja.md).
 - El efectivo esperado y las diferencias son datos de dinero: solo con `cash:read`. Quien solo vende ve «caja abierta desde …, por …» sin cifras.
 - Los permisos nuevos solo llegan a los roles al ejecutar el seed (DT-OPS-04 del informe 06).
 
@@ -122,7 +138,8 @@ stateDiagram-v2
         Estado terminal.
         Esperado, contado y diferencia
         quedan congelados e inmutables.
-        No hay reapertura salvo decisión (SD-6).
+        No hay reapertura (B7).
+        Correcciones: documento 10.
     end note
 ```
 
@@ -130,7 +147,7 @@ stateDiagram-v2
 | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Estados `OPEN` y `CLOSED` únicamente.                                                                                               | **[CONFIRMADA]**                                                                                                                                        |
 | Solo puede existir una sesión `OPEN` a la vez (garantía en base de datos).                                                          | **[CONFIRMADA]**                                                                                                                                        |
-| `CLOSED` es terminal; no hay `CLOSED → OPEN`.                                                                                       | **[RECOMENDACIÓN TÉCNICA]** (la resolución no define reapertura; SD-6 **[PENDIENTE]**)                                                                  |
+| `CLOSED` es terminal; no hay `CLOSED → OPEN`.                                                                                       | **[CONFIRMADA]** (B7, 2026-11-09). Los errores de captura se corrigen sin reabrir ([10](10-correcciones-de-caja.md))                                    |
 | Una sesión puede abarcar más de un día calendario (no se cierra sola a medianoche).                                                 | **[PENDIENTE]** (ver §15, N-4)                                                                                                                          |
 | Al cerrar se congelan `expected_cash`, `counted_cash` y `difference`.                                                               | **[CONFIRMADA]** (datos históricos; esperado no modificable directamente)                                                                               |
 | Mecanismo de garantía: índice único parcial «una fila con `status = 'OPEN'`», más trigger que impide modificar una sesión `CLOSED`. | **[RECOMENDACIÓN TÉCNICA]** para el database-agent; Prisma no expresa índices parciales, se usa SQL extra con `--create-only`, como ya hace el proyecto |
@@ -166,7 +183,7 @@ sequenceDiagram
     end
 ```
 
-Reglas de apertura **[RECOMENDACIÓN TÉCNICA]**: el fondo es un importe `string` decimal ≥ 0 (acepta `"0"`); la fecha y hora de apertura las fija el servidor; se registra quién abre. Restricciones del fondo (obligatorio, tope, arrastre de la sesión anterior): **[PENDIENTE] SD-3**.
+Reglas de apertura: el fondo inicial es **obligatorio** y se digita en un **campo libre** en cada apertura, sin cifra fija ni arrastre **[CONFIRMADA]** (B4 y su aclaración del 2026-11-09). **[RECOMENDACIÓN TÉCNICA]**: importe `string` decimal ≥ 0 que acepta `"0"` escrito de forma explícita (vacío no equivale a cero), sin tope de negocio; si el cero es válido y si hay tope sigue **[PENDIENTE]**. La fecha y hora de apertura las fija el servidor; se registra quién abre. Un fondo mal digitado lo corrige solo el Administrador tras el cierre ([10](10-correcciones-de-caja.md)).
 
 ### 5.2 Cobro (venta asociada a la sesión)
 
@@ -383,7 +400,7 @@ Las columnas `client_request_id` y `close_request_id` **no están en los campos 
 | C7  | `GET /cash/sessions/:id/movements`  | `cash:read`                                     | `page`, `pageSize`                                                                                                                 | `200 {data:[movement], meta}`                                                           | 404                                                                                                 | n/a                         |
 | C8  | `POST /cash/sessions/:id/close`     | `cash:close`                                    | `{countedCash, notes?≤1000, denominations?, clientRequestId}`                                                                      | `200 {data:sessionDetail}`                                                              | 400; `404`; `409 CASH_SESSION_CLOSED`; `422` si falta observación con diferencia (si SD-4 la exige) | `clientRequestId` de cierre |
 
-Todas pueden responder además `401`, `403` (`FORBIDDEN` o `PASSWORD_CHANGE_REQUIRED`), `429` y `500` genérico [CÓDIGO]. **No hay** `PATCH`/`PUT`/`DELETE` sobre sesiones ni movimientos, **ni** ruta de reapertura **[RECOMENDACIÓN TÉCNICA]**.
+Todas pueden responder además `401`, `403` (`FORBIDDEN` o `PASSWORD_CHANGE_REQUIRED`), `429` y `500` genérico [CÓDIGO]. **No hay** `PATCH`/`PUT`/`DELETE` sobre sesiones ni movimientos, **ni** ruta de reapertura **[RECOMENDACIÓN TÉCNICA]**. _Actualización 2026-11-09:_ con B6, las rutas C6 y C7 (movimientos) no entran en el MVP; se añaden las rutas de corrección K1 y K2 de [10](10-correcciones-de-caja.md), que no modifican la sesión.
 
 ### 8.2 Esquemas de respuesta propuestos
 
@@ -521,7 +538,7 @@ Todas son **[PENDIENTE]**. Cada recomendación es **[RECOMENDACIÓN TÉCNICA]** 
 | Tope máximo      | Ninguno técnico (`numeric(12,2)`) / tope de negocio configurable                                  |
 | Cambio posterior | Nunca / solo antes de la primera venta                                                            |
 
-**Recomendación técnica:** digitado en cada apertura, ≥ 0 (acepta 0), sin cambio posterior (corregir un fondo equivocado sería editar el esperado). Mostrar el contado de la sesión anterior como referencia; si difiere del fondo, exigir observación (es dinero que salió o entró entre sesiones sin registro). Tope: valor de negocio a definir.
+**Recomendación técnica:** digitado en cada apertura, ≥ 0 (acepta 0), sin cambio posterior (corregir un fondo equivocado sería editar el esperado). _Actualización 2026-11-09:_ el digitado obligatorio es **[CONFIRMADA]** (B4); un fondo mal digitado se corrige sin editar la sesión, solo por el Administrador, con un registro append-only ([10](10-correcciones-de-caja.md)). Mostrar el contado de la sesión anterior como referencia; si difiere del fondo, exigir observación (es dinero que salió o entró entre sesiones sin registro). Tope: valor de negocio a definir.
 
 ### SD-4 · Tolerancia de diferencia
 
@@ -532,7 +549,7 @@ Todas son **[PENDIENTE]**. Cada recomendación es **[RECOMENDACIÓN TÉCNICA]** 
 | C      | Umbral con observación obligatoria                               |
 | D      | Umbral que bloquea el cierre hasta aprobación de un supervisor   |
 
-**Recomendación técnica:** A + observación obligatoria si la diferencia es distinta de cero; umbral solo informativo si el responsable lo desea. **No bloquear el cierre** (D): empuja a falsear el conteo y deja sesiones abiertas. La diferencia nunca se corrige ni se «resuelve» modificando importes; una explicación posterior sería una anotación append-only (decisión adicional). Cómo se trata el faltante laboral o contablemente queda **fuera del sistema**.
+**Recomendación técnica:** A + observación obligatoria si la diferencia es distinta de cero; umbral solo informativo si el responsable lo desea. **No bloquear el cierre** (D): empuja a falsear el conteo y deja sesiones abiertas. La diferencia nunca se corrige ni se «resuelve» modificando importes; una explicación posterior sería una anotación append-only (_actualización 2026-11-09:_ diseñada como corrección de tipo «observación» del Administrador en [10](10-correcciones-de-caja.md)). Cómo se trata el faltante laboral o contablemente queda **fuera del sistema**.
 
 ### SD-5 · Registro de gastos y retiros
 
@@ -579,12 +596,12 @@ Todas son **[PENDIENTE]**. Cada recomendación es **[RECOMENDACIÓN TÉCNICA]** 
 
 ### Decisiones relacionadas que deben acordarse en conjunto
 
-| Combinación | Motivo                                                                                  |
-| ----------- | --------------------------------------------------------------------------------------- |
-| SD-1 + SD-8 | Quién puede cobrar en una caja que otro abrió                                           |
-| SD-2 + SD-1 | Si se rechaza la venta sin caja, alguien debe poder abrirla siempre                     |
-| SD-5 + SD-4 | Sin gastos/retiros registrados, aumentan las diferencias                                |
-| SD-6 + SD-4 | Sin reapertura, la observación del cierre es el único lugar para explicar la diferencia |
+| Combinación | Motivo                                                                                                                                                |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SD-1 + SD-8 | Quién puede cobrar en una caja que otro abrió                                                                                                         |
+| SD-2 + SD-1 | Si se rechaza la venta sin caja, alguien debe poder abrirla siempre                                                                                   |
+| SD-5 + SD-4 | Sin gastos/retiros registrados, aumentan las diferencias                                                                                              |
+| SD-6 + SD-4 | Sin reapertura (B7), la diferencia se explica en la observación del cierre y en las correcciones del Administrador ([10](10-correcciones-de-caja.md)) |
 
 ---
 
@@ -627,20 +644,21 @@ flowchart LR
 
 ## 14. Riesgos específicos de caja y controles
 
-| #   | Riesgo (de la lista obligatoria)                                      | Control propuesto **[RECOMENDACIÓN TÉCNICA]**                                                                                            | Procedimiento / decisión                                                                                                                            |
-| --- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1  | Cierre concurrente                                                    | `FOR UPDATE` + idempotencia por `clientRequestId` + prueba con `Promise.all`                                                             | —                                                                                                                                                   |
-| R2  | Venta realizada durante el cierre                                     | `FOR SHARE` en la venta; falla `422` sin efectos; carrito conservado                                                                     | Mensaje accionable al vendedor                                                                                                                      |
-| R3  | Diferencia de efectivo                                                | Siempre registrada, inmutable, observación obligatoria si ≠ 0; informe por sesión                                                        | Tolerancia y responsabilidades: SD-4, SD-8 (fuera del sistema)                                                                                      |
-| R4  | Cobro registrado incorrectamente (monto o medio equivocado)           | Revisión previa a confirmar; suma de pagos = total; `reference` en QR/transferencia                                                      | **Excepción no definida**: no hay anulación (DEC-V07). Documentar como incidencia y presentarla al responsable; no implementar reversión encubierta |
-| R5  | Pago mixto mal registrado                                             | Servidor valida Σ pagos = total y vuelto solo contra la parte en efectivo                                                                | Misma excepción que R4                                                                                                                              |
-| R6  | QR/transferencia no recibido                                          | Verificar en la app bancaria antes de confirmar; `reference` obligatoria (decisión E1)                                                   | SD-7; incidencia                                                                                                                                    |
-| R7  | Pérdida de conexión durante la confirmación de una venta o del cierre | Reintento con el mismo `clientRequestId`; el servidor devuelve el resultado original                                                     | —                                                                                                                                                   |
-| R8  | Sesión olvidada abierta días                                          | Indicador de antigüedad en `/caja` y en el POS                                                                                           | Umbral y cierre forzado: **[PENDIENTE]** N-4                                                                                                        |
-| R9  | Caída o falla y recuperación de datos                                 | Todo en una transacción; copias de la BD (OD-09, P-26); el arqueo se reconstruye porque el esperado no es un acumulado sino una consulta | RPO/RTO sin firmar (P-26)                                                                                                                           |
-| R10 | Caja usada por quien no corresponde                                   | Permisos granulares + auditoría de apertura/cierre + 2FA (OD-08)                                                                         | SD-1                                                                                                                                                |
-| R11 | Importes inconsistentes entre venta, pagos y arqueo                   | CHECK/trigger diferido de Σ pagos; script de verificación; prueba de propiedad                                                           | —                                                                                                                                                   |
-| R12 | Conflicto no anulación vs cambios (E4)                                | Sin signo negativo en `sale_payments` hasta que se defina E4; la diferencia de precio de un cambio **no** se trata aquí                  | E4 **[PENDIENTE]** de definición                                                                                                                    |
+| #   | Riesgo (de la lista obligatoria)                                                      | Control propuesto **[RECOMENDACIÓN TÉCNICA]**                                                                                            | Procedimiento / decisión                                                                                                                            |
+| --- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | Cierre concurrente                                                                    | `FOR UPDATE` + idempotencia por `clientRequestId` + prueba con `Promise.all`                                                             | —                                                                                                                                                   |
+| R2  | Venta realizada durante el cierre                                                     | `FOR SHARE` en la venta; falla `422` sin efectos; carrito conservado                                                                     | Mensaje accionable al vendedor                                                                                                                      |
+| R3  | Diferencia de efectivo                                                                | Siempre registrada, inmutable, observación obligatoria si ≠ 0; informe por sesión                                                        | Tolerancia y responsabilidades: SD-4, SD-8 (fuera del sistema)                                                                                      |
+| R4  | Cobro registrado incorrectamente (monto o medio equivocado)                           | Revisión previa a confirmar; suma de pagos = total; `reference` en QR/transferencia                                                      | **Excepción no definida**: no hay anulación (DEC-V07). Documentar como incidencia y presentarla al responsable; no implementar reversión encubierta |
+| R5  | Pago mixto mal registrado                                                             | Servidor valida Σ pagos = total y vuelto solo contra la parte en efectivo                                                                | Misma excepción que R4                                                                                                                              |
+| R6  | QR/transferencia no recibido                                                          | Verificar en la app bancaria antes de confirmar; `reference` obligatoria (decisión E1)                                                   | SD-7; incidencia                                                                                                                                    |
+| R7  | Pérdida de conexión durante la confirmación de una venta o del cierre                 | Reintento con el mismo `clientRequestId`; el servidor devuelve el resultado original                                                     | —                                                                                                                                                   |
+| R8  | Sesión olvidada abierta días                                                          | Indicador de antigüedad en `/caja` y en el POS                                                                                           | Umbral y cierre forzado: **[PENDIENTE]** N-4                                                                                                        |
+| R9  | Caída o falla y recuperación de datos                                                 | Todo en una transacción; copias de la BD (OD-09, P-26); el arqueo se reconstruye porque el esperado no es un acumulado sino una consulta | RPO/RTO sin firmar (P-26)                                                                                                                           |
+| R10 | Caja usada por quien no corresponde                                                   | Permisos granulares + auditoría de apertura/cierre + 2FA (OD-08)                                                                         | SD-1                                                                                                                                                |
+| R11 | Importes inconsistentes entre venta, pagos y arqueo                                   | CHECK/trigger diferido de Σ pagos; script de verificación; prueba de propiedad                                                           | —                                                                                                                                                   |
+| R12 | Conflicto no anulación vs cambios (E4)                                                | Sin signo negativo en `sale_payments` hasta que se defina E4; la diferencia de precio de un cambio **no** se trata aquí                  | E4 **[PENDIENTE]** de definición                                                                                                                    |
+| R13 | Error de captura en el fondo o en el contado, sin reapertura (B7) ni movimientos (B6) | Corrección append-only solo del Administrador, con cifra original visible y controles contra la anulación encubierta (10 §11)            | Subdecisiones SC-1 a SC-6 de [10](10-correcciones-de-caja.md) **[PENDIENTE]**                                                                       |
 
 ---
 
@@ -662,13 +680,13 @@ CLAUDE.md pide agregar a `PENDIENTES.md` las decisiones no listadas. Este análi
 
 ## 16. Impacto resumido y qué NO se hace
 
-| Área          | Impacto (propuesto, no implementado)                                                                                                                                                                                                                                                     |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Base de datos | Tablas `cash_sessions` y `cash_movements`; índice único parcial `OPEN`; CHECK y triggers de inmutabilidad; columnas de idempotencia; `sales.cash_session_id` (nullabilidad según SD-2). Lo diseña el database-agent.                                                                     |
-| API           | Módulo `modules/cash/` con rutas y servicio; fachada `requireOpenSession(tx)` para `sales`; códigos de error nuevos.                                                                                                                                                                     |
-| Permisos      | `cash:read`, `cash:open`, `cash:close`, `cash:movement`; seed.                                                                                                                                                                                                                           |
-| Frontend      | Pantallas `/caja`, `/caja/cierre`, `/caja/historial`; diccionario de auditoría.                                                                                                                                                                                                          |
-| Pruebas       | Las del §11, incluida concurrencia con mutantes.                                                                                                                                                                                                                                         |
-| ADR           | Propuesta de ADR-028 (caja y arqueo): sesiones y movimientos append-only, esperado calculado, bloqueo de sesión en el orden de bloqueo, idempotencia. **ADR-025 (anulaciones)**: no existe en `docs/decisions` (hoy solo 001-021) y debe quedar como no aprobado/sustituido por DEC-V07. |
+| Área          | Impacto (propuesto, no implementado)                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base de datos | Tablas `cash_sessions` y `cash_movements`; índice único parcial `OPEN`; CHECK y triggers de inmutabilidad; columnas de idempotencia; `sales.cash_session_id` (nullabilidad según SD-2). Lo diseña el database-agent. _Actualización 2026-11-09:_ `cash_movements` fuera del MVP (B6); `sales.cash_session_id` obligatoria (B2); se añade `cash_session_corrections` append-only ([10](10-correcciones-de-caja.md)). |
+| API           | Módulo `modules/cash/` con rutas y servicio; fachada `requireOpenSession(tx)` para `sales`; códigos de error nuevos.                                                                                                                                                                                                                                                                                                |
+| Permisos      | `cash:read`, `cash:open`, `cash:close`, `cash:movement`; seed. _Actualización 2026-11-09:_ sin `cash:movement` (B6); se añade `cash:correct`, solo para el Administrador.                                                                                                                                                                                                                                           |
+| Frontend      | Pantallas `/caja`, `/caja/cierre`, `/caja/historial`; diccionario de auditoría.                                                                                                                                                                                                                                                                                                                                     |
+| Pruebas       | Las del §11, incluida concurrencia con mutantes.                                                                                                                                                                                                                                                                                                                                                                    |
+| ADR           | Propuesta de ADR-028 (caja y arqueo): sesiones y movimientos append-only, esperado calculado, bloqueo de sesión en el orden de bloqueo, idempotencia. **ADR-025 (anulaciones)**: no existe en `docs/decisions` (hoy solo 001-021) y debe quedar como no aprobado/sustituido por DEC-V07.                                                                                                                            |
 
 **No se hace, por la resolución:** `sales:void`, `SALE_VOID`, `VOIDED`, botones de anulación, reversión de pagos, edición de importes de una venta confirmada, mecanismos alternativos de reversión, ni «resolución» de diferencias que modifique cifras. Tampoco se asume P-03 ni se toca stock desde caja (solo el servicio de inventario escribe el libro).

@@ -31,6 +31,12 @@ describe('configuración de entorno', () => {
     expect(() => loadEnv({ ...base, LOGIN_RATE_LIMIT_MAX: '0' })).toThrow(/LOGIN_RATE_LIMIT_MAX/);
   });
 
+  it('el límite global es 300 por minuto por defecto y configurable', () => {
+    expect(loadEnv(base).RATE_LIMIT_MAX).toBe(300);
+    expect(loadEnv({ ...base, RATE_LIMIT_MAX: '100000' }).RATE_LIMIT_MAX).toBe(100_000);
+    expect(() => loadEnv({ ...base, RATE_LIMIT_MAX: '0' })).toThrow(/RATE_LIMIT_MAX/);
+  });
+
   it('acepta varios orígenes CORS separados por coma', () => {
     const env = loadEnv({ ...base, CORS_ORIGIN: 'https://a.com, https://b.com' });
     expect(env.CORS_ORIGIN).toEqual(['https://a.com', 'https://b.com']);

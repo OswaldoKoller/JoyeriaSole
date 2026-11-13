@@ -44,6 +44,9 @@ test.describe('Responsable de inventario', () => {
   test('gestiona valores de atributos y crea una ficha con atributos y variantes', async ({
     page,
   }) => {
+    // Recorrido largo (~66 pasos, unos 55 s de trabajo real): con los 60 s por defecto se quedaba
+    // sin margen ante cualquier lentitud del servidor. Cada comprobación sigue esperando 10 s.
+    test.setTimeout(150_000);
     await login(page, USERS.inventario);
 
     // Los 12 atributos base traen un uso sugerido (B2) y el Responsable carga los valores.

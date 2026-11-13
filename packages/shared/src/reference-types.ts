@@ -7,6 +7,8 @@ export const REFERENCE_TYPES = {
   INVENTORY_ADJUSTMENT: 'INVENTORY_ADJUSTMENT',
   INVENTORY_COUNT: 'INVENTORY_COUNT',
   EXCHANGE: 'EXCHANGE',
+  /** Venta de mostrador (movimientos `SALE`, plan 11 de fase-2-ventas). */
+  SALE: 'SALE',
 } as const;
 
 export type ReferenceType = (typeof REFERENCE_TYPES)[keyof typeof REFERENCE_TYPES];

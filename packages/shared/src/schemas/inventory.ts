@@ -20,7 +20,11 @@ export const inventoryMovementSchema = z.object({
   balanceAfter: z.number(),
   reason: z.string().nullable(),
   notes: z.string().nullable(),
-  userId: z.uuid(),
+  /**
+   * Quién registró el movimiento. `null` en los movimientos `SALE` de OTRO vendedor cuando la persona
+   * no tiene `sales:read-all` (sigue a D-02: el Vendedor no ve ventas ajenas, tampoco por el kardex).
+   */
+  userId: z.uuid().nullable(),
   createdAt: z.string(),
 });
 
@@ -37,6 +41,10 @@ export const initialStockSchema = z.object({
   notes: z.string().trim().max(2000).nullable().optional(),
 });
 
+/** Respuesta de `POST /inventory/:variantId/initial`. */
+export const initialStockResultSchema = z.object({ quantity: z.number() });
+
 export type InventoryItem = z.infer<typeof inventoryItemSchema>;
 export type GlobalInventoryMovement = z.infer<typeof globalInventoryMovementSchema>;
 export type InitialStockInput = z.infer<typeof initialStockSchema>;
+export type InitialStockResult = z.infer<typeof initialStockResultSchema>;

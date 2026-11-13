@@ -29,9 +29,19 @@ Las decisiones de **negocio** pendientes están en [`docs/business/PENDIENTES.md
 | [019](ADR-019-cambios-de-pieza.md)                           | Cambios de pieza como doble movimiento atómico      | Aceptado                           |
 | [020](ADR-020-fotos-de-producto.md)                          | Fotos de producto en PostgreSQL tras `PhotoStorage` | Aceptado                           |
 | [021](ADR-021-conteo-a-ciegas-segundo-recuento.md)           | Conteo físico a ciegas con segundo recuento         | Aceptado (enmienda de 009 y 014)   |
+| [022](ADR-022-venta-de-mostrador-inmutable.md)               | Venta de mostrador atómica, idempotente e inmutable | Aceptado                           |
+| [023](ADR-023-caja-unica-arqueo-y-correcciones.md)           | Caja única, arqueo y correcciones append-only       | Aceptado                           |
+| [024](ADR-024-comprobante-interno.md)                        | Comprobante interno e impresión por navegador       | Aceptado                           |
 
 Los ADR 017, 018, 019 y 021 llevan al final una nota «Actualización 2026-11-05» con la regla de
 autorización compartida (el Administrador y el Responsable de inventario autorizan; ver
 [RESOLUCIONES-2026-11-05](../business/RESOLUCIONES-2026-11-05.md)). El texto original no se reescribe.
+
+Ventas y caja (autorizadas el 2026-11-10): los documentos de análisis de
+[`docs/propuestas/fase-2-ventas`](../propuestas/fase-2-ventas/11-plan-de-implementacion.md) citaban
+estos ADR con otra numeración. Equivalencias: **022 = «ADR-024»** (venta), **023 = «ADR-028»** (caja)
+y **024 = «ADR-029»** (comprobante). El «ADR-025» de esos documentos (anulación de ventas) **no se
+emite**: lo sustituye DEC-V07 (no se anulan ventas). Nota a ADR-017 y ADR-019: los ajustes y los
+cambios de pieza no se usan para corregir ventas (C5).
 
 Plantilla: [`TEMPLATE.md`](TEMPLATE.md).

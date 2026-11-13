@@ -705,6 +705,10 @@ Resumen cuantitativo: de 45 documentos revisados, **15 al día** (incluye 4 con 
 ### 5.2 Lo que falta documentar
 
 1. Informe de la revisión de seguridad y rendimiento (INC-33): no hay hallazgos ni mediciones citables.
+   _Actualización 2026-11-09:_ el responsable decidió archivar este informe técnico como esa revisión
+   (E4 de [RESOLUCIONES-2026-11-09](../business/RESOLUCIONES-2026-11-09.md)). Cubre análisis estático y
+   cifras de _bundle_ y de CI; las pruebas ofensivas ejecutadas y las mediciones de carga siguen
+   pendientes.
 2. Equivalencia entre fases F1-xx y rebanadas S (INC-41) y registro del resultado de G-01.
 3. Política de versiones y lanzamientos (no hay tags).
 4. Criterio de prefijos de migración (INC-40).

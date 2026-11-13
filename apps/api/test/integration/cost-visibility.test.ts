@@ -51,18 +51,21 @@ describe('visibilidad de costos (Q-15.2)', () => {
     productId = product.id;
     variantId = variant.id;
     sku = variant.sku;
-    await app.prisma.inventoryBalance.create({ data: { variantId, quantity: 1 } });
-    await app.prisma.inventoryMovement.create({
-      data: {
-        variantId,
-        type: 'INITIAL_STOCK',
-        quantity: 1,
-        balanceBefore: 0,
-        balanceAfter: 1,
-        reason: 'Conteo de apertura',
-        userId: manager.user.id,
-      },
-    });
+    // Saldo y movimiento en la misma transacción (I-01: el saldo debe coincidir con el libro).
+    await app.prisma.$transaction([
+      app.prisma.inventoryBalance.create({ data: { variantId, quantity: 1 } }),
+      app.prisma.inventoryMovement.create({
+        data: {
+          variantId,
+          type: 'INITIAL_STOCK',
+          quantity: 1,
+          balanceBefore: 0,
+          balanceAfter: 1,
+          reason: 'Conteo de apertura',
+          userId: manager.user.id,
+        },
+      }),
+    ]);
   });
   afterEach(() => app.close());
 
@@ -137,18 +140,21 @@ describe('visibilidad de costos (Q-15.2)', () => {
     beforeEach(async () => {
       // El libro es append-only (no admite UPDATE): se agrega un movimiento más reciente con nota.
       const first = await app.prisma.inventoryMovement.findFirstOrThrow({ where: { variantId } });
-      await app.prisma.inventoryMovement.create({
-        data: {
-          variantId,
-          type: 'ADJUSTMENT',
-          quantity: 1,
-          balanceBefore: 1,
-          balanceAfter: 2,
-          reason: 'Ajuste con nota',
-          notes: NOTE,
-          userId: first.userId,
-        },
-      });
+      await app.prisma.$transaction([
+        app.prisma.inventoryMovement.create({
+          data: {
+            variantId,
+            type: 'ADJUSTMENT',
+            quantity: 1,
+            balanceBefore: 1,
+            balanceAfter: 2,
+            reason: 'Ajuste con nota',
+            notes: NOTE,
+            userId: first.userId,
+          },
+        }),
+        app.prisma.inventoryBalance.update({ where: { variantId }, data: { quantity: 2 } }),
+      ]);
     });
 
     it('el Vendedor recibe las notas como null en el kardex y en el historial global', async () => {
@@ -190,18 +196,21 @@ describe('visibilidad de costos (Q-15.2)', () => {
   it('el kardex y el historial se ordenan por id descendente, no por created_at', async () => {
     const base = await app.prisma.inventoryMovement.findFirstOrThrow({ where: { variantId } });
     // Un movimiento posterior (id mayor) cuyo created_at es ANTERIOR: el orden manda el id.
-    const later = await app.prisma.inventoryMovement.create({
-      data: {
-        variantId,
-        type: 'ADJUSTMENT',
-        quantity: 1,
-        balanceBefore: 1,
-        balanceAfter: 2,
-        reason: 'Posterior',
-        userId: base.userId,
-        createdAt: new Date(base.createdAt.getTime() - 60_000),
-      },
-    });
+    const [later] = await app.prisma.$transaction([
+      app.prisma.inventoryMovement.create({
+        data: {
+          variantId,
+          type: 'ADJUSTMENT',
+          quantity: 1,
+          balanceBefore: 1,
+          balanceAfter: 2,
+          reason: 'Posterior',
+          userId: base.userId,
+          createdAt: new Date(base.createdAt.getTime() - 60_000),
+        },
+      }),
+      app.prisma.inventoryBalance.update({ where: { variantId }, data: { quantity: 2 } }),
+    ]);
     for (const url of ['/api/v1/inventory/movements', `/api/v1/inventory/${variantId}/movements`]) {
       const res = await get(url, managerCookie);
       expect(res.statusCode, url).toBe(200);

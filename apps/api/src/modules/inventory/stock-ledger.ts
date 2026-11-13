@@ -1,5 +1,7 @@
+import type { ReferenceType } from '@joyeria/shared';
 import type { MovementType, Prisma } from '../../generated/prisma/client.ts';
-import { BusinessRuleError } from '../../lib/errors.ts';
+import { BusinessRuleError, NotFoundError } from '../../lib/errors.ts';
+import { lockVariants } from './stock-locks.ts';
 
 /**
  * Operación genérica «aplicar movimientos de stock» (ADR-007).
@@ -37,10 +39,21 @@ export interface StockChange {
   notes?: string | null;
   /** Costo unitario al momento del movimiento (4 decimales, como texto). */
   unitCost?: string | null;
-  referenceType?: string;
+  /** Tipo de documento que origina el movimiento (ver `REFERENCE_TYPES` en `@joyeria/shared`). */
+  referenceType?: ReferenceType;
   referenceId?: string;
   /** Texto que identifica la variante en los mensajes de error (p. ej. su SKU). */
   label?: string;
+}
+
+export interface ApplyStockOptions {
+  /**
+   * Exige que la variante y su producto estén ACTIVE. Se comprueba DESPUÉS de bloquear las
+   * variantes, leyendo el estado vigente: así una desactivación que se confirmó mientras esta
+   * operación esperaba el bloqueo no deja stock en una variante inactiva. El conteo físico no lo
+   * pide (ADR-021: incluye variantes inactivas con saldo).
+   */
+  requireActive?: boolean;
 }
 
 export interface AppliedStockChange {
@@ -51,18 +64,23 @@ export interface AppliedStockChange {
 }
 
 /**
- * Aplica varios cambios de stock de forma atómica. Los bloqueos se toman en orden de variante
- * (primero la variante, luego su saldo), el mismo orden que usan los ingresos y el stock inicial,
- * para que operaciones simultáneas sobre las mismas variantes se serialicen sin interbloqueos.
- * Si un solo cambio no es válido (p. ej. dejaría el saldo negativo) se lanza un error y el
- * llamador debe dejar que su transacción se revierta completa.
+ * Aplica varios cambios de stock de forma atómica. Los bloqueos se toman en el orden global del
+ * libro (`stock-locks.ts`: primero las variantes por id, luego sus saldos por id) para que
+ * operaciones simultáneas sobre las mismas variantes se serialicen sin interbloqueos.
+ * Si un solo cambio no es válido (variante inexistente o inactiva cuando se exige activa, saldo
+ * negativo, desbordamiento) se lanza un error y el llamador debe dejar que su transacción se
+ * revierta completa.
  *
- * Devuelve los resultados en el mismo orden de `changes`.
+ * Devuelve los resultados en el mismo orden de `changes`; el llamador los usa para actualizar sus
+ * propias filas (ítems de ingresos, ajustes, conteos) y su auditoría.
  */
 export async function applyStockChanges(
   tx: Prisma.TransactionClient,
   changes: readonly StockChange[],
+  options: ApplyStockOptions = {},
 ): Promise<AppliedStockChange[]> {
+  if (changes.length === 0) return [];
+
   const order = changes
     .map((change, index) => ({ change, index }))
     .sort((a, b) =>
@@ -73,12 +91,11 @@ export async function applyStockChanges(
           : 1,
     );
 
-  const lockedVariants = new Set<string>();
-  for (const { change } of order) {
-    if (lockedVariants.has(change.variantId)) continue;
-    lockedVariants.add(change.variantId);
-    await tx.$queryRaw`SELECT id FROM product_variants WHERE id = ${change.variantId}::uuid FOR UPDATE`;
-  }
+  await lockVariants(
+    tx,
+    changes.map((change) => change.variantId),
+  );
+  await assertVariantsUsable(tx, changes, options);
 
   const results = new Array<AppliedStockChange>(changes.length);
   for (const { change, index } of order) {
@@ -132,4 +149,34 @@ export async function applyStockChanges(
     };
   }
   return results;
+}
+
+/**
+ * Con las variantes ya bloqueadas: comprueba que existan (error de negocio claro en vez de una
+ * violación cruda de clave foránea) y, si se pide, que estén activas junto con su producto. El
+ * estado se lee en consultas posteriores al bloqueo, por lo que es el vigente.
+ */
+async function assertVariantsUsable(
+  tx: Prisma.TransactionClient,
+  changes: readonly StockChange[],
+  options: ApplyStockOptions,
+): Promise<void> {
+  const ids = [...new Set(changes.map((change) => change.variantId))];
+  const variants = await tx.productVariant.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, sku: true, status: true, product: { select: { status: true } } },
+  });
+  const byId = new Map(variants.map((variant) => [variant.id, variant]));
+  for (const change of changes) {
+    const variant = byId.get(change.variantId);
+    if (!variant) {
+      throw new NotFoundError(`No se encontró la variante ${change.label ?? change.variantId}.`);
+    }
+    if (
+      options.requireActive &&
+      (variant.status !== 'ACTIVE' || variant.product.status !== 'ACTIVE')
+    ) {
+      throw new BusinessRuleError(`La variante ${change.label ?? variant.sku} está inactiva.`);
+    }
+  }
 }

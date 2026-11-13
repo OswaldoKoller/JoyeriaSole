@@ -4,7 +4,7 @@ Base: `/api/v1` · JSON · Autenticación por cookie de sesión (httpOnly, SameS
 
 ## Convenciones
 
-- Recursos en plural y kebab-case: `/stock-entries`, `/inventory-counts`.
+- Recursos en plural y kebab-case: `/stock-entries`, `/inventory/counts`.
 - `GET` lista/detalle · `POST` crear · `PATCH` modificar parcialmente · acciones de estado como
   sub-recurso: `POST /stock-entries/:id/confirm`, `POST /inventory/counts/:id/approve`.
 - **Sin `DELETE` para entidades con historial**: se desactivan (`PATCH { isActive: false }`). La única
@@ -42,20 +42,110 @@ Error:
 }
 ```
 
-| HTTP | `code`                      | Cuándo                                                                                                           |
-| ---- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 400  | `VALIDATION_ERROR`          | Datos de entrada inválidos (Zod) o JSON mal formado                                                              |
-| 401  | `UNAUTHENTICATED`           | Sin sesión, sesión expirada/revocada, credenciales inválidas                                                     |
-| 403  | `FORBIDDEN`                 | Sesión válida sin el permiso requerido; origen no permitido                                                      |
-| 403  | `PASSWORD_CHANGE_REQUIRED`  | Clave temporal asignada por el Administrador: solo se puede cambiarla (`/auth/change-password`) o cerrar sesión  |
-| 404  | `NOT_FOUND`                 | Recurso o ruta inexistente                                                                                       |
-| 409  | `CONFLICT`                  | Duplicado (SKU, código de barras, NIT...)                                                                        |
-| 422  | `BUSINESS_RULE_VIOLATION`   | Regla de negocio (p. ej. confirmar un ingreso ya confirmado)                                                     |
-| 422  | `STOCK_BLOCKS_DEACTIVATION` | No se desactiva un producto o variante con stock > 0 (P-22); `details.variants` lista SKU y cantidad             |
-| 413  | `PAYLOAD_TOO_LARGE`         | Archivo subido de más de 5 MB (fotos) o demasiadas partes en la petición multipart                               |
-| 429  | `RATE_LIMITED`              | Demasiadas solicitudes                                                                                           |
-| 503  | `SERVICE_UNAVAILABLE`       | Conflicto transitorio de la base (deadlock, tiempo agotado): cabecera `Retry-After`; reintentar en unos segundos |
-| 500  | `INTERNAL_ERROR`            | Error técnico. Nunca incluye detalles internos; ver logs con el `requestId`                                      |
+| HTTP | `code`                      | Cuándo                                                                                                            |
+| ---- | --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 400  | `VALIDATION_ERROR`          | Datos de entrada inválidos (Zod) o JSON mal formado                                                               |
+| 401  | `UNAUTHENTICATED`           | Sin sesión, sesión expirada/revocada, credenciales inválidas                                                      |
+| 403  | `FORBIDDEN`                 | Sesión válida sin el permiso requerido; origen no permitido                                                       |
+| 403  | `PASSWORD_CHANGE_REQUIRED`  | Clave temporal asignada por el Administrador: solo se puede cambiarla (`/auth/change-password`) o cerrar sesión   |
+| 404  | `NOT_FOUND`                 | Recurso o ruta inexistente                                                                                        |
+| 409  | `CONFLICT`                  | Duplicado (SKU, código de barras, NIT...)                                                                         |
+| 409  | `IDEMPOTENCY_KEY_REUSED`    | La `Idempotency-Key` ya se usó con otro cuerpo, otra ruta u otro usuario; no se ejecutó nada (ver «Idempotencia») |
+| 400  | `IDEMPOTENCY_KEY_REQUIRED`  | La operación exige `Idempotency-Key` y no llegó (ventas, caja e incidencias; ver «Ventas y caja»)                 |
+| 422  | `BUSINESS_RULE_VIOLATION`   | Regla de negocio (p. ej. confirmar un ingreso ya confirmado)                                                      |
+| 422  | `STOCK_BLOCKS_DEACTIVATION` | No se desactiva un producto o variante con stock > 0 (P-22); `details.variants` lista SKU y cantidad              |
+| 413  | `PAYLOAD_TOO_LARGE`         | Archivo subido de más de 5 MB (fotos) o demasiadas partes en la petición multipart                                |
+| 429  | `RATE_LIMITED`              | Demasiadas solicitudes                                                                                            |
+| 4xx  | Códigos de ventas y caja    | `CASH_SESSION_REQUIRED`, `PRICE_CHANGED`, `PAYMENT_MISMATCH`… ver [Ventas y caja](#ventas-y-caja-fase-2)          |
+| 503  | `SERVICE_UNAVAILABLE`       | Conflicto transitorio de la base (deadlock, tiempo agotado): cabecera `Retry-After`; reintentar en unos segundos  |
+| 500  | `INTERNAL_ERROR`            | Error técnico. Nunca incluye detalles internos; ver logs con el `requestId`                                       |
+
+## Idempotencia (`Idempotency-Key`)
+
+Autorizada por el responsable el 2026-11-10 (etapa E0, «validar idempotencia»). Evita que un doble
+clic, un reintento tras un corte de red o un `503` repitan una operación crítica.
+
+**Contrato HTTP**
+
+- El cliente envía `Idempotency-Key: <UUID>` (cualquier versión; no distingue mayúsculas). Una clave
+  por **intento de operación del usuario**, reutilizada en todos sus reintentos.
+- Clave nueva: la operación se ejecuta y su respuesta se guarda en `idempotency_keys` **en la misma
+  transacción** (usuario + método y ruta + SHA-256 del JSON canónico de `{ params, body }` + respuesta).
+- Misma clave, mismo usuario, misma ruta y mismo cuerpo: se devuelve **la respuesta original** (mismo
+  código HTTP y mismo `data`) con la cabecera `Idempotent-Replay: true`. No se repite ningún efecto: ni
+  movimientos, ni saldos, ni auditoría.
+- Misma clave con otro cuerpo, otros parámetros de ruta, otra ruta u otro usuario: `409
+IDEMPOTENCY_KEY_REUSED`; no se ejecuta nada ni se devuelve la respuesta guardada.
+- Dos peticiones simultáneas con la misma clave: solo una ejecuta; la otra espera a que termine (en el
+  `INSERT … ON CONFLICT` de la clave, primer paso de la transacción) y recibe la respuesta repetida.
+- Si la operación falla (4xx/5xx), la transacción revierte también la clave: un reintento con la misma
+  clave vuelve a ejecutar. Solo se guardan respuestas exitosas.
+- Clave con formato inválido: `400 VALIDATION_ERROR` (`headers.idempotency-key`). 401/403 se evalúan
+  antes y la clave no se reclama sin permiso.
+- **Sin clave** las rutas funcionan como antes (compatibilidad con clientes y pruebas existentes): las
+  confirmaciones siguen protegidas por estado (`422` al repetir) y un cambio de pieza sin clave crea un
+  documento nuevo en cada `POST`.
+- **Vigencia:** 24 horas por defecto (`DEFAULT_IDEMPOTENCY_TTL_HOURS`). Una clave vencida puede
+  reutilizarse (se trata como nueva) y el plugin `idempotency` elimina cada hora las vencidas. Los
+  documentos de diseño no fijan una política; esta es la simple adoptada, ajustable por operación con
+  `ttlHours`.
+
+**Rutas que la EXIGEN** (sin clave: `400 IDEMPOTENCY_KEY_REQUIRED`): `POST /sales`, `POST /sale-incidents`, `POST /cash/sessions`,
+`POST /cash/sessions/:id/close` y `POST /cash/sessions/:id/corrections` (ver
+[Ventas y caja](#ventas-y-caja-fase-2)). En ellas la primera ejecución responde `201` (el cierre, `200`)
+y una repetición responde **`200`** con `Idempotent-Replay: true` (plan 11 §4.4–4.6). Además de
+`idempotency_keys`, la clave queda en una columna única de la tabla de dominio, de modo que la
+repetición funciona aunque la clave genérica haya vencido.
+
+**Rutas que la aceptan como opcional:** `POST /stock-entries/:id/confirm`,
+`POST /inventory/:variantId/initial`, `POST /inventory/adjustments/:id/approve`,
+`POST /inventory/exchanges`, `POST /inventory/counts/:id/close`, `POST /inventory/counts/:id/approve` y
+`POST /sales/:id/receipt/print-events` (la web la envía siempre).
+
+**Uso desde un servicio (p. ej. el futuro módulo de Ventas)**
+
+```ts
+// Ruta: declarar la cabecera (esquema «loose»: no borra cookie ni user-agent).
+schema: { headers: idempotencyHeadersSchema, body: createSaleSchema, response: { 201: detail } },
+
+// Servicio: la clave se reclama como PRIMER paso de la transacción (antes de cualquier bloqueo).
+async create(input: CreateSaleInput, request: FastifyRequest) {
+  const idempotency = {
+    context: idempotencyOf(request, { required: true }), // sin cabecera: 400
+    responseSchema: saleDetailSchema, // valida la respuesta guardada al repetirla
+  };
+  return idempotentTransaction(this.prisma, idempotency, async (tx) => {
+    // ...lockVariants, applyStockChanges, recordAudit(tx, ...)...
+    return this.detail(tx, saleId); // esto es lo que se guarda y se repite
+  });
+}
+```
+
+- `idempotencyOf(request, { required?, ttlHours? })` (`src/plugins/idempotency.ts`): arma el contexto
+  (clave, usuario, ruta, hash) o devuelve `null` si no hay cabecera.
+- `idempotentTransaction(prisma, { context, responseSchema, transaction? }, fn)` y
+  `runIdempotent(tx, contexto, esquema, fn)` (`src/lib/idempotency.ts`): con una transacción ya
+  abierta, `runIdempotent` debe llamarse antes de cualquier bloqueo o escritura. La respuesta repetida
+  se valida con el esquema, así que el llamador recibe el mismo tipo.
+- La respuesta guardada debe ser JSON puro (montos como string, fechas ISO), que es lo que ya devuelven
+  los servicios.
+- Cubre el **mismo envío repetido**; no impide que una persona registre dos veces la misma operación
+  con dos intentos distintos (RV-04.7).
+
+**Uso desde el cliente web**
+
+```ts
+const attempt = useAttemptKeys(); // apps/web/src/lib/idempotency.ts
+return useMutation({
+  mutationFn: (input) => api.post(path, input, { idempotencyKey: attempt.keyFor(input) }),
+  onSettled: (_data, error) => attempt.settle(error), // éxito o 409 REUSED: la próxima, clave nueva
+});
+```
+
+`keyFor` devuelve la misma clave mientras los datos no cambien (reintentos) y una nueva si cambian.
+`newIdempotencyKey()` usa `crypto.randomUUID` o, fuera de un contexto seguro (HTTP en la red local),
+`crypto.getRandomValues`. Para Ventas, la clave del cobro debería además persistirse en
+`sessionStorage` hasta la respuesta definitiva (RV-04.1); eso corresponde al módulo de Ventas.
 
 ## Endpoints implementados
 
@@ -63,7 +153,12 @@ Los endpoints del conteo físico (`/inventory/counts`) están en su propia secci
 
 Usuarios: solo un Administrador puede crear un usuario con el rol `ADMIN`, asignar o quitar ese rol
 (`PUT /users/:id/roles`) o modificar a otro Administrador; un rol personalizado con `users:manage` +
-`roles:manage` recibe `403` con un mensaje claro.
+`roles:manage` recibe `403` con un mensaje claro. Además, **nadie concede lo que no tiene** (P-46): al
+crear un usuario o reasignarle roles, los roles NUEVOS no pueden tener permisos que no tenga quien los
+asigna (`403`).
+
+Roles (P-46, pantalla «Roles»): `GET /roles`, `GET /roles/permissions`, `POST /roles`,
+`PATCH /roles/:id` y `DELETE /roles/:id`; ver [Roles y permisos](#roles-y-permisos-p-46).
 
 | Método | Ruta                                      | Auth                                                                                                                                                                          | Descripción                                                                                                                                                                                                                                                                                       |
 | ------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -109,7 +204,8 @@ Usuarios: solo un Administrador puede crear un usuario con el rol `ADMIN`, asign
 | POST   | `/products/:id/axes`                      | `catalog:manage`                                                                                                                                                              | Define los ejes y valores de la variante base                                                                                                                                                                                                                                                     |
 | POST   | `/products/:id/variants`                  | `catalog:manage`                                                                                                                                                              | Agrega combinación única con SKU correlativo (código repetido → aviso en `meta.warnings`); `salePrice` exige `prices:approve`                                                                                                                                                                     |
 | GET    | `/products/:id/photos`                    | `catalog:read`                                                                                                                                                                | Fotos del producto (solo metadatos: `id`, `url`, medidas, `position`, `isCover`), en orden de galería. **Nunca bytes**                                                                                                                                                                            |
-| GET    | `/products/:id/photos/:photoId`           | cualquiera de: `catalog:read`, `inventory:read`, `stock-entries:read`, `inventory-counts:read`, `inventory:adjust`, `inventory:exchange`, `prices:propose` o `prices:approve` | Bytes de la imagen (WebP). `ETag`, `304` con `If-None-Match`, `Cache-Control: private, immutable`, `Content-Type` de lista blanca, `nosniff`. El Vendedor puede verla                                                                                                                             |
+| GET    | `/products/:id/photos/:photoId`           | cualquiera de: `catalog:read`, `inventory:read`, `stock-entries:read`, `inventory-counts:read`, `inventory:adjust`, `inventory:exchange`, `prices:propose` o `prices:approve` | Bytes de la imagen (WebP); `?w=160                                                                                                                                                                                                                                                                | 320 | 640`da una miniatura (otro valor → 400).`ETag`, `304`con`If-None-Match`, `Cache-Control: private, immutable`, `Content-Type`de lista blanca,`nosniff`. El Vendedor puede verla |
+| GET    | `/products/variants/covers?ids=a,b,…`     | cualquiera de: `catalog:read`, `inventory:read`, `stock-entries:read`, `inventory-counts:read`, `inventory:adjust`, `inventory:exchange`, `prices:propose` o `prices:approve` | Portadas de varias piezas en una petición: `[{ variantId, photo }]` en el orden pedido; `photo` = metadatos o `null`. Hasta 100 ids (si no, 400). Nunca bytes. Ver «Miniaturas y caché»                                                                                                           |
 | GET    | `/products/variants/:variantId/cover`     | cualquiera de: `catalog:read`, `inventory:read`, `stock-entries:read`, `inventory-counts:read`, `inventory:adjust`, `inventory:exchange`, `prices:propose` o `prices:approve` | Portada de la pieza a partir de su variante (la usan todas las pantallas que muestran piezas). `ETag`/`304`, `Cache-Control: private, no-cache` (la portada puede cambiar). Sin fotos o variante desconocida: imagen SVG «Sin foto» (200), nunca 404                                              |
 | POST   | `/products/:id/photos`                    | `catalog:manage`                                                                                                                                                              | Sube **una** foto: `multipart/form-data`, campo `file`, JPG/PNG/WebP validado por contenido (≤ 5 MB → 413; otro formato o archivo dañado → 400; 6.ª foto → 422). Se re-codifica a WebP ≤ 1200 px sin metadatos. La primera foto queda como portada. 201 con la foto. Audita `product.photo_added` |
 | PUT    | `/products/:id/photos/order`              | `catalog:manage`                                                                                                                                                              | `{ photoIds }` con exactamente las fotos del producto en el nuevo orden; responde la lista. Audita `product.photos_reordered`                                                                                                                                                                     |
@@ -156,11 +252,9 @@ Ejemplos ejecutables: [`requests.http`](../../requests.http) (extensión REST Cl
 
 ## Endpoints previstos (pendientes de implementar)
 
-| Módulo                      | Rutas tentativas                                    | Permisos      |
-| --------------------------- | --------------------------------------------------- | ------------- |
-| Reportes y exportaciones    | Por definir según las respuestas G1–G6 del cliente  | Por definir   |
-| Carga inicial de datos      | Importador con vista previa (S11, respuestas H1–H3) | Por definir   |
-| Salidas por ventas (Fase 2) | Fuera del alcance de la Fase 1                      | `inventory:*` |
+| Módulo                   | Rutas tentativas                                   | Permisos    |
+| ------------------------ | -------------------------------------------------- | ----------- |
+| Reportes y exportaciones | Por definir según las respuestas G1–G6 del cliente | Por definir |
 
 ### Pendientes de aprobación (Q-14)
 
@@ -377,10 +471,30 @@ foto: `POST /products` devuelve el `id` y con él se llama a `POST /products/:id
 tiene fotos, así que la primera queda como portada). En la web, el componente
 `apps/web/src/features/catalog/photos/photo-uploader.tsx` (`<PhotoUploader productId productName photoCount onUploaded />`)
 o el hook `useUploadProductPhoto()` hacen exactamente esto y son independientes de la ficha del producto.
-**Pendiente:** conectar `PhotoUploader` al alta rápida de la pantalla de ingresos.
+El componente ya está conectado al alta rápida de la pantalla de ingresos
+(`apps/web/src/features/stock-entries/quick-create-piece.tsx`): una vez creada la pieza se ofrece «Fotos de la
+pieza (opcional)» a quien tiene `catalog:manage`.
 
 Errores: `400 VALIDATION_ERROR` (no es JPG/PNG/WebP real, archivo dañado, falta el campo `file`, orden inválido),
 `413 PAYLOAD_TOO_LARGE`, `422 BUSINESS_RULE_VIOLATION` (ya tiene 5 fotos), `404`, `403`, `401`.
+
+**Miniaturas y caché (DT-DAT-17/18, nota de ADR-020).** Cada foto se sirve también en anchos fijos de
+**160, 320 y 640 px** con `?w=` (`PHOTO_THUMB_WIDTHS` en `@joyeria/shared`). Cualquier otro valor → 400: nadie
+puede hacer procesar tamaños arbitrarios. Si la foto ya es igual o más angosta se sirve completa. Se generan
+con `sharp` al subir y se guardan en `product_photo_thumbnails`; las fotos subidas antes las generan la primera
+vez que se piden. Como el id de la foto cambia con cada subida, foto y miniaturas se cachean un año
+(`Cache-Control: private, max-age=31536000, immutable`); el `ETag` de una miniatura es `"<sha256>-w<ancho>"`.
+`/variants/:variantId/cover` también acepta `?w=`, pero sigue revalidándose (`no-cache`).
+
+`GET /products/variants/covers?ids=a,b,…` (mismos permisos que ver una foto) devuelve
+`{ data: [{ variantId, photo }] }` en el orden pedido y sin repetidos; `photo` son los metadatos de la portada o
+`null` (sin fotos o variante desconocida). Ids UUID separados por coma, de 1 a 100; si no, 400. La web:
+
+- pide las portadas de una pantalla en **una** consulta (agrupada por `useVariantCover`, reutilizada 5 minutos e
+  invalidada al cambiar fotos) y luego la imagen por su URL inmutable: no revalida cada miniatura en cada
+  pantalla. `/cover` queda solo como respaldo si esa consulta falla;
+- usa `srcset` con las miniaturas más angostas que la foto más la foto completa (`photoSrcSet`), `sizes`,
+  `width`/`height` y `loading="lazy"`. Una pieza sin foto muestra un marcador local, sin petición.
 
 ### Auditoría (solo Administrador, Q-15.3)
 
@@ -436,6 +550,200 @@ Filtros de `GET /audit` (todos opcionales; 400 `VALIDATION_ERROR` si son inváli
   (hasta 300 valores por lista, ordenados).
 - Web: pantalla `/auditoria` (los filtros también van por URL: `/auditoria?entityType=Product&entityId=…&from=2026-11-01`).
 
+## Ventas y caja (Fase 2)
+
+Autorizado el 2026-11-10 ([RESOLUCIONES-2026-11-10](../business/RESOLUCIONES-2026-11-10.md); plan
+[11](../propuestas/fase-2-ventas/11-plan-de-implementacion.md); ADR-022, ADR-023 y ADR-024).
+**Una venta confirmada no se anula, no se borra y no se modifica (DEC-V07):** no existen rutas
+`PATCH`, `PUT` ni `DELETE` bajo `/sales`, `/cash` ni `/sale-incidents`, ni rutas de anulación,
+devolución, reapertura o movimientos de caja.
+
+Contrato para la web (todos los esquemas se exportan desde `@joyeria/shared`):
+
+- Esquemas **estrictos**: una clave no prevista en el cuerpo, la consulta o los parámetros es `400`.
+- Dinero como `string` con 2 decimales (`"150.00"`; diferencias con signo: `"-0.50"`). En la entrada,
+  `"0"`, `"12.5"` o `"150.50"` (punto decimal, hasta 2 decimales; vacío **no** es cero). **Límite
+  técnico** de todo importe de entrada: `MONEY_INPUT_MAX` = Bs 99 999 999,99 (`400` si se supera). No es
+  una regla de negocio (D-05 «sin tope» sigue vigente): evita que fondo + cobros desborden la columna
+  `numeric(12,2)` y dejen una caja sin poder cerrarse. Si aun así un importe no cabe en la base, la API
+  responde `422 BUSINESS_RULE_VIOLATION` («supera el máximo que el sistema puede registrar»), nunca 500.
+- Enteros de consulta y cuerpo (`number`, `saleNumber`) hasta 2 147 483 647 y `page` hasta 10 000
+  (`400` si se superan).
+- Fechas ISO en UTC. Filtros `from`/`to` = días calendario de La Paz (`AAAA-MM-DD`), inclusivos.
+- Números para mostrar: `formatSaleNumber(n)` → `VTA-000001`, `formatCashSessionNumber(n)` →
+  `CAJ-000001`, `formatIncidentNumber(n)` → `INC-000001` (valores por defecto D-03 y D-17).
+- `Idempotency-Key` (UUID) **obligatoria** donde se indica: misma clave y cuerpo → la misma respuesta
+  con `200` e `Idempotent-Replay: true`; misma clave con otro cuerpo u otro usuario → `409
+IDEMPOTENCY_KEY_REUSED`; sin clave → `400 IDEMPOTENCY_KEY_REQUIRED`.
+- Autorización en `preValidation`: `401`/`403` antes que `400`. Con clave temporal: `403
+PASSWORD_CHANGE_REQUIRED`.
+
+### Códigos de error de ventas y caja
+
+| HTTP | `code`                          | Cuándo                                                                                                                                                    |
+| ---- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 422  | `CASH_SESSION_REQUIRED`         | Venta sin caja abierta, incluida la que llega durante o después del cierre. No se registra nada                                                           |
+| 409  | `CASH_SESSION_ALREADY_OPEN`     | Apertura con otra sesión abierta. `details: { sessionId, number }`                                                                                        |
+| 409  | `CASH_SESSION_CLOSED`           | Cierre de una sesión ya cerrada con otra clave. `details: { sessionId, number }`                                                                          |
+| 409  | `CASH_SESSION_NOT_CLOSED`       | Corrección sobre una sesión abierta                                                                                                                       |
+| 422  | `CASH_DIFFERENCE_NOTE_REQUIRED` | Cierre con diferencia ≠ 0 y observación de menos de 3 caracteres. `details: { expectedCash, countedCash, difference }`. **No se guarda nada**             |
+| 409  | `CASH_CORRECTION_CONFLICT`      | `expectedPreviousValue` ya no es el valor vigente (otra persona corrigió). `details: { currentValue }`                                                    |
+| 409  | `PRICE_CHANGED`                 | Precio o total distinto del vigente. `details: { items: [{ variantId, expectedUnitPrice, currentUnitPrice }], expectedTotal, currentTotal }`              |
+| 422  | `INSUFFICIENT_STOCK`            | Stock insuficiente. `details: { items: [{ variantId, sku, available, requested }] }`                                                                      |
+| 422  | `VARIANT_NOT_SELLABLE`          | Variante inexistente o inactiva, producto inactivo o sin precio. `details: { items: [{ variantId, sku, reason }] }` (`NOT_FOUND`, `INACTIVE`, `NO_PRICE`) |
+| 422  | `PAYMENT_MISMATCH`              | Σ pagos ≠ total, efectivo recibido < aplicado o medio inactivo. `details: { total, paid, reason }`                                                        |
+| 503  | `SERVICE_UNAVAILABLE`           | El cierre esperó más de 5 s a ventas en curso (`lock_timeout`): reintentar con la **misma** clave tras `Retry-After`                                      |
+
+### Caja (`/cash`)
+
+| #   | Método y ruta                         | Permiso                             | Clave       | Cuerpo o consulta                                                                                                        | Respuesta                                                         | Errores propios                                                                                                                 |
+| --- | ------------------------------------- | ----------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | `GET /cash/status`                    | uno de `sales:create`, `cash:read`  | no          | —                                                                                                                        | `200 { data: cashStatus }` (sin cifras)                           | —                                                                                                                               |
+| C2  | `POST /cash/sessions`                 | `cash:open`                         | **exigida** | `openCashSessionSchema`: `{ openingAmount }`                                                                             | `201 { data: cashSessionDetail }` (`200` si es repetición)        | `409 CASH_SESSION_ALREADY_OPEN`                                                                                                 |
+| C3  | `GET /cash/sessions/current`          | `cash:read`                         | no          | —                                                                                                                        | `200 { data: cashSessionDetail }` con cifras en vivo              | `404` sin caja abierta                                                                                                          |
+| C4  | `GET /cash/sessions`                  | `cash:read`                         | no          | `cashSessionListQuerySchema`: `page`, `pageSize` ≤ 100, `status` (`all`/`OPEN`/`CLOSED`), `from`, `to` (día de apertura) | `200 { data: [cashSessionSummary], meta }`, más recientes primero | —                                                                                                                               |
+| C5  | `GET /cash/sessions/:id`              | `cash:read`                         | no          | —                                                                                                                        | `200 { data: cashSessionDetail }`                                 | `404`                                                                                                                           |
+| C6  | `POST /cash/sessions/:id/close`       | `cash:close`                        | **exigida** | `closeCashSessionSchema`: `{ countedCash, notes? }` (`notes` ≤ 500; **no** admite `expectedCash`)                        | `200 { data: cashSessionDetail }`                                 | `404`; `409 CASH_SESSION_CLOSED`; `422 CASH_DIFFERENCE_NOTE_REQUIRED`; `503`                                                    |
+| C7  | `POST /cash/sessions/:id/corrections` | `cash:correct` (solo Administrador) | **exigida** | `createCashCorrectionSchema` (abajo)                                                                                     | `201 { data: { correction, session } }` (`200` repetición)        | `400` (valor igual al vigente, tipos o claves prohibidos); `404`; `409 CASH_SESSION_NOT_CLOSED`; `409 CASH_CORRECTION_CONFLICT` |
+| C8  | `GET /cash/sessions/:id/corrections`  | `cash:read`                         | no          | —                                                                                                                        | `200 { data: [cashCorrection] }` por `sequence`                   | `404`                                                                                                                           |
+
+- `cashStatus`: `{ open, session: { id, number, openedAt, openedByName } | null }`. Lo usa el punto de
+  venta para saber si puede vender; el Vendedor no ve cifras de caja.
+- `cashSessionDetail` (`cashSessionDetailSchema`): `id`, `number`, `status`, `openedAt`,
+  `openedBy { id, name }`, `openingAmount`, `closedAt`, `closedBy`, `cashSalesTotal`, `expectedCash`,
+  `countedCash`, `difference`, `notes` (cifras **originales** del cierre; `null` mientras está
+  abierta), `liveExpectedCash` (solo abierta: fondo + efectivo cobrado), `totalsByMethod [{ methodCode,
+methodName, isCash, amount, paymentsCount }]` (todos los medios activos, también en cero; QR y
+  transferencia se informan aparte, no son efectivo), `salesCount`, `salesTotal`, `mixedSales { count,
+amount }` (ventas con más de un medio), `current { openingAmount, expectedCash, countedCash,
+difference }` (cifras **vigentes** tras las correcciones; en una abierta, contado y diferencia
+  `null`) y `corrections { count, lastAt }` (para la marca «Corregida (N)»).
+- `cashSessionSummary`: `id`, `number`, `status`, `openedAt`, `openedByName`, `closedAt`,
+  `closedByName`, `openingAmount`, `expectedCash`, `countedCash`, `difference` (originales),
+  `salesCount`, `salesTotal`, `current` (vigentes) y `correctionsCount`.
+- Esperado = fondo + Σ pagos en efectivo **aplicados** (netos de vuelto); sin gastos ni retiros (B6).
+  Diferencia = contado − esperado (positivo sobrante, negativo faltante). Toda diferencia ≠ 0 exige
+  observación (≥ 3 caracteres); no hay tolerancia. El esperado nunca lo envía el cliente.
+- Cierre: espera a las ventas en curso (máximo 5 s) y las incluye; una venta posterior recibe `422
+CASH_SESSION_REQUIRED`. Si responde `CASH_DIFFERENCE_NOTE_REQUIRED`, mostrar las cifras de
+  `details` y pedir la observación; usar una clave **nueva** si cambia el contado o la observación.
+- Corrección (`createCashCorrectionSchema`, unión por `kind`):
+  `{ kind: 'NOTE', reason }` o `{ kind: 'COUNTED_CASH' | 'OPENING_AMOUNT', expectedPreviousValue,
+newValue, reason }`; `reason` de 10 a 500 caracteres; `newValue` ≥ 0 y distinto del vigente. Claves
+  como `saleId`, `paymentId`, `methodId`, `expectedCash` o `cashSalesTotal` → `400`. No modifica la
+  sesión: agrega una fila y devuelve la sesión con sus cifras vigentes.
+- `cashCorrection`: `id`, `sequence`, `kind`, `previousValue`, `newValue`, `expectedCashAfter`,
+  `countedCashAfter`, `differenceAfter`, `reason`, `correctedBy { id, name }`, `correctedAt`.
+- Auditoría: `cash_session.opened` (`after { number, openingAmount }`), `cash_session.closed`
+  (`before`/`after` con las cifras del arqueo), `cash_session.corrected` (`before`/`after` con valor,
+  esperado, contado y diferencia; `metadata { kind, reason, sequence }`).
+
+### Ventas (`/sales`, `/payment-methods`)
+
+| #   | Método y ruta          | Permiso                               | Clave       | Cuerpo o consulta                                                                                                  | Respuesta                                                  | Errores propios                                                                                                                                  |
+| --- | ---------------------- | ------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| V1  | `GET /payment-methods` | `sales:create`                        | no          | —                                                                                                                  | `200 { data: [{ code, name, isCash }] }` activos, en orden | —                                                                                                                                                |
+| V2  | `POST /sales`          | `sales:create`                        | **exigida** | `createSaleSchema`: `{ items, payments, expectedTotal }`                                                           | `201 { data: saleDetail }` (`200` si es repetición)        | `409 PRICE_CHANGED`; `409 IDEMPOTENCY_KEY_REUSED`; `422 CASH_SESSION_REQUIRED`, `INSUFFICIENT_STOCK`, `VARIANT_NOT_SELLABLE`, `PAYMENT_MISMATCH` |
+| V3  | `GET /sales`           | uno de `sales:read`, `sales:read-all` | no          | `saleListQuerySchema`: `page`, `pageSize` ≤ 100, `from`, `to`, `number`, `sellerId`, `cashSessionId`, `methodCode` | `200 { data: [saleSummary], meta }`, más recientes primero | —                                                                                                                                                |
+| V4  | `GET /sales/:id`       | uno de `sales:read`, `sales:read-all` | no          | —                                                                                                                  | `200 { data: saleDetail }`                                 | `404` (inexistente **o** ajena sin `sales:read-all`)                                                                                             |
+
+Cuerpo de `POST /sales` (`createSaleSchema`):
+
+- `items`: 1 a 50 líneas `{ variantId, quantity (1..999), expectedUnitPrice }`, sin repetir variante
+  (para más piezas, aumentar `quantity`). `expectedUnitPrice` es el precio que vio el vendedor.
+- `payments`: 1 a 3 pagos `{ methodCode: 'CASH' | 'QR' | 'BANK_TRANSFER', amount, tendered?,
+reference? }`, un pago por medio. `amount` es lo **aplicado** a la venta (> 0). `tendered` (efectivo
+  recibido) es **obligatorio en `CASH`** y prohibido en los demás; `reference` (≤ 100) solo en QR y
+  transferencia y no se imprime. Vuelto = `tendered − amount` (solo efectivo).
+- `expectedTotal`: total que vio el vendedor en la revisión previa.
+- Sin descuentos, cliente, fecha ni moneda: `soldAt` lo fija la base; todo es en Bs.
+
+Reglas y orden de validación (todo en una transacción; nada queda si falla):
+
+1. Repetición por clave (antes de exigir caja): misma clave y cuerpo → la venta ya registrada (`200`),
+   aunque la caja ya se haya cerrado.
+2. Caja abierta (`422 CASH_SESSION_REQUIRED`).
+3. Variantes existentes, activas, con producto activo y precio > 0 (`422 VARIANT_NOT_SELLABLE`).
+4. `expectedUnitPrice` = precio vigente y `expectedTotal` = Σ cantidad × precio (`409 PRICE_CHANGED`):
+   volver al carrito con los precios nuevos y **clave nueva**.
+5. Stock suficiente (`422 INSUFFICIENT_STOCK`). Stock nunca negativo.
+6. Medios activos, Σ `amount` = total, en efectivo `tendered ≥ amount` (`422 PAYMENT_MISMATCH`).
+7. Descuenta el stock con movimientos `SALE` (uno por línea, `reference_type = 'SALE'`).
+
+Respuestas (**ninguna contiene costos, para ningún rol**):
+
+- `saleSummary`: `id`, `number`, `soldAt`, `sellerId`, `sellerName`, `total`, `itemsCount`,
+  `paymentMethods` (códigos), `cashSessionId`, `cashSessionNumber`.
+- `saleDetail`: lo anterior más `items [{ variantId, sku, productName, variantLabel, quantity,
+unitPrice, lineTotal }]`, `payments [{ methodCode, methodName, amount, tendered, changeGiven,
+reference }]`, `changeGiven` (vuelto total) y `receiptPrints` (impresiones registradas).
+- Sin `sales:read-all` el listado devuelve solo las ventas propias (filtrar por otro `sellerId` da una
+  lista vacía) y el detalle de una venta ajena responde `404`.
+- Auditoría: `sale.created` con número, sesión, total, líneas (con `movementId`) y pagos.
+
+Guía para la web (plan 11 §5.4): generar la `Idempotency-Key` al entrar a la revisión y guardarla con
+el carrito; reintentar con la **misma** clave ante error de red o `503`; usar una clave **nueva** tras
+`PRICE_CHANGED`, `INSUFFICIENT_STOCK`, `VARIANT_NOT_SELLABLE`, `PAYMENT_MISMATCH` o si cambia el
+carrito; ante `CASH_SESSION_REQUIRED`, conservar carrito y clave.
+
+### Comprobante interno (`/sales/:id/receipt`)
+
+| #   | Método y ruta                          | Permiso                    | Clave                               | Cuerpo                                                               | Respuesta                                         | Errores              |
+| --- | -------------------------------------- | -------------------------- | ----------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------- | -------------------- |
+| V5  | `GET /sales/:id/receipt`               | igual que `GET /sales/:id` | no                                  | —                                                                    | `200 { data: saleReceipt }`                       | `404`                |
+| V6  | `POST /sales/:id/receipt/print-events` | igual que `GET /sales/:id` | opcional (la web **debe** enviarla) | `receiptPrintInputSchema`: `{ format }` (`58mm`, `80mm`, `A5`, `A4`) | `201 { data: { copyNumber, isCopy, printedAt } }` | `404`; `400` formato |
+
+- `saleReceipt` (`saleReceiptSchema`): `saleId`, `number`, `soldAt`, `currency: 'BOB'`,
+  `items [{ sku, productName, variantLabel, quantity, unitPrice, lineTotal }]`, `total`,
+  `payments [{ methodName, amount, tendered, changeGiven }]` (**sin** referencia), `seller { name }` o
+  `null` (según `receiptShowSeller`, D-04), `business { tradeName, address, phone, taxId }` (datos
+  **vigentes**, D-08) y `printCount`. Se arma desde las filas inmutables de la venta: cambiar después
+  precios, nombres o medios no lo altera. Leerlo no escribe nada. Sin costos.
+- Leyendas y formatos para la web (`@joyeria/shared`): `RECEIPT_TITLE` («Comprobante interno»),
+  `RECEIPT_NOT_FISCAL_LEGEND` («No válido como factura fiscal»), `RECEIPT_COPY_LEGEND` («COPIA»),
+  `RECEIPT_FORMATS`, `DEFAULT_RECEIPT_FORMAT` (`A4`).
+- `print-events` acepta `Idempotency-Key` **opcional**, y el cliente web **debe enviarla siempre**
+  (una por pulsación de «Imprimir», reutilizada en reintentos): con la misma clave, un doble clic o un
+  reintento de red devuelve el mismo evento (`200` + `Idempotent-Replay: true`) en vez de registrar una
+  «COPIA» falsa. Sin clave, cada llamada registra una impresión más.
+- `print-events` registra la **solicitud** de impresión (append-only) y la audita
+  (`sale.receipt_printed` con `{ format, copyNumber }`). La primera es el original (`isCopy: false`); desde
+  la segunda, `isCopy: true` → imprimir «COPIA». Llamarlo **antes** de `window.print()`; si falla, no
+  imprimir. Imprimir no crea ni modifica ventas.
+
+### Incidencias de venta (`/sale-incidents`)
+
+Solo trazabilidad (D-10, X-1): **no modifican la venta, el stock, los pagos ni la caja**. Lo resuelto
+se hace fuera del sistema y se describe al cerrar.
+
+| #   | Método y ruta                    | Permiso                  | Clave       | Cuerpo o consulta                                                                                 | Respuesta                                                   | Errores                                  |
+| --- | -------------------------------- | ------------------------ | ----------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------- |
+| N1  | `POST /sale-incidents`           | `sales-incidents:report` | **exigida** | `createSaleIncidentSchema`: `{ kind, description (10..1000), saleNumber? }`                       | `201 { data: saleIncident }` (`200` si es repetición)       | `404` si la venta no existe o es ajena   |
+| N2  | `GET /sale-incidents`            | `sales-incidents:manage` | no          | `saleIncidentListQuerySchema`: `page`, `pageSize`, `status` (`all`/`OPEN`/`CLOSED`), `from`, `to` | `200 { data: [saleIncident], meta }`, más recientes primero | —                                        |
+| N3  | `GET /sale-incidents/:id`        | `sales-incidents:manage` | no          | —                                                                                                 | `200 { data: saleIncident }`                                | `404`                                    |
+| N4  | `POST /sale-incidents/:id/close` | `sales-incidents:manage` | no          | `closeSaleIncidentSchema`: `{ resolution (10..1000) }`                                            | `200 { data: saleIncident }`                                | `404`; `409 CONFLICT` si ya está cerrada |
+
+- `kind`: `WRONG_SALE`, `WRONG_PAYMENT`, `DUPLICATE`, `OTHER` (D-11). `saleNumber` es el entero de
+  `VTA-000123`; quien no tiene `sales:read-all` solo puede referir ventas propias (ajena → `404`).
+- Claves como `amount`, `quantity`, `variantId` o `refund` → `400`.
+- `saleIncident`: `id`, `number` (`INC-000001`), `kind`, `description`, `status`, `sale { id, number }`
+  o `null`, `reportedBy { id, name }`, `reportedAt`, `resolution`, `resolvedBy`, `resolvedAt`.
+- Quien reporta recibe el alta pero no lista incidencias; solo el Administrador las ve y las cierra.
+- Auditoría: `sale_incident.reported`, `sale_incident.closed`.
+
+### Datos del negocio (`/settings/business`)
+
+| #   | Método y ruta            | Permiso                                | Cuerpo                                                                                                                      | Respuesta                        |
+| --- | ------------------------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| S1  | `GET /settings/business` | `settings:manage` (solo Administrador) | —                                                                                                                           | `200 { data: businessSettings }` |
+| S2  | `PUT /settings/business` | `settings:manage` (solo Administrador) | `updateBusinessSettingsSchema`: `{ tradeName (1..120), address? (≤ 200), phone? (≤ 40), taxId? (≤ 20), receiptShowSeller }` | `200 { data: businessSettings }` |
+
+- `businessSettings`: `tradeName`, `address`, `phone`, `taxId`, `receiptShowSeller`, `updatedAt` y
+  `updatedBy { id, name }` (`null` mientras nadie lo haya editado). `PUT` reemplaza todo: un campo
+  opcional ausente, vacío o `null` queda en `null`. Sin logo (SD-R08 a).
+- Valores provisionales (D-07): «Joyería Sole», sin dirección, teléfono ni NIT, sin vendedor impreso.
+- Auditoría: `business_settings.updated` con antes/después.
+
 ## Cómo agregar un endpoint
 
 Ver la skill `.claude/skills/api-development/SKILL.md`. Resumen:
@@ -444,7 +752,7 @@ Ver la skill `.claude/skills/api-development/SKILL.md`. Resumen:
 app.post(
   '/',
   {
-    preHandler: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
+    preValidation: app.requirePermission(PERMISSIONS.SUPPLIERS_MANAGE),
     schema: { body: createSupplierSchema, response: { 201: z.object({ data: supplierSchema }) } },
   },
   async (request, reply) => {
@@ -453,3 +761,40 @@ app.post(
   },
 );
 ```
+
+La autorización se declara en `preValidation` y **no** en `preHandler`: Fastify valida el cuerpo antes del
+`preHandler`, así que quien no tiene sesión o permiso recibiría un 400 con el detalle del esquema en lugar de
+401/403. La prueba `security-hardening.test.ts` enumera todas las rutas y falla si alguna queda sin guarda.
+
+## Roles y permisos (P-46)
+
+Gestión de roles por pantalla, autorizada el 2026-11-10. Los permisos siguen definidos en código
+(`packages/shared/src/permissions.ts`); por pantalla solo se agrupan en roles.
+
+| Método | Ruta                 | Auth           | Descripción                                                                                                                                                                              |
+| ------ | -------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/roles`             | `roles:read`   | `{ data: [{ id, code, name, description, isSystem, permissions, lockedPermissions, userCount }] }`: roles de sistema primero; `userCount` cuenta usuarios activos e inactivos            |
+| GET    | `/roles/permissions` | `roles:read`   | Catálogo agrupado por área: `[{ code, label, permissions: [{ code, description }] }]` (textos en español; un recurso nuevo sin área cae en «Otros»)                                      |
+| POST   | `/roles`             | `roles:manage` | `{ name, description?, permissions[] }` → `201`. Código generado `CUSTOM_<NOMBRE>` (sufijo `_2`… si se repite); nombre único sin distinguir mayúsculas (`409`); auditoría `role.created` |
+| PATCH  | `/roles/:id`         | `roles:manage` | `{ name?, description?, permissions? }` (al menos uno). `permissions` reemplaza la lista completa. Auditoría `role.updated` con antes/después                                            |
+| DELETE | `/roles/:id`         | `roles:manage` | `204`. Solo roles personalizados **sin usuarios** (activos o inactivos); auditoría `role.deleted` con el estado anterior completo                                                        |
+
+Validación (`400`): permisos que no están en el catálogo, repetidos o lista vacía; nombre vacío o de más
+de 100 caracteres; descripción de más de 500 (vacía = `null`); `id` que no es UUID.
+
+Salvaguardas:
+
+- **Administrador (`ADMIN`) inmutable:** no pierde permisos, no se renombra ni cambia su descripción y
+  no se elimina (`422`). Como además `PUT /users/:id/roles` y `PATCH /users/:id` protegen al último
+  administrador activo, el sistema nunca queda sin un administrador activo con todos los permisos.
+- **Otros roles de sistema** (Responsable de inventario, Vendedor): no se renombran, no cambian su
+  descripción, no se eliminan y **no pierden sus permisos base** del seed (`lockedPermissions`, `422`);
+  sí admiten permisos adicionales. Así el seed idempotente no deshace nada hecho por pantalla.
+- **Nadie concede lo que no tiene** (`403`): quien administra roles sin tener un permiso no puede
+  agregarlo a ningún rol, ni al suyo.
+- Un rol con usuarios no se elimina (`422`); `404` si no existe.
+- Los permisos se leen en **cada petición** (sin caché): un cambio rige desde la siguiente petición de
+  cada usuario del rol, sin cerrar su sesión.
+- Las altas, ediciones y bajas se serializan con un bloqueo de aviso (advisory) de la transacción, y la
+  fila del rol se bloquea (`FOR UPDATE`) para que una asignación simultánea no deje un rol eliminado con
+  usuarios.

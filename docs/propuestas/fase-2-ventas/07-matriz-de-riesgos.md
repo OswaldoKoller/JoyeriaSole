@@ -2,6 +2,25 @@
 
 Propuesta de Fase 2 «Ventas» de Joyería Sole · Documento 07 · Fecha de elaboración: 2026-11-09 · **Documento de análisis para revisión. No modifica código, migraciones, permisos, ADR ni documentos existentes, y no introduce excepciones comerciales.**
 
+> **Actualización 2026-11-09.** Las subdecisiones de caja (1 a 8 de DEC-V09) se respondieron (B2 a B9
+> de [RESOLUCIONES-2026-11-09](../../business/RESOLUCIONES-2026-11-09.md)); las etiquetas
+> **[PENDIENTE]** de esas subdecisiones se leen contra esas respuestas. Aclaraciones posteriores con
+> efecto en esta matriz:
+>
+> - **Fondo inicial (B4):** obligatorio, digitado en un campo libre; cero y tope sin confirmar.
+> - **Sin gastos ni retiros (B6):** el esperado es fondo + cobros en efectivo; un gasto real hecho con
+>   efectivo de la caja aparece como diferencia (RK-06).
+> - **Sin reapertura (B7) y correcciones solo del Administrador:** el error de captura del cierre ya no
+>   es un riesgo sin vía de corrección. Se corrige con un registro append-only que no modifica la sesión
+>   ni toca ventas o pagos. El riesgo nuevo, **que esa corrección se use para ocultar un faltante o como
+>   anulación encubierta**, se trata con los controles AE-1 a AE-13 y los riesgos de
+>   [10-correcciones-de-caja](10-correcciones-de-caja.md) (§11 y §13); no se renumera esta matriz.
+> - **Aprobación de ajustes:** el responsable confirmó que el Administrador y el Responsable de
+>   inventario la tienen («no hay problema»); la concentración de funciones (CT-20, RK-20, RK-22) queda
+>   conocida y aceptada por el responsable. El estado de P-43 no cambia.
+>
+> Solo se corrigieron las frases de RK-06 y de la sección 6 que estas respuestas vuelven falsas.
+
 ## Estado y alcance
 
 | Aspecto                 | Contenido                                                                                                                                                                                                   |
@@ -199,7 +218,7 @@ Cada ficha: descripción y escenario; P, I, D, severidad; controles preventivos;
 
 | Campo                        | Contenido                                                                                                                                                                                                                                                                                               |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Descripción                  | El efectivo contado al cierre difiere del esperado (fondo inicial + cobros en efectivo + movimientos autorizados).                                                                                                                                                                                      |
+| Descripción                  | El efectivo contado al cierre difiere del esperado (fondo inicial + cobros en efectivo; sin movimientos manuales por B6, actualización 2026-11-09).                                                                                                                                                     |
 | Escenario concreto           | Diferencia de −20 Bs por vuelto mal entregado; o de +50 Bs por un cobro no registrado.                                                                                                                                                                                                                  |
 | P / I / D / S                | 3 / 2 / 1 / **6 (Media)**. Detectable por diseño en el arqueo. [RECOMENDACIÓN TÉCNICA]                                                                                                                                                                                                                  |
 | Preventivos técnicos         | **[CONFIRMADA · resolución]** Registrar las diferencias de arqueo como información histórica y no modificar directamente el importe esperado. Vuelto calculado por el servidor (CT-10). Esperado calculado, no almacenado como saldo editable (propuesta previa 5.8). Opcional CT-15 (arqueo a ciegas). |
@@ -207,7 +226,7 @@ Cada ficha: descripción y escenario; P, I, D, severidad; controles preventivos;
 | Detectivos                   | Cierre con diferencia registrada; histórico de diferencias por sesión y por usuario (informe); alerta si supera la tolerancia (**[PENDIENTE]**).                                                                                                                                                        |
 | Procedimiento operativo      | CP-03: registrar contado, esperado y diferencia; observación obligatoria si hay diferencia; avisar a un responsable; no «sembrar» ventas ni gastos para ocultarla. La acción comercial sobre una diferencia (reponer, descontar, asumir) **no se define aquí**.                                         |
 | Riesgo residual              | Bajo a medio: la diferencia se detecta pero no se atribuye automáticamente a una causa.                                                                                                                                                                                                                 |
-| Decisión que lo condiciona   | **[PENDIENTE]** Subdecisiones de DEC-V09: 3 (fondo inicial), 4 (tolerancia), 5 (gastos y retiros), 8 (responsabilidad de cada vendedor).                                                                                                                                                                |
+| Decisión que lo condiciona   | Subdecisiones de DEC-V09 3, 4, 5 y 8, **respondidas el 2026-11-09** (B4, B5, B6, B9). Sigue **[PENDIENTE]**: cero y tope del fondo. Un error de captura del contado o del fondo lo corrige solo el Administrador ([10](10-correcciones-de-caja.md)).                                                    |
 
 ### RK-07 · Cierre concurrente de caja
 
@@ -501,25 +520,30 @@ Cada ficha: descripción y escenario; P, I, D, severidad; controles preventivos;
 
 Todas **[PENDIENTE]**. Ninguna se da por tomada.
 
-| Decisión                                                                                                                                                  | Riesgos que condiciona                                                                                  |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Procesos especiales para ventas erróneas, pagos incorrectos, duplicaciones y rectificaciones legales (D-05-05, D-05-06 de 05)                             | RK-01, RK-02, RK-05, RK-09, RK-11, RK-14, RK-21                                                         |
-| Cambios (Q-V08) y vínculo con ventas (D-05-07, D-05-09)                                                                                                   | RK-12, RK-20                                                                                            |
-| Subdecisión 1 de DEC-V09: roles que abren y cierran caja                                                                                                  | RK-07                                                                                                   |
-| Subdecisión 2: venta sin sesión abierta                                                                                                                   | RK-08, RK-13                                                                                            |
-| Subdecisión 3: fondo inicial y sus restricciones                                                                                                          | RK-06                                                                                                   |
-| Subdecisión 4: tolerancia de diferencia                                                                                                                   | RK-06                                                                                                   |
-| Subdecisión 5: gastos y retiros                                                                                                                           | RK-06, RK-20                                                                                            |
-| Subdecisión 6: reapertura de caja cerrada                                                                                                                 | RK-07, RK-08 (no se analizó en detalle; una reapertura rompe la inmutabilidad del cierre si se aprueba) |
-| Subdecisión 7: cierre con QR o transferencia pendiente de conciliación                                                                                    | RK-09, RK-14                                                                                            |
-| Subdecisión 8: responsabilidad de cada vendedor                                                                                                           | RK-07, RK-22                                                                                            |
-| DEC-V12: formato del correlativo, política sobre saltos, datos obligatorios, vendedor en el comprobante, reimpresión y auditoría, requisitos del contador | RK-04, RK-11, RK-15, RK-23                                                                              |
-| Hosting, copias y RPO/RTO (OD-07, OD-09, P-26)                                                                                                            | RK-03, RK-10                                                                                            |
-| 2FA y acceso desde Internet (OD-08)                                                                                                                       | RK-21                                                                                                   |
-| Segregación de funciones (OD-14, P-43)                                                                                                                    | RK-20, RK-22                                                                                            |
-| Ventas retroactivas (Q-V14)                                                                                                                               | RK-03, RK-10, RK-26                                                                                     |
-| Garantías de integridad del libro y escritor único (OD-01, OD-02)                                                                                         | RK-25                                                                                                   |
-| Consulta al contador y al asesor legal                                                                                                                    | RK-11, RK-15 y los casos de rectificación de 05                                                         |
+> **Actualización 2026-11-09.** Ya no todas están pendientes: las subdecisiones 1 a 8 de DEC-V09 se
+> respondieron (B2 a B9), y el 2FA (D7) y la aprobación compartida de ajustes se confirmaron. Ver
+> [RESOLUCIONES-2026-11-09](../../business/RESOLUCIONES-2026-11-09.md). Las filas de fondo, gastos y
+> reapertura se corrigieron abajo; las demás se leen contra esa resolución.
+
+| Decisión                                                                                                                                                  | Riesgos que condiciona                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Procesos especiales para ventas erróneas, pagos incorrectos, duplicaciones y rectificaciones legales (D-05-05, D-05-06 de 05)                             | RK-01, RK-02, RK-05, RK-09, RK-11, RK-14, RK-21                                                   |
+| Cambios (Q-V08) y vínculo con ventas (D-05-07, D-05-09)                                                                                                   | RK-12, RK-20                                                                                      |
+| Subdecisión 1 de DEC-V09: roles que abren y cierran caja                                                                                                  | RK-07                                                                                             |
+| Subdecisión 2: venta sin sesión abierta                                                                                                                   | RK-08, RK-13                                                                                      |
+| Subdecisión 3: fondo inicial y sus restricciones (respondida, B4: obligatorio y de monto libre; cero y tope sin confirmar)                                | RK-06                                                                                             |
+| Subdecisión 4: tolerancia de diferencia                                                                                                                   | RK-06                                                                                             |
+| Subdecisión 5: gastos y retiros (respondida, B6: no en el MVP)                                                                                            | RK-06, RK-20                                                                                      |
+| Subdecisión 6: reapertura de caja cerrada (respondida, B7: no; correcciones solo del Administrador, [10](10-correcciones-de-caja.md))                     | RK-06, RK-07, RK-20 (la corrección no reabre ni modifica el cierre; controles AE-1 a AE-13 de 10) |
+| Subdecisión 7: cierre con QR o transferencia pendiente de conciliación                                                                                    | RK-09, RK-14                                                                                      |
+| Subdecisión 8: responsabilidad de cada vendedor                                                                                                           | RK-07, RK-22                                                                                      |
+| DEC-V12: formato del correlativo, política sobre saltos, datos obligatorios, vendedor en el comprobante, reimpresión y auditoría, requisitos del contador | RK-04, RK-11, RK-15, RK-23                                                                        |
+| Hosting, copias y RPO/RTO (OD-07, OD-09, P-26)                                                                                                            | RK-03, RK-10                                                                                      |
+| 2FA y acceso desde Internet (OD-08)                                                                                                                       | RK-21                                                                                             |
+| Segregación de funciones (OD-14, P-43)                                                                                                                    | RK-20, RK-22                                                                                      |
+| Ventas retroactivas (Q-V14)                                                                                                                               | RK-03, RK-10, RK-26                                                                               |
+| Garantías de integridad del libro y escritor único (OD-01, OD-02)                                                                                         | RK-25                                                                                             |
+| Consulta al contador y al asesor legal                                                                                                                    | RK-11, RK-15 y los casos de rectificación de 05                                                   |
 
 ## 7. Qué debe verificarse antes de operar con dinero real
 

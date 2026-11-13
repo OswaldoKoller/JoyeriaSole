@@ -12,6 +12,7 @@ import {
 } from '@joyeria/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { idempotencyHeadersSchema } from '../../plugins/idempotency.ts';
 import { StockEntriesService } from './stock-entries.service.ts';
 
 const idParams = z.object({ id: z.uuid() });
@@ -141,7 +142,7 @@ export const stockEntriesRoutes: FastifyPluginAsyncZod = async (app) => {
         PERMISSIONS.STOCK_ENTRIES_CONFIRM,
         PERMISSIONS.COSTS_READ,
       ),
-      schema: { params: idParams, response: { 200: detail } },
+      schema: { headers: idempotencyHeadersSchema, params: idParams, response: { 200: detail } },
     },
     async (request) => ({ data: await service.confirm(request.params.id, request) }),
   );

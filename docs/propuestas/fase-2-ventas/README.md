@@ -22,6 +22,12 @@ Etiquetas usadas en todo el paquete: **[CONFIRMADA]** (lo dijo el responsable), 
 
 Los enlaces de los documentos 2, 3, 4, 5 y 7 no están activos en este archivo porque no existían al momento de escribirlo.
 
+> **Actualización 2026-11-09.** Documentos añadidos después del paquete original:
+> [`09-investigacion-legal-bolivia.md`](09-investigacion-legal-bolivia.md) (investigación legal
+> preliminar, no es asesoría) y [`10-correcciones-de-caja.md`](10-correcciones-de-caja.md) (corrección
+> de errores de cierre de caja, solo por el Administrador, tras la aclaración de B6 y B7 en
+> [RESOLUCIONES-2026-11-09](../../business/RESOLUCIONES-2026-11-09.md)).
+
 ## Lo esencial en seis puntos
 
 1. **[CONFIRMADA]** Q-V01 venta de mostrador con comprobante interno; Q-V02 facturación fiscal por sistema externo; Q-V03 el precio registrado es el total cobrado, sin impuestos añadidos; Q-V04 efectivo, QR, transferencia y combinaciones, solo bolivianos; Q-V05 solo ventas pagadas íntegramente (sin créditos ni apartados).

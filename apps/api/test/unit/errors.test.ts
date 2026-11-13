@@ -4,6 +4,8 @@ import {
   BusinessRuleError,
   ConflictError,
   ForbiddenError,
+  IdempotencyKeyRequiredError,
+  IdempotencyKeyReusedError,
   NotFoundError,
   UnauthenticatedError,
   ValidationError,
@@ -17,6 +19,8 @@ describe('errores de aplicación', () => {
     [new NotFoundError(), 404, 'NOT_FOUND'],
     [new ConflictError('SKU duplicado'), 409, 'CONFLICT'],
     [new BusinessRuleError('Ingreso ya confirmado'), 422, 'BUSINESS_RULE_VIOLATION'],
+    [new IdempotencyKeyReusedError(), 409, 'IDEMPOTENCY_KEY_REUSED'],
+    [new IdempotencyKeyRequiredError(), 400, 'IDEMPOTENCY_KEY_REQUIRED'],
   ])('%s → HTTP %i / %s', (error, status, code) => {
     expect(error).toBeInstanceOf(AppError);
     expect(error.statusCode).toBe(status);

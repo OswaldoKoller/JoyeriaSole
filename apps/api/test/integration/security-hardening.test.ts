@@ -258,6 +258,35 @@ describe('límite de intentos de login', () => {
   });
 });
 
+describe('límite global por IP', () => {
+  it('usa RATE_LIMIT_MAX: pasado el máximo responde 429 RATE_LIMITED en cualquier ruta', async () => {
+    const app = await appWith({ RATE_LIMIT_MAX: '4' });
+    try {
+      const statuses: number[] = [];
+      for (let index = 0; index < 6; index += 1) {
+        statuses.push((await app.inject({ method: 'GET', url: `${API}/auth/me` })).statusCode);
+      }
+      expect(statuses).toEqual([401, 401, 401, 401, 429, 429]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('por defecto permite 300 peticiones por minuto antes de bloquear', async () => {
+    const app = await appWith();
+    try {
+      let blockedAt = 0;
+      for (let index = 1; index <= 301 && blockedAt === 0; index += 1) {
+        const response = await app.inject({ method: 'GET', url: `${API}/auth/me` });
+        if (response.statusCode === 429) blockedAt = index;
+      }
+      expect(blockedAt).toBe(301);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 describe('límite propio de /health', () => {
   it('permite 60 consultas por minuto y luego responde 429', async () => {
     const app = await appWith();

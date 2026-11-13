@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/app.ts';
 import { buildTestApp, login } from '../helpers/app.ts';
 import { createTestUser, resetDatabase } from '../helpers/db.ts';
+import { setStock } from '../helpers/stock.ts';
 
 const MANAGER: Permission[] = [
   PERMISSIONS.CATALOG_READ,
@@ -580,7 +581,7 @@ describe('catálogo completo (S2)', () => {
         where: { id: variantId },
         data: { costPrice: '12.3456' },
       });
-      await app.prisma.inventoryBalance.create({ data: { variantId, quantity: 4 } });
+      await setStock(app.prisma, variantId, 4);
       await app.prisma.supplierProduct.create({
         data: { supplierId: supplier.id, variantId, supplierCode: 'ZETA-9' },
       });
@@ -749,8 +750,8 @@ describe('catálogo completo (S2)', () => {
       // 1) Movimientos de inventario (aunque el saldo vuelva a cero).
       const moved = await product({ name: 'Con movimientos' });
       const movedId = moved.variants[0]?.id as string;
-      await app.prisma.inventoryBalance.create({ data: { variantId: movedId, quantity: 0 } });
-      await app.prisma.inventoryMovement.createMany({
+      // Movimientos y saldo en la misma transacción (I-01: el saldo debe coincidir con el libro).
+      const movements = app.prisma.inventoryMovement.createMany({
         data: [
           {
             variantId: movedId,
@@ -770,14 +771,16 @@ describe('catálogo completo (S2)', () => {
           },
         ],
       });
+      await app.prisma.$transaction([
+        app.prisma.inventoryBalance.create({ data: { variantId: movedId, quantity: 0 } }),
+        movements,
+      ]);
       expect((await reason(moved.id)).movements).toBe(2);
 
-      // 2) Saldo distinto de cero (sin movimientos registrados).
+      // 2) Saldo distinto de cero (desde I-01 un saldo siempre viene con su movimiento).
       const stocked = await product({ name: 'Con saldo' });
-      await app.prisma.inventoryBalance.create({
-        data: { variantId: stocked.variants[0]?.id as string, quantity: 3 },
-      });
-      expect((await reason(stocked.id)).nonZeroBalances).toBe(1);
+      await setStock(app.prisma, stocked.variants[0]?.id as string, 3);
+      expect(await reason(stocked.id)).toMatchObject({ movements: 1, nonZeroBalances: 1 });
 
       // 3) Ítem de un ingreso de mercadería.
       const entered = await product({ name: 'En un ingreso' });
@@ -822,7 +825,7 @@ describe('catálogo completo (S2)', () => {
         values: [{ attributeId: material.id, optionId: material.options[1] }],
       });
       const second = (added.json().data.variants as { id: string }[])[1] as { id: string };
-      await app.prisma.inventoryBalance.create({ data: { variantId: second.id, quantity: 1 } });
+      await setStock(app.prisma, second.id, 1);
       expect((await del(created.id)).statusCode).toBe(422);
       expect(await app.prisma.productVariant.count()).toBe(2);
     });

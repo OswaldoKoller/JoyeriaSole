@@ -39,6 +39,12 @@ const envSchema = z
      * Solo se sube en el servidor de pruebas E2E, que inicia sesión muchas veces desde una IP.
      */
     LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10_000).default(10),
+    /**
+     * Peticiones permitidas por minuto y por IP a toda la API (cada ruta puede fijar un límite propio).
+     * Solo se sube en el servidor de pruebas E2E: todos sus navegadores salen de una sola IP y, sin
+     * subirlo, la suite agota el cupo y las pantallas reciben 429 (se vio en el CI de GitHub).
+     */
+    RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(1_000_000).default(300),
     /** Solo se desactiva para pruebas locales de la imagen de producción sin HTTPS. */
     COOKIE_SECURE: booleanString,
     /**

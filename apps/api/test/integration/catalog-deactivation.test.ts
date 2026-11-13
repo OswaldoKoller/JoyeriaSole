@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/app.ts';
 import { buildTestApp, login } from '../helpers/app.ts';
 import { createTestUser, resetDatabase } from '../helpers/db.ts';
+import { setStock } from '../helpers/stock.ts';
 
 const MANAGER: Permission[] = [PERMISSIONS.CATALOG_READ, PERMISSIONS.CATALOG_MANAGE];
 
@@ -38,7 +39,7 @@ describe('desactivación de productos y variantes (P-22)', () => {
       const variant = await app.prisma.productVariant.create({
         data: { productId: product.id, sku: `T-${counter}-${index}`, label: `V${index}` },
       });
-      await app.prisma.inventoryBalance.create({ data: { variantId: variant.id, quantity } });
+      await setStock(app.prisma, variant.id, quantity);
       variants.push(variant);
     }
     return { product, variants };
@@ -151,10 +152,7 @@ describe('desactivación de productos y variantes (P-22)', () => {
   it('tras un ajuste a cero el producto ya se puede desactivar', async () => {
     const { product, variants } = await productWithStock([4]);
     expect((await patchProduct(product.id, { status: 'INACTIVE' })).statusCode).toBe(422);
-    await app.prisma.inventoryBalance.update({
-      where: { variantId: variants[0]!.id },
-      data: { quantity: 0 },
-    });
+    await setStock(app.prisma, variants[0]!.id, 0);
     expect((await patchProduct(product.id, { status: 'INACTIVE' })).statusCode).toBe(200);
   });
 

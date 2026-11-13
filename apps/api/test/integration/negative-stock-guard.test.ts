@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/app.ts';
 import { buildTestApp } from '../helpers/app.ts';
 import { createTestUser, resetDatabase } from '../helpers/db.ts';
+import { setStock } from '../helpers/stock.ts';
 
 describe('saldo negativo rechazado por la base de datos (P-08)', () => {
   let app: App;
@@ -41,8 +42,8 @@ describe('saldo negativo rechazado por la base de datos (P-08)', () => {
       data: { productId: product.id, sku: 'SKU-NEG' },
     });
     variantId = variant.id;
-    await app.prisma.inventoryBalance.create({ data: { variantId, quantity: 2 } });
     userId = (await createTestUser(app.prisma)).user.id;
+    await setStock(app.prisma, variantId, 2, { userId });
   });
   afterEach(() => app.close());
 
@@ -59,8 +60,8 @@ describe('saldo negativo rechazado por la base de datos (P-08)', () => {
       /inventory_balances|constraint|check|quantity|prisma|SELECT|UPDATE/i,
     );
 
-    // Nada quedó a medias: ni el movimiento ni el saldo cambiaron.
-    expect(await app.prisma.inventoryMovement.count()).toBe(0);
+    // Nada quedó a medias: ni el movimiento ni el saldo cambiaron (solo queda el stock inicial).
+    expect(await app.prisma.inventoryMovement.count()).toBe(1);
     const balance = await app.prisma.inventoryBalance.findUniqueOrThrow({ where: { variantId } });
     expect(balance.quantity).toBe(2);
   });

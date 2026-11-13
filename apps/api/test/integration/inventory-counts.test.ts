@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { PERMISSIONS, type Permission } from '@joyeria/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { App } from '../../src/app.ts';
@@ -1074,6 +1075,73 @@ describe('conteo físico a ciegas con segundo recuento', () => {
       expect(without.valueImpact).toBeNull();
       expect(without.items[0]!.unitCost).toBeNull();
       expect(without.items[0]!.valueImpact).toBeNull();
+    });
+  });
+
+  describe('idempotencia de cierre y aprobación (Idempotency-Key)', () => {
+    const withKey = (id: string, action: 'close' | 'approve', key: string) =>
+      app.inject({
+        method: 'POST',
+        url: `${URL}/${id}/${action}`,
+        headers: { cookie: manager.cookie, 'idempotency-key': key },
+      });
+
+    it('repetir el cierre con la misma clave devuelve el detalle del cierre y no audita dos veces', async () => {
+      const cat = await category('Collares');
+      await variantIn(cat.id, { sku: 'K-1', stock: 2 });
+      const id = await startedCount(cat.id);
+      await scanTimes(id, 'K-1', 2);
+      const key = randomUUID();
+
+      const first = await withKey(id, 'close', key);
+      expect(first.statusCode, first.body).toBe(200);
+      expect(first.json().data.status).toBe('IN_REVIEW');
+      const again = await withKey(id, 'close', key);
+      expect(again.statusCode).toBe(200);
+      expect(again.headers['idempotent-replay']).toBe('true');
+      expect(again.json()).toEqual(first.json());
+      expect(
+        await app.prisma.auditLog.count({ where: { action: 'inventory_count.first_closed' } }),
+      ).toBe(1);
+
+      // Sin clave, el estado protege como antes.
+      expect((await closeCount(id)).statusCode).toBe(422);
+    });
+
+    it('repetir la aprobación (también en paralelo) aplica las diferencias una sola vez', async () => {
+      const cat = await category('Pulseras');
+      const short = await variantIn(cat.id, { sku: 'P-1', stock: 5 });
+      const id = await startedCount(cat.id);
+      await scanTimes(id, 'P-1', 3);
+      await closeCount(id);
+      await scanTimes(id, 'P-1', 3); // el recuento confirma la diferencia
+      expect((await closeCount(id)).json().data.status).toBe('IN_REVIEW');
+      const key = randomUUID();
+
+      const responses = await Promise.all([
+        withKey(id, 'approve', key),
+        withKey(id, 'approve', key),
+      ]);
+      for (const res of responses) expect(res.statusCode, res.body).toBe(200);
+      expect(responses.filter((res) => res.headers['idempotent-replay'] === 'true')).toHaveLength(
+        1,
+      );
+      const later = await withKey(id, 'approve', key);
+      expect(later.statusCode).toBe(200);
+      expect(later.json()).toEqual(responses[0].json());
+
+      expect(
+        await app.prisma.inventoryMovement.count({ where: { type: 'COUNT_ADJUSTMENT' } }),
+      ).toBe(1);
+      expect(
+        await app.prisma.auditLog.count({ where: { action: 'inventory_count.approved' } }),
+      ).toBe(1);
+      expect(await balanceOf(short.id)).toBe(3);
+
+      // La misma clave en otra operación (cerrar) es un conflicto.
+      const misuse = await withKey(id, 'close', key);
+      expect(misuse.statusCode).toBe(409);
+      expect(misuse.json().error.code).toBe('IDEMPOTENCY_KEY_REUSED');
     });
   });
 

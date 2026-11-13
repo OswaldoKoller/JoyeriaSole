@@ -38,7 +38,7 @@ describe('ProductThumb', () => {
   it('muestra la portada con texto alternativo', () => {
     renderWithProviders(<ProductThumb product={product([photo(1), photo(2, true)])} />);
     const image = screen.getByRole('img', { name: 'Foto de portada de Anillo luna' });
-    expect(image).toHaveAttribute('src', photo(2).url);
+    expect(image).toHaveAttribute('src', `${photo(2).url}?w=320`);
   });
 
   it('muestra un marcador sin imagen cuando no hay fotos', () => {

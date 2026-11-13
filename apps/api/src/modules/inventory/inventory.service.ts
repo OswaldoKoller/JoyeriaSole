@@ -1,11 +1,20 @@
-import type { InitialStockInput, InventoryItem } from '@joyeria/shared';
+import {
+  initialStockResultSchema,
+  type InitialStockInput,
+  type InitialStockResult,
+  type InventoryItem,
+} from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import { Prisma } from '../../generated/prisma/client.ts';
 import { BusinessRuleError, NotFoundError } from '../../lib/errors.ts';
-import { canSeeMovementNotes } from '../../lib/permissions.ts';
+import { idempotentTransaction } from '../../lib/idempotency.ts';
+import { canSeeMovementNotes, movementAuthorFor } from '../../lib/permissions.ts';
 import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
+import { idempotencyOf } from '../../plugins/idempotency.ts';
 import { recordAudit } from '../audit/audit.service.ts';
+import { applyStockChanges } from './stock-ledger.ts';
+import { lockVariants } from './stock-locks.ts';
 
 export class InventoryService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -102,6 +111,7 @@ export class InventoryService {
     request: FastifyRequest,
   ) {
     const withNotes = canSeeMovementNotes(request);
+    const authorOf = movementAuthorFor(request);
     const variant = await this.prisma.productVariant.findUnique({ where: { id: variantId } });
     if (!variant) throw new NotFoundError('Variante no encontrada');
     const [rows, total] = await this.prisma.$transaction([
@@ -122,7 +132,7 @@ export class InventoryService {
         balanceAfter: row.balanceAfter,
         reason: row.reason,
         notes: withNotes ? row.notes : null,
-        userId: row.userId,
+        userId: authorOf(row),
         createdAt: row.createdAt.toISOString(),
       })),
       meta: { page: input.page, pageSize: input.pageSize, total },
@@ -132,6 +142,7 @@ export class InventoryService {
   /** Historial global (más reciente primero, por `id`; ver `movements`). */
   async allMovements(input: { page: number; pageSize: number }, request: FastifyRequest) {
     const withNotes = canSeeMovementNotes(request);
+    const authorOf = movementAuthorFor(request);
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.inventoryMovement.findMany({
         include: { variant: { include: { product: true } } },
@@ -154,17 +165,25 @@ export class InventoryService {
         balanceAfter: row.balanceAfter,
         reason: row.reason,
         notes: withNotes ? row.notes : null,
-        userId: row.userId,
+        userId: authorOf(row),
         createdAt: row.createdAt.toISOString(),
       })),
       meta: { page: input.page, pageSize: input.pageSize, total },
     };
   }
 
-  async initialStock(variantId: string, input: InitialStockInput, request: FastifyRequest) {
-    return this.prisma.$transaction(async (tx) => {
+  async initialStock(
+    variantId: string,
+    input: InitialStockInput,
+    request: FastifyRequest,
+  ): Promise<InitialStockResult> {
+    const idempotency = {
+      context: idempotencyOf(request),
+      responseSchema: initialStockResultSchema,
+    };
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       // Bloquea la variante incluso cuando todavía no existe su fila de saldo.
-      await tx.$queryRaw`SELECT id FROM product_variants WHERE id = ${variantId}::uuid FOR UPDATE`;
+      await lockVariants(tx, [variantId]);
       const variant = await tx.productVariant.findUnique({
         where: { id: variantId },
         include: { product: true },
@@ -175,37 +194,29 @@ export class InventoryService {
       }
       const previousMovements = await tx.inventoryMovement.count({ where: { variantId } });
       if (previousMovements > 0) throw new BusinessRuleError('El stock inicial ya fue registrado');
-      await tx.$executeRaw`
-        INSERT INTO inventory_balances (variant_id, quantity, updated_at)
-        VALUES (${variantId}::uuid, 0, now()) ON CONFLICT (variant_id) DO NOTHING`;
-      const [balance] = await tx.$queryRaw<{ quantity: number }[]>`
-        SELECT quantity FROM inventory_balances WHERE variant_id = ${variantId}::uuid FOR UPDATE`;
-      if (!balance || balance.quantity !== 0) {
+      const balance = await tx.inventoryBalance.findUnique({ where: { variantId } });
+      if (balance && balance.quantity !== 0) {
         throw new BusinessRuleError('El saldo inicial debe ser cero');
       }
-      await tx.inventoryBalance.update({
-        where: { variantId },
-        data: { quantity: input.quantity },
-      });
-      const movement = await tx.inventoryMovement.create({
-        data: {
+      const [applied] = await applyStockChanges(tx, [
+        {
           variantId,
           type: 'INITIAL_STOCK',
           quantity: input.quantity,
-          balanceBefore: 0,
-          balanceAfter: input.quantity,
           reason: input.reason,
           notes: input.notes || null,
           userId: getAuth(request).user.id,
+          label: variant.sku,
         },
-      });
+      ]);
+      if (!applied) throw new BusinessRuleError('No se pudo registrar el stock inicial.');
       await recordAudit(
         tx,
         {
           action: 'inventory.initial_stock',
           entityType: 'ProductVariant',
           entityId: variantId,
-          after: { quantity: input.quantity, movementId: movement.id.toString() },
+          after: { quantity: input.quantity, movementId: applied.movementId.toString() },
         },
         request,
       );

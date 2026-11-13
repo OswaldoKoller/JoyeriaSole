@@ -9,6 +9,8 @@
 export const PERMISSIONS = {
   USERS_READ: 'users:read',
   USERS_MANAGE: 'users:manage',
+  /** Ver roles, sus permisos y cuántos usuarios los tienen (P-46). Solo el Administrador. */
+  ROLES_READ: 'roles:read',
   ROLES_MANAGE: 'roles:manage',
 
   CATALOG_READ: 'catalog:read',
@@ -47,8 +49,29 @@ export const PERMISSIONS = {
 
   AUDIT_READ: 'audit:read',
 
-  /** Configuración del sistema (p. ej. tipos de costo de ingreso). Solo el Administrador. */
+  /** Configuración del sistema (tipos de costo de ingreso, datos del negocio). Solo el Administrador. */
   SETTINGS_MANAGE: 'settings:manage',
+
+  // Ventas y caja (plan 11 de fase-2-ventas, autorizado el 2026-11-10). Una venta confirmada no se
+  // anula ni se modifica (DEC-V07): no existe ningún permiso de reversión.
+  /** Registrar ventas de mostrador y consultar si hay caja abierta (D-01, pendiente de confirmación). */
+  SALES_CREATE: 'sales:create',
+  /** Ver las ventas propias y su comprobante (D-02). */
+  SALES_READ: 'sales:read',
+  /** Ver las ventas de todos los vendedores (D-02). */
+  SALES_READ_ALL: 'sales:read-all',
+  /** Ver sesiones de caja, arqueos y correcciones (D-13). */
+  CASH_READ: 'cash:read',
+  /** Abrir la caja con su fondo inicial (B3). */
+  CASH_OPEN: 'cash:open',
+  /** Cerrar la caja y registrar el arqueo (B3). */
+  CASH_CLOSE: 'cash:close',
+  /** Corregir errores de captura de un cierre (append-only). Exclusivo del Administrador (B6/B7). */
+  CASH_CORRECT: 'cash:correct',
+  /** Reportar una incidencia de venta (solo trazabilidad, C6). */
+  SALES_INCIDENTS_REPORT: 'sales-incidents:report',
+  /** Ver, atender y cerrar incidencias de venta. Exclusivo del Administrador (C6). */
+  SALES_INCIDENTS_MANAGE: 'sales-incidents:manage',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -58,6 +81,7 @@ export const ALL_PERMISSIONS: readonly Permission[] = Object.values(PERMISSIONS)
 export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'users:read': 'Ver usuarios',
   'users:manage': 'Crear, editar y desactivar usuarios',
+  'roles:read': 'Ver roles y sus permisos',
   'roles:manage': 'Administrar roles y sus permisos',
   'catalog:read': 'Ver catálogo (categorías, atributos, productos, variantes)',
   'catalog:manage': 'Crear y editar catálogo',
@@ -79,8 +103,36 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'inventory-counts:manage': 'Crear conteos físicos y capturar piezas',
   'inventory-counts:approve': 'Aprobar conteos físicos (ajusta el stock) y regularizar hallazgos',
   'audit:read': 'Ver registro de auditoría',
-  'settings:manage': 'Administrar la configuración del sistema (tipos de costo de ingreso)',
+  'settings:manage':
+    'Administrar la configuración del sistema (tipos de costo de ingreso, datos del negocio)',
+  'sales:create': 'Registrar ventas de mostrador y consultar si hay caja abierta',
+  'sales:read': 'Ver las ventas propias y su comprobante',
+  'sales:read-all': 'Ver todas las ventas',
+  'cash:read': 'Ver sesiones de caja, arqueos y correcciones',
+  'cash:open': 'Abrir la caja',
+  'cash:close': 'Cerrar la caja y registrar el arqueo',
+  'cash:correct': 'Corregir errores de captura de un cierre de caja (contado, fondo, observación)',
+  'sales-incidents:report': 'Reportar una incidencia de venta',
+  'sales-incidents:manage': 'Ver, atender y cerrar incidencias de venta',
 };
+
+/**
+ * Permisos EXCLUSIVOS del Administrador por decisión del responsable: la pantalla de roles no los
+ * concede a ningún otro rol (ni de sistema ni personalizado) y la API lo rechaza (P-46).
+ *   - `cash:correct`: solo el Administrador corrige cierres de caja (aclaración B6/B7, R-17).
+ *   - `sales-incidents:manage`: las incidencias las ve, atiende y cierra el Administrador (C6, R-09).
+ *   - `settings:manage`: la configuración del sistema es exclusiva del Administrador (R-27).
+ */
+export const ADMIN_ONLY_PERMISSIONS: readonly Permission[] = [
+  PERMISSIONS.CASH_CORRECT,
+  PERMISSIONS.SALES_INCIDENTS_MANAGE,
+  PERMISSIONS.SETTINGS_MANAGE,
+];
+
+/** `true` si el permiso solo puede tenerlo el rol Administrador. */
+export function isAdminOnlyPermission(code: string): boolean {
+  return (ADMIN_ONLY_PERMISSIONS as readonly string[]).includes(code);
+}
 
 export const ROLES = {
   ADMIN: 'ADMIN',
@@ -95,9 +147,15 @@ export type RoleCode = (typeof ROLES)[keyof typeof ROLES];
  *
  * Respuestas del cliente (2026-10-09): vendedor sin costos (P-02), responsable de almacén
  * puede aprobar sus propios conteos físicos (P-01 parcial). Reunión 2026-11-05 (Q-01 B): los
- * ajustes manuales los solicita el responsable y solo los aprueba el administrador.
+ * ajustes manuales los solicita el Responsable y los aprueban el Administrador y el Responsable de
+ * inventario (regla posterior del 2026-11-05).
+ * Ventas y caja (plan 11, §4.1): venden el Vendedor, el Responsable y el Administrador (D-01, POR
+ * DEFECTO — PENDIENTE DE CONFIRMACIÓN); el Vendedor solo ve sus ventas (D-02); abren y cierran caja
+ * el Administrador y el Responsable (B3); solo el Administrador corrige cierres y gestiona
+ * incidencias (`ADMIN_ONLY_PERMISSIONS`).
  * Conteo físico (E6/Q-01 B, ADR-021): el Responsable también aprueba los conteos.
- * Solo se usa en el seed inicial; luego los roles se administran en base de datos.
+ * Solo se usa en el seed; luego los roles se administran en base de datos y en la pantalla «Roles»
+ * (P-46). El seed solo AGREGA a los roles de sistema los permisos que les falten (nunca quita).
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<
   RoleCode,
@@ -135,11 +193,28 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
       PERMISSIONS.INVENTORY_COUNTS_READ,
       PERMISSIONS.INVENTORY_COUNTS_MANAGE,
       PERMISSIONS.INVENTORY_COUNTS_APPROVE,
+      // Ventas y caja (plan 11 §4.1): vende (D-01), ve todas las ventas (D-02), abre, cierra y
+      // consulta la caja (B3, D-13) y reporta incidencias (C6). NO corrige cierres ni gestiona
+      // incidencias (exclusivos del Administrador).
+      PERMISSIONS.SALES_CREATE,
+      PERMISSIONS.SALES_READ,
+      PERMISSIONS.SALES_READ_ALL,
+      PERMISSIONS.CASH_READ,
+      PERMISSIONS.CASH_OPEN,
+      PERMISSIONS.CASH_CLOSE,
+      PERMISSIONS.SALES_INCIDENTS_REPORT,
     ],
   },
   SELLER: {
     name: 'Vendedor',
-    description: 'Consulta de catálogo y stock. Preparado para el futuro módulo de ventas.',
-    permissions: [PERMISSIONS.CATALOG_READ, PERMISSIONS.INVENTORY_READ],
+    description: 'Consulta de catálogo y stock, venta de mostrador y sus propias ventas.',
+    // Sin costos (P-02) ni caja (B3): vende (D-01), ve solo sus ventas (D-02) y reporta incidencias (C6).
+    permissions: [
+      PERMISSIONS.CATALOG_READ,
+      PERMISSIONS.INVENTORY_READ,
+      PERMISSIONS.SALES_CREATE,
+      PERMISSIONS.SALES_READ,
+      PERMISSIONS.SALES_INCIDENTS_REPORT,
+    ],
   },
 };

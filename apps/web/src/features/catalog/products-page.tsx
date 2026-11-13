@@ -1,11 +1,18 @@
 import { PERMISSIONS } from '@joyeria/shared';
 import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router';
+import {
+  Link,
+  NavigationType,
+  useLocation,
+  useNavigationType,
+  useSearchParams,
+} from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { Pagination } from '../../components/ui/pagination.tsx';
 import { ApiError } from '../../lib/api-client.ts';
 import { PAGE_SIZE } from '../../lib/paging.ts';
+import { PendingSearchParams } from '../../lib/pending-search-params.ts';
 import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useHasPermission } from '../auth/use-auth.ts';
 import { PieceImage } from './photos/piece-image.tsx';
@@ -35,11 +42,12 @@ export function ProductsPage() {
   // Búsqueda, rubro, estado de la ficha y página viven en la URL: se conservan al volver desde
   // una ficha, al recargar y al compartir el enlace.
   const [params, setParams] = useSearchParams();
-  const latestParams = useRef(params);
+  const { search: currentSearch, key: locationKey } = useLocation();
+  const navigationType = useNavigationType();
+  const pendingParams = useRef(new PendingSearchParams(params));
   useEffect(() => {
-    latestParams.current = params;
+    pendingParams.current.observe(params, locationKey);
   });
-  const { search: currentSearch } = useLocation();
   const search = params.get('q') ?? '';
   const categoryId = params.get('categoryId') ?? '';
   const page = pageFromParam(params.get('page'));
@@ -66,10 +74,13 @@ export function ProductsPage() {
   const products = list.data?.data ?? [];
   const total = list.data?.meta.total ?? 0;
 
-  // Si la búsqueda cambia desde fuera (botón «Atrás», enlace), el campo la refleja.
+  // Si la búsqueda cambia desde fuera (botón «Atrás», enlace), el campo la refleja. Nuestros propios
+  // cambios de URL son siempre `replace` y llegan diferidos (React Router los aplica en una
+  // transición): reescribir el campo con ellos borraría lo que el usuario haya tecleado mientras
+  // tanto. El campo de una coincidencia por código ya se fijó al encontrarla (`submitSearch`).
   if (search !== syncedSearch) {
     setSyncedSearch(search);
-    setDraftSearch(search);
+    if (navigationType !== NavigationType.Replace) setDraftSearch(search);
   }
 
   // Tras una coincidencia exacta (lector de códigos) el texto queda seleccionado: la siguiente
@@ -82,19 +93,21 @@ export function ProductsPage() {
   }, [found, search]);
 
   /**
-   * Cambia parámetros de la URL; por defecto vuelve a la primera página. Parte de la URL vigente
-   * (`latestParams`), no de la del render que creó esta función: una búsqueda por código que termina
-   * tarde no debe borrar un filtro cambiado mientras esperaba la respuesta. (La forma funcional de
-   * `setSearchParams` NO sirve: también parte de los parámetros de su propio render.)
+   * Cambia parámetros de la URL; por defecto vuelve a la primera página. Parte del último cambio
+   * pedido (`PendingSearchParams`), no de la URL del render que creó esta función ni de la del
+   * último render: una búsqueda por código que termina tarde no debe borrar un filtro cambiado
+   * mientras esperaba, y un cambio de URL aún no aplicado por React Router (es diferido) tampoco
+   * debe perderse. (La forma funcional de `setSearchParams` NO sirve: parte de los parámetros de su
+   * propio render.)
    */
   function updateParams(changes: Record<string, string | null>, keepPage = false) {
-    const next = new URLSearchParams(latestParams.current);
+    const next = pendingParams.current.base();
     for (const [name, value] of Object.entries(changes)) {
       if (value) next.set(name, value);
       else next.delete(name);
     }
     if (!keepPage) next.delete('page');
-    latestParams.current = next; // varias llamadas seguidas se componen
+    pendingParams.current.push(next); // varias llamadas seguidas se componen
     setParams(next, { replace: true });
   }
 
@@ -113,6 +126,7 @@ export function ProductsPage() {
           text: `Encontrada por ${MATCH_LABEL[data.matchedBy]}: ${data.productName}${data.label && data.label !== 'Única' ? ` · ${data.label}` : ''} (${data.sku}).`,
           variantId: data.variantId,
         });
+        setDraftSearch(data.sku); // el lector deja el SKU en el campo: la próxima lectura lo reemplaza
         updateParams({ q: data.sku });
         return;
       } catch (cause) {

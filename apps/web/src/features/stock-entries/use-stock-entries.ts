@@ -14,6 +14,7 @@ import type {
 } from '@joyeria/shared';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
+import { useAttemptKeys } from '../../lib/idempotency.ts';
 import { PAGE_SIZE, SMALL_PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
 const key = ['stock-entries'] as const;
@@ -104,11 +105,20 @@ export function useQuickCreateItem(id: string) {
   });
 }
 
+/** Confirmar mueve stock: idempotente con una clave por intento (reintentos sin duplicar). */
 export function useConfirmStockEntry(id: string) {
   const after = useAfterChange();
+  const attempt = useAttemptKeys();
   return useMutation({
     mutationFn: async () =>
-      (await api.post<{ data: StockEntryDetail }>(`/stock-entries/${id}/confirm`)).data,
+      (
+        await api.post<{ data: StockEntryDetail }>(`/stock-entries/${id}/confirm`, undefined, {
+          idempotencyKey: attempt.keyFor(id),
+        })
+      ).data,
+    onSettled: (_data, error) => {
+      attempt.settle(error);
+    },
     onSuccess: (detail) => after(detail, true),
   });
 }

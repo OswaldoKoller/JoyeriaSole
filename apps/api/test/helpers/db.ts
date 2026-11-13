@@ -1,4 +1,9 @@
-import { DEFAULT_ADJUSTMENT_REASONS, type Permission } from '@joyeria/shared';
+import {
+  DEFAULT_ADJUSTMENT_REASONS,
+  isAdminOnlyPermission,
+  ROLES,
+  type Permission,
+} from '@joyeria/shared';
 import { hashPassword } from '../../src/lib/password.ts';
 import type { PrismaClient } from '../../src/lib/prisma.ts';
 
@@ -35,13 +40,25 @@ export async function createTestUser(
     },
   });
 
+  // Los permisos exclusivos del Administrador solo rigen con el rol ADMIN (B-1): quien los pide
+  // recibe además ese rol (sin permisos propios; los efectivos siguen siendo los del rol de prueba).
+  const roleIds = [role.id];
+  if (permissions.some((code) => isAdminOnlyPermission(code))) {
+    const admin = await prisma.role.upsert({
+      where: { code: ROLES.ADMIN },
+      update: {},
+      create: { code: ROLES.ADMIN, name: 'Administrador', isSystem: true },
+    });
+    roleIds.push(admin.id);
+  }
+
   const user = await prisma.user.create({
     data: {
       email: `usuario${counter}@test.local`,
       name: `Usuario ${counter}`,
       passwordHash: await hashPassword(password),
       isActive: options.isActive ?? true,
-      roles: { create: { roleId: role.id } },
+      roles: { create: roleIds.map((roleId) => ({ roleId })) },
     },
   });
 

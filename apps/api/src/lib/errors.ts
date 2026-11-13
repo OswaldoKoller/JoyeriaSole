@@ -43,8 +43,9 @@ export class NotFoundError extends AppError {
 }
 
 export class ConflictError extends AppError {
-  constructor(message: string, details?: unknown) {
-    super(409, ERROR_CODES.CONFLICT, message, details);
+  /** `code` permite un código estable propio (p. ej. CASH_SESSION_ALREADY_OPEN) para que la web reaccione. */
+  constructor(message: string, details?: unknown, code: ErrorCode = ERROR_CODES.CONFLICT) {
+    super(409, code, message, details);
   }
 }
 
@@ -71,5 +72,24 @@ export class PayloadTooLargeError extends AppError {
 export class PasswordChangeRequiredError extends AppError {
   constructor(message = 'Debe cambiar su contraseña temporal antes de continuar') {
     super(403, ERROR_CODES.PASSWORD_CHANGE_REQUIRED, message);
+  }
+}
+
+/**
+ * La clave `Idempotency-Key` ya se usó para otra operación (otro cuerpo, otra ruta u otro usuario).
+ * No se ejecuta nada: el cliente debe generar una clave nueva para una operación distinta.
+ */
+export class IdempotencyKeyReusedError extends AppError {
+  constructor(
+    message = 'Esta solicitud ya se registró con otros datos. Recargue la página y vuelva a intentarlo.',
+  ) {
+    super(409, ERROR_CODES.IDEMPOTENCY_KEY_REUSED, message);
+  }
+}
+
+/** La operación exige la cabecera `Idempotency-Key` y no llegó (400). */
+export class IdempotencyKeyRequiredError extends AppError {
+  constructor(message = 'Falta la cabecera Idempotency-Key (UUID) de la operación.') {
+    super(400, ERROR_CODES.IDEMPOTENCY_KEY_REQUIRED, message);
   }
 }
