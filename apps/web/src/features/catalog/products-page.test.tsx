@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -289,6 +289,38 @@ describe('filtros y paginación de productos', () => {
       const last = listRequests(requests).at(-1)?.params;
       expect(last?.get('q')).toBe('anillo');
       expect(last?.get('incomplete')).toBe('true');
+    });
+  });
+
+  it('limpiar la búsqueda y cambiar de inmediato el estado de la ficha conserva ambos cambios', async () => {
+    // Regresión (fallaba en CI): el cambio de URL de React Router es diferido (transición). Un render
+    // urgente intermedio con la URL anterior reescribía la «URL vigente» y el filtro siguiente partía
+    // de la búsqueda vieja, que volvía a aplicarse junto con él.
+    const requests = mockApi();
+    renderPage('/productos?q=SKU-000001');
+    await screen.findByRole('link', { name: 'Ver ficha de Producto 1' });
+
+    const form = searchBox().closest('form');
+    if (!form) throw new Error('No se encontró el formulario de búsqueda');
+    act(() => {
+      fireEvent.change(searchBox(), { target: { value: '' } });
+    });
+    act(() => {
+      fireEvent.submit(form);
+      fireEvent.change(screen.getByLabelText('Estado de la ficha'), {
+        target: { value: 'incomplete' },
+      });
+    });
+
+    await waitFor(() => {
+      const search = new URLSearchParams(screen.getByTestId('url-search').textContent);
+      expect(search.get('incomplete')).toBe('1');
+      expect(search.has('q')).toBe(false);
+    });
+    await waitFor(() => {
+      const last = listRequests(requests).at(-1)?.params;
+      expect(last?.get('incomplete')).toBe('true');
+      expect(last?.get('q') ?? '').toBe('');
     });
   });
 
