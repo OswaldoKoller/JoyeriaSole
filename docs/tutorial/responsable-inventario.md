@@ -26,13 +26,15 @@ Para la **primera carga** de una pieza que todavía no tiene ningún movimiento.
 1. **Inventario → Stock inicial** (muestra solo las piezas sin movimientos).
 2. Busque la pieza y pulse **Stock inicial de SKU-…**.
 3. Escriba la **cantidad en piezas** y el **motivo**, y registre.
-4. La pieza desaparece de esta lista (ya tiene stock) y el movimiento queda en **Movimientos**.
+4. Aparece el aviso verde **«Stock inicial registrado: N piezas de …»**. La pieza sale de esta lista
+   porque ya tiene movimientos: su saldo se ve en **Saldos y alertas** y el movimiento en
+   **Movimientos**. Si la lista queda vacía, el sistema lo explica y enlaza a Saldos y alertas.
 
 ![Stock inicial](img/responsable/02-stock-inicial.png)
 
 ![Formulario de stock inicial](img/responsable/03-stock-inicial-formulario.png)
 
-![Después de registrar](img/responsable/04-stock-inicial-registrado.png)
+![Aviso de stock inicial registrado](img/responsable/04-stock-inicial-registrado.png)
 
 Para todo lo demás use un **ingreso** o un **ajuste**.
 
@@ -87,7 +89,8 @@ la [guía del Administrador](administrador.md#5-precios-aprobar-solicitudes)).
 1. **Catálogo → Precios** y busque la pieza.
 2. Escriba el **nuevo precio**: el sistema muestra la **ganancia** contra el costo total mientras
    escribe.
-3. Escriba un motivo (opcional) y pulse **Aplicar ahora (N)**.
+3. Escriba un motivo (opcional) y pulse **Aplicar ahora (N)**. Debajo, el sistema le recuerda que
+   usted autoriza precios: el cambio rige de inmediato y queda en el historial a su nombre.
 
 ![Nuevo precio](img/responsable/09-precios-nuevo-precio.png)
 

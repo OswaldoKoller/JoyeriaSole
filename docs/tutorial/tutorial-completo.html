@@ -1359,8 +1359,10 @@ flowchart LR
             Escriba la <strong>cantidad en piezas</strong> y el <strong>motivo</strong>, y registre.
           </li>
           <li>
-            La pieza desaparece de esta lista (ya tiene stock) y el movimiento queda en
-            <strong>Movimientos</strong>.
+            Aparece el aviso verde <strong>«Stock inicial registrado: N piezas de …»</strong>. La
+            pieza sale de esta lista porque ya tiene movimientos: su saldo se ve en
+            <strong>Saldos y alertas</strong> y el movimiento en <strong>Movimientos</strong>. Si la
+            lista queda vacía, el sistema lo explica y enlaza a Saldos y alertas.
           </li>
         </ol>
         <p>
@@ -1380,8 +1382,11 @@ flowchart LR
         </p>
         <p>
           <figure>
-            <img src="img/responsable/04-stock-inicial-registrado.png" alt="Después de registrar" />
-            <figcaption>Después de registrar</figcaption>
+            <img
+              src="img/responsable/04-stock-inicial-registrado.png"
+              alt="Aviso de stock inicial registrado"
+            />
+            <figcaption>Aviso de stock inicial registrado</figcaption>
           </figure>
         </p>
         <p>Para todo lo demás use un <strong>ingreso</strong> o un <strong>ajuste</strong>.</p>
@@ -1482,7 +1487,11 @@ flowchart LR
             Escriba el <strong>nuevo precio</strong>: el sistema muestra la
             <strong>ganancia</strong> contra el costo total mientras escribe.
           </li>
-          <li>Escriba un motivo (opcional) y pulse <strong>Aplicar ahora (N)</strong>.</li>
+          <li>
+            Escriba un motivo (opcional) y pulse <strong>Aplicar ahora (N)</strong>. Debajo, el
+            sistema le recuerda que usted autoriza precios: el cambio rige de inmediato y queda en
+            el historial a su nombre.
+          </li>
         </ol>
         <p>
           <figure>
