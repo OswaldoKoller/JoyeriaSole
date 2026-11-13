@@ -353,7 +353,9 @@ describe('filtros y paginación de productos', () => {
       await vi.waitFor(() => {
         expect(requests.some((request) => request.url.includes('/variants/lookup'))).toBe(true);
       });
-      await Promise.resolve();
+      // Se deja terminar la respuesta de la búsqueda (la pantalla fija el SKU en el campo) y recién
+      // entonces el usuario vacía el campo; la URL nueva todavía no se renderizó.
+      await new Promise((resolve) => setTimeout(resolve, 50));
       fireEvent.change(searchBox(), { target: { value: '' } });
     });
 
