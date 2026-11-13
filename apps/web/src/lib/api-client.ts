@@ -58,14 +58,30 @@ export async function apiRequest<T>(
   if (response.status === 204) return undefined as T;
 
   const payload: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const error =
-      payload && typeof payload === 'object' && 'error' in payload
-        ? (payload as ApiErrorBody).error
-        : { code: ERROR_CODES.INTERNAL_ERROR, message: 'Error de comunicación con el servidor' };
-    throw new ApiError(response.status, error);
-  }
+  if (!response.ok) throw toApiError(response.status, payload);
   return payload as T;
+}
+
+function toApiError(status: number, payload: unknown): ApiError {
+  const error =
+    payload && typeof payload === 'object' && 'error' in payload
+      ? (payload as ApiErrorBody).error
+      : { code: ERROR_CODES.INTERNAL_ERROR, message: 'Error de comunicación con el servidor' };
+  return new ApiError(status, error);
+}
+
+/**
+ * Descarga un archivo (p. ej. un CSV) con la misma cookie de sesión. Devuelve el contenido y el
+ * nombre que propone el servidor (`Content-Disposition`); los errores de la API se lanzan como
+ * `ApiError`, igual que en `apiRequest`.
+ */
+export async function apiDownload(path: string): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`${API_PREFIX}${path}`, { credentials: 'same-origin' });
+  if (!response.ok) throw toApiError(response.status, await response.json().catch(() => null));
+  const disposition = response.headers.get('content-disposition') ?? '';
+  // El nombre solo se usa como atributo `download`: sin rutas ni comillas.
+  const filename = /filename="([\w.-]+)"/.exec(disposition)?.[1] ?? 'exportacion.csv';
+  return { blob: await response.blob(), filename };
 }
 
 export const api = {

@@ -26,6 +26,7 @@
 | Transporte y caché       | Fastify con `requestTimeout` 120 s, `connectionTimeout` 120 s y `keepAliveTimeout` 65 s (las subidas de 5 MB caben de sobra). Toda respuesta bajo `/api/*` lleva `Cache-Control: no-store`, salvo las imágenes (portada y fotos), que fijan su propio `Cache-Control` con `ETag`. Sin mapas de código (`sourcemap` desactivado en web y API; la imagen elimina cualquier `.map`). El contenedor arranca con `exec node` para que `SIGTERM` llegue a la API. PostgreSQL de desarrollo escucha solo en `127.0.0.1`.                                                   |
 | Sesión por petición      | Cada petición relee sesión, usuario, roles y permisos con **una sola consulta** (sin caché: la revocación, la desactivación y los cambios de permisos rigen de inmediato) y solo las columnas necesarias; `passwordHash` nunca se carga. Las transacciones interactivas tienen por defecto 30 s de ejecución y 10 s de espera de conexión (conteos: 60 s). Un deadlock o tiempo agotado (`P2034`, `P2028`, SQLSTATE `40P01`/`40001`) responde **503 `SERVICE_UNAVAILABLE`** con `Retry-After` y sin detalles internos.                                              |
 | Archivos subidos (fotos) | Validación por **contenido** (firma JPEG/PNG/WebP; se ignoran extensión y `Content-Type`), re-codificación obligatoria a WebP con `sharp` (descarta EXIF, GPS y contenido incrustado), tope de 30 Mpx y máximo 2 imágenes procesándose a la vez, 5 MB y 1 archivo por petición (`@fastify/multipart` solo en las rutas de fotos), 5 fotos por producto, 40 subidas/min. Se sirven con `Content-Type` de lista blanca, `nosniff`, CSP `default-src 'none'; sandbox`, `ETag` y caché privada; subir/borrar exige `catalog:manage`, ver exige `catalog:read`. ADR-020. |
+| Exportaciones CSV        | Ver [Inyección de fórmulas en CSV](#inyección-de-fórmulas-en-csv). Permiso `inventory:read`, costos solo con `costs:read` (las columnas no existen sin él), auditoría de cada descarga antes de transmitir, tope de 50.000 filas, límite de 20 por minuto y transmisión por lotes.                                                                                                                                                                                                                                                                                  |
 | Integridad de datos      | CHECK constraints y triggers en BD como última línea de defensa.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `docs/database/DATABASE.md`                                        |
 
 ## Reglas para desarrolladores
@@ -123,6 +124,33 @@ resto recibe `null` (el Vendedor no ve observaciones libres con costos o faltant
 Un rol personalizado con solo `inventory:adjust` o `prices:propose` sigue el flujo **solicitar → aprobar**:
 solicita y otra persona con el permiso de aprobar decide. El Responsable puede aprobar sus propias
 solicitudes (no hay segregación obligatoria); el riesgo está aceptado más abajo.
+
+## Inyección de fórmulas en CSV
+
+Las exportaciones (`GET /inventory/export.csv`, `GET /inventory/movements/export.csv`) incluyen texto
+que escriben las personas (nombres de producto, etiquetas, códigos de barras, motivos, observaciones).
+Excel y LibreOffice **ejecutan como fórmula** una celda que empieza por `=`, `+`, `-` o `@` (p. ej.
+`=cmd|' /C calc'!A0` o `=HYPERLINK(...)`), lo que permitiría a un usuario con acceso de escritura atacar a
+quien abre el archivo (OWASP, «CSV injection»). Controles:
+
+- **Neutralización:** todo valor de texto que empiece por `=`, `+`, `-`, `@`, tabulación, retorno de carro
+  o salto de línea (o por espacios seguidos de uno de los cuatro primeros) se prefija con un apóstrofe `'`.
+  El apóstrofe hace que la hoja lo trate como texto y no lo muestre; el contenido original sigue legible.
+  Lo hace `csvCell` en `apps/api/src/lib/csv.ts`, el **único** punto que escribe celdas.
+- **Los números no son texto:** las cantidades y los importes se declaran con `csvNumber`, que solo acepta
+  dígitos con signo y punto decimal (si no, lanza un error); así `-3` sigue siendo un número y nunca se
+  confunde con una fórmula. Un texto que «parece número» (`-3` guardado como texto) sí se neutraliza.
+- **Escape:** comillas dobles duplicadas y celdas con `;`, comillas o saltos de línea entre comillas.
+- **Datos que no salen:** sin `costs:read` las columnas de costo y valor no existen ni se consultan;
+  los movimientos `SALE` de otro vendedor no muestran usuario sin `sales:read-all` (D-02/M-1); las
+  observaciones solo con permiso (S-03).
+- **Rastro:** cada exportación escribe en `audit_logs` (quién, filtros, nº de filas) antes de transmitir
+  y hay un tope de filas y de frecuencia.
+- Las respuestas llevan `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff` y
+  `Cache-Control: no-store`.
+
+Pruebas: `apps/api/test/unit/csv.test.ts`, `apps/api/test/integration/inventory-export.test.ts` (producto
+llamado `=cmd|' /C calc'!A0`) y el E2E `apps/web/e2e/stock-export.spec.ts`.
 
 ## Riesgos conocidos y aceptados
 

@@ -3,6 +3,7 @@ import {
   type InitialStockInput,
   type InitialStockResult,
   type InventoryItem,
+  type MovementFilters,
 } from '@joyeria/shared';
 import type { FastifyRequest } from 'fastify';
 import { Prisma } from '../../generated/prisma/client.ts';
@@ -13,6 +14,13 @@ import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { idempotencyOf } from '../../plugins/idempotency.ts';
 import { recordAudit } from '../audit/audit.service.ts';
+import {
+  levelFilter,
+  movementWhere,
+  searchFilter,
+  STOCK_QUANTITY,
+  stockLevel,
+} from './inventory-filters.ts';
 import { applyStockChanges } from './stock-ledger.ts';
 import { lockVariants } from './stock-locks.ts';
 
@@ -31,19 +39,9 @@ export class InventoryService {
     level: string;
     initialOnly: boolean;
   }) {
-    const like = `%${input.q.replace(/[\\%_]/g, '\\$&')}%`;
-    const search = input.q
-      ? Prisma.sql`AND (v.sku ILIKE ${like} OR v.barcode ILIKE ${like} OR p.name ILIKE ${like})`
-      : Prisma.empty;
-    const quantity = Prisma.sql`COALESCE(b.quantity, 0)`;
-    const level =
-      input.level === 'OUT'
-        ? Prisma.sql`AND ${quantity} = 0`
-        : input.level === 'LOW'
-          ? Prisma.sql`AND v.min_stock > 0 AND ${quantity} <= v.min_stock`
-          : input.level === 'OK'
-            ? Prisma.sql`AND ${quantity} > 0 AND NOT (v.min_stock > 0 AND ${quantity} <= v.min_stock)`
-            : Prisma.empty;
+    const search = searchFilter(input.q);
+    const quantity = STOCK_QUANTITY;
+    const level = levelFilter(input.level);
     const noMovements = Prisma.sql`NOT EXISTS (SELECT 1 FROM inventory_movements m WHERE m.variant_id = v.id)`;
     const initial = input.initialOnly
       ? Prisma.sql`AND ${quantity} = 0 AND ${noMovements}`
@@ -76,12 +74,7 @@ export class InventoryService {
       this.prisma.$queryRaw<{ total: number }[]>(Prisma.sql`SELECT COUNT(*)::int AS total ${from}`),
     ]);
     const data = rows.map((row) => {
-      const itemLevel: InventoryItem['level'] =
-        row.quantity === 0
-          ? 'OUT'
-          : row.min_stock > 0 && row.quantity <= row.min_stock
-            ? 'LOW'
-            : 'OK';
+      const itemLevel: InventoryItem['level'] = stockLevel(row.quantity, row.min_stock);
       return {
         variantId: row.id,
         productName: row.product_name,
@@ -139,18 +132,23 @@ export class InventoryService {
     };
   }
 
-  /** Historial global (más reciente primero, por `id`; ver `movements`). */
-  async allMovements(input: { page: number; pageSize: number }, request: FastifyRequest) {
+  /** Historial global (más reciente primero, por `id`; ver `movements`), con filtros opcionales. */
+  async allMovements(
+    input: { page: number; pageSize: number } & MovementFilters,
+    request: FastifyRequest,
+  ) {
+    const where = movementWhere(input);
     const withNotes = canSeeMovementNotes(request);
     const authorOf = movementAuthorFor(request);
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.inventoryMovement.findMany({
+        where,
         include: { variant: { include: { product: true } } },
         orderBy: { id: 'desc' },
         skip: (input.page - 1) * input.pageSize,
         take: input.pageSize,
       }),
-      this.prisma.inventoryMovement.count(),
+      this.prisma.inventoryMovement.count({ where }),
     ]);
     return {
       data: rows.map((row) => ({
