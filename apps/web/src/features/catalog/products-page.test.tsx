@@ -324,6 +324,47 @@ describe('filtros y paginación de productos', () => {
     });
   });
 
+  it('vaciar el campo justo después de una coincidencia por código no lo repone cuando llega la URL', async () => {
+    // Regresión (fallaba en CI): la URL de la búsqueda llega diferida y la pantalla reescribía el
+    // campo con ese valor aunque el usuario ya lo hubiera vaciado; el siguiente «Buscar» repetía
+    // la búsqueda por el SKU en vez de limpiar.
+    const requests = mockApi({
+      lookup: () =>
+        jsonResponse(200, {
+          data: {
+            variantId: '00000000-0000-7000-8000-000000000201',
+            sku: 'SKU-000001',
+            productName: 'Producto 1',
+            label: 'Talla 7',
+            matchedBy: 'BARCODE',
+          },
+        }),
+    });
+    renderPage();
+    await screen.findByRole('link', { name: 'Ver ficha de Producto 1' });
+    const form = searchBox().closest('form');
+    if (!form) throw new Error('No se encontró el formulario de búsqueda');
+
+    // Dentro de un mismo `act` React no aplica la transición de la URL hasta salir de él: el campo
+    // se vacía después de la coincidencia y antes de que la URL nueva se renderice.
+    await act(async () => {
+      fireEvent.change(searchBox(), { target: { value: '7701234567890' } });
+      fireEvent.submit(form);
+      await vi.waitFor(() => {
+        expect(requests.some((request) => request.url.includes('/variants/lookup'))).toBe(true);
+      });
+      await Promise.resolve();
+      fireEvent.change(searchBox(), { target: { value: '' } });
+    });
+
+    await waitFor(() => {
+      expect(new URLSearchParams(screen.getByTestId('url-search').textContent).get('q')).toBe(
+        'SKU-000001',
+      );
+    });
+    expect(searchBox()).toHaveValue('');
+  });
+
   it('arranca con los filtros de la URL (enlace compartido, recarga o botón Atrás)', async () => {
     const requests = mockApi({ total: 60 });
     renderPage(`/productos?q=luna&withoutPrice=1&page=2&categoryId=${CATEGORY_ID}`);
