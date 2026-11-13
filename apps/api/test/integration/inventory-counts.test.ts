@@ -1145,6 +1145,164 @@ describe('conteo físico a ciegas con segundo recuento', () => {
     });
   });
 
+  describe('idempotencia del escaneo (Idempotency-Key)', () => {
+    const scanWithKey = (id: string, code: string, key: string, cookie = manager.cookie) =>
+      app.inject({
+        method: 'POST',
+        url: `${URL}/${id}/scan`,
+        headers: { cookie, 'idempotency-key': key },
+        payload: { code },
+      });
+    const scanRows = (id: string) =>
+      app.prisma.inventoryCountScan.count({ where: { inventoryCountId: id } });
+    const itemOf = (id: string, variantId: string) =>
+      app.prisma.inventoryCountItem.findUniqueOrThrow({
+        where: { inventoryCountId_variantId: { inventoryCountId: id, variantId } },
+      });
+
+    it('repetir una lectura con la misma clave devuelve su resultado y no suma otra pieza', async () => {
+      const cat = await category('Idem');
+      const v = await variantIn(cat.id, { sku: 'ID-1', stock: 5 });
+      const id = await startedCount(cat.id);
+      const key = randomUUID();
+
+      const first = await scanWithKey(id, 'ID-1', key);
+      expect(first.statusCode, first.body).toBe(200);
+      expect(first.headers['idempotent-replay']).toBeUndefined();
+      const again = await scanWithKey(id, 'ID-1', key);
+      expect(again.statusCode, again.body).toBe(200);
+      expect(again.headers['idempotent-replay']).toBe('true');
+      expect(again.json()).toEqual(first.json());
+
+      expect((await itemOf(id, v.id)).countedQty).toBe(1);
+      expect(await scanRows(id)).toBe(1);
+
+      // Una segunda lectura de otra unidad de la misma pieza usa otra clave y suma otra unidad.
+      expect((await scanWithKey(id, 'ID-1', randomUUID())).statusCode).toBe(200);
+      expect((await itemOf(id, v.id)).countedQty).toBe(2);
+      expect(await scanRows(id)).toBe(2);
+    });
+
+    it('la misma clave con otro código es 409 IDEMPOTENCY_KEY_REUSED y no registra nada', async () => {
+      const cat = await category('Idem');
+      await variantIn(cat.id, { sku: 'ID-1', stock: 5 });
+      await variantIn(cat.id, { sku: 'ID-2', stock: 5 });
+      const id = await startedCount(cat.id);
+      const key = randomUUID();
+      expect((await scanWithKey(id, 'ID-1', key)).statusCode).toBe(200);
+
+      const other = await scanWithKey(id, 'ID-2', key);
+      expect(other.statusCode).toBe(409);
+      expect(other.json().error.code).toBe('IDEMPOTENCY_KEY_REUSED');
+      expect(await scanRows(id)).toBe(1);
+    });
+
+    it('tres peticiones iguales en paralelo cuentan una sola pieza', async () => {
+      const cat = await category('Idem');
+      const v = await variantIn(cat.id, { sku: 'ID-1', stock: 5 });
+      const id = await startedCount(cat.id);
+      const key = randomUUID();
+
+      const responses = await Promise.all([
+        scanWithKey(id, 'ID-1', key),
+        scanWithKey(id, 'ID-1', key),
+        scanWithKey(id, 'ID-1', key),
+      ]);
+      for (const res of responses) expect(res.statusCode, res.body).toBe(200);
+      expect(responses.filter((res) => res.headers['idempotent-replay'] === 'true')).toHaveLength(
+        2,
+      );
+      expect((await itemOf(id, v.id)).countedQty).toBe(1);
+      expect(await scanRows(id)).toBe(1);
+    });
+
+    it('un código desconocido repetido con la misma clave suma un solo hallazgo', async () => {
+      const cat = await category('Idem');
+      await variantIn(cat.id, { sku: 'ID-1', stock: 1 });
+      const id = await startedCount(cat.id);
+      const key = randomUUID();
+
+      const first = await scanWithKey(id, 'NO-EXISTE', key);
+      const again = await scanWithKey(id, 'NO-EXISTE', key);
+      expect(first.statusCode, first.body).toBe(200);
+      expect(again.headers['idempotent-replay']).toBe('true');
+      expect(again.json()).toEqual(first.json());
+      const finding = await app.prisma.inventoryCountFinding.findFirstOrThrow({
+        where: { inventoryCountId: id },
+      });
+      expect(finding.quantity).toBe(1);
+      expect(await scanRows(id)).toBe(1);
+    });
+
+    it('la respuesta repetida sigue siendo a ciegas', async () => {
+      const cat = await category('Idem');
+      await variantIn(cat.id, { sku: 'ID-1', stock: 4 });
+      const id = await startedCount(cat.id);
+      const key = randomUUID();
+      const first = await scanWithKey(id, 'ID-1', key);
+      const again = await scanWithKey(id, 'ID-1', key);
+      expect(again.headers['idempotent-replay']).toBe('true');
+      for (const res of [first, again]) {
+        const found = keysOf(res.json());
+        for (const forbidden of FORBIDDEN_KEYS) expect(found.has(forbidden), forbidden).toBe(false);
+      }
+    });
+
+    it('un fallo no consume la clave: tras corregirlo, la misma clave se ejecuta', async () => {
+      const cat = await category('Idem');
+      const v = await variantIn(cat.id, { sku: 'ID-1', stock: 4 });
+      const created = await createCount(cat.id);
+      const key = randomUUID();
+
+      // El conteo aún no se inició: la lectura se rechaza y la clave no queda guardada.
+      const failed = await scanWithKey(created.id, 'ID-1', key);
+      expect(failed.statusCode).toBe(422);
+      expect(await app.prisma.idempotencyKey.count({ where: { key } })).toBe(0);
+
+      expect((await call('POST', `/${created.id}/start`, manager.cookie)).statusCode).toBe(200);
+      const ok = await scanWithKey(created.id, 'ID-1', key);
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect(ok.headers['idempotent-replay']).toBeUndefined();
+      expect((await itemOf(created.id, v.id)).countedQty).toBe(1);
+    });
+
+    it('segundo recuento: repetir la clave de la primera ronda no toca el recuento', async () => {
+      const cat = await category('Idem');
+      const v = await variantIn(cat.id, { sku: 'ID-1', stock: 5 });
+      const id = await startedCount(cat.id);
+      const firstRoundKey = randomUUID();
+      expect((await scanWithKey(id, 'ID-1', firstRoundKey)).statusCode).toBe(200);
+      await scanTimes(id, 'ID-1', 2); // 3 contadas contra 5 en el sistema
+      expect((await closeCount(id)).json().data.status).toBe('RECOUNT');
+      const rowsBefore = await scanRows(id);
+
+      const replay = await scanWithKey(id, 'ID-1', firstRoundKey);
+      expect(replay.statusCode, replay.body).toBe(200);
+      expect(replay.headers['idempotent-replay']).toBe('true');
+      expect(await scanRows(id)).toBe(rowsBefore);
+      const item = await itemOf(id, v.id);
+      expect(item.recountQty).toBeNull();
+      expect(item.countedQty).toBe(3);
+
+      // En el recuento, cada lectura nueva con su clave suma una pieza a la ronda 2.
+      const recountKey = randomUUID();
+      expect((await scanWithKey(id, 'ID-1', recountKey)).statusCode).toBe(200);
+      const repeated = await scanWithKey(id, 'ID-1', recountKey);
+      expect(repeated.headers['idempotent-replay']).toBe('true');
+      const after = await itemOf(id, v.id);
+      expect(after.recountQty).toBe(1);
+      expect(after.countedQty).toBe(3);
+    });
+
+    it('sin clave la lectura funciona como antes (compatibilidad) y suma cada vez', async () => {
+      const cat = await category('Idem');
+      const v = await variantIn(cat.id, { sku: 'ID-1', stock: 5 });
+      const id = await startedCount(cat.id);
+      await scanTimes(id, 'ID-1', 2);
+      expect((await itemOf(id, v.id)).countedQty).toBe(2);
+    });
+  });
+
   describe('cancelación', () => {
     it('cancelar no mueve stock en ningún estado y un aprobado no se cancela', async () => {
       const cat = await category('Anillos');

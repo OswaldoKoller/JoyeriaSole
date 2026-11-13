@@ -205,11 +205,16 @@ export class AdjustmentsService {
     return toDetail(await this.load(this.prisma, id), canSeeCosts(request));
   }
 
-  /** Solicitud: NO toca el stock. Valida lo que ya se puede saber (saldo no negativo). */
+  /**
+   * Solicitud: NO toca el stock. Valida lo que ya se puede saber (saldo no negativo). Idempotente:
+   * un reintento con la misma Idempotency-Key devuelve la solicitud ya creada (sin otro documento
+   * ni otra fila de auditoría).
+   */
   async create(input: CreateAdjustmentInput, request: FastifyRequest) {
     const userId = getAuth(request).user.id;
     const showCosts = canSeeCosts(request);
-    return this.prisma.$transaction(async (tx) => {
+    const idempotency = { context: idempotencyOf(request), responseSchema: adjustmentDetailSchema };
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       const reason = await tx.adjustmentReason.findUnique({ where: { id: input.reasonId } });
       if (!reason || !reason.isActive) throw new NotFoundError('Motivo de ajuste no encontrado');
       const notes = input.notes ?? null;

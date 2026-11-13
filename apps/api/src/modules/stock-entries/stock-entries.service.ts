@@ -363,12 +363,17 @@ export class StockEntriesService {
     return this.detailOf(this.prisma, id, request);
   }
 
+  /**
+   * Crea el borrador. Idempotente: un reintento con la misma Idempotency-Key devuelve el borrador ya
+   * creado (sin otro número de ingreso ni otra fila de auditoría).
+   */
   async create(input: CreateStockEntryInput, request: FastifyRequest) {
     if (!seesCosts(request) && (input.currency === 'USD' || input.exchangeRate)) {
       throw new ForbiddenError('No tiene permiso para registrar compras en dólares');
     }
     assertDocumentDate(input.documentDate);
-    return this.prisma.$transaction(async (tx) => {
+    const idempotency = { context: idempotencyOf(request), responseSchema: stockEntryDetailSchema };
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       await this.assertActiveSupplier(tx, input.supplierId);
       const created = await tx.stockEntry.create({
         data: {

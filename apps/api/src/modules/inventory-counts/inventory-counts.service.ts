@@ -1,6 +1,7 @@
 import {
   REFERENCE_TYPES,
   countLabel,
+  countScanResultSchema,
   inventoryCountDetailSchema,
   type CancelInventoryCountInput,
   type CountScanRecord,
@@ -455,12 +456,23 @@ export class InventoryCountsService {
   /**
    * Escaneo: el código se resuelve a una variante y suma 1 pieza. Cada lectura se guarda al
    * instante (pieza por pieza), de modo que el conteo se reanuda sin pérdida (E5).
+   *
+   * Idempotente por intento: cada lectura física del lector lleva su propia Idempotency-Key; un
+   * reintento de ESA lectura (respuesta perdida) con la misma clave devuelve el resultado ya
+   * guardado sin sumar otra pieza. Dos lecturas físicas del mismo código usan claves distintas y
+   * suman dos piezas. El resultado guardado es la vista a ciegas de la ronda en que se hizo la
+   * lectura (nunca incluye stock del sistema ni diferencias).
    */
   async scan(id: string, rawCode: string, request: FastifyRequest): Promise<CountScanResult> {
     const userId = getAuth(request).user.id;
     const code = normalizeScanCode(rawCode);
     if (!code) throw new BusinessRuleError('Escanee o escriba un código.');
-    return this.prisma.$transaction(async (tx) => {
+    const idempotency = {
+      context: idempotencyOf(request),
+      responseSchema: countScanResultSchema,
+      transaction: TX_OPTIONS,
+    };
+    return idempotentTransaction(this.prisma, idempotency, async (tx) => {
       const { round } = await this.lockForCapture(tx, id, userId);
       const variant = await this.resolveVariant(tx, code);
       const item = variant
@@ -490,7 +502,7 @@ export class InventoryCountsService {
         });
       }
       return this.recordFinding(tx, { countId: id, round, code, variant, userId });
-    }, TX_OPTIONS);
+    });
   }
 
   private async recordItemChange(

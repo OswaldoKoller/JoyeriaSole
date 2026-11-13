@@ -83,11 +83,20 @@ function useAfterChange() {
   };
 }
 
+/** Crear la solicitud: una clave por intento (el doble clic o un reintento no duplican el documento). */
 export function useCreateAdjustment() {
   const after = useAfterChange();
+  const attempt = useAttemptKeys();
   return useMutation({
     mutationFn: async (input: CreateAdjustmentInput) =>
-      (await api.post<{ data: AdjustmentDetail }>('/inventory/adjustments', input)).data,
+      (
+        await api.post<{ data: AdjustmentDetail }>('/inventory/adjustments', input, {
+          idempotencyKey: attempt.keyFor(input),
+        })
+      ).data,
+    onSettled: (_data, error) => {
+      attempt.settle(error);
+    },
     onSuccess: (detail) => after(detail),
   });
 }
