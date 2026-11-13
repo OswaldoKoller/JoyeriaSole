@@ -449,7 +449,7 @@ export function ProductForm({
           propio después de guardar. La etiqueta impresa lleva siempre el SKU.{' '}
           {canPrice
             ? 'El precio de venta inicial queda registrado en el historial; después solo cambia desde Precios.'
-            : 'El precio de venta se define después desde Precios (lo fija el Administrador).'}
+            : 'El precio de venta se define después desde Precios (lo fija quien autoriza precios).'}
         </p>
       )}
       {editing && (

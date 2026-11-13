@@ -1,4 +1,5 @@
 import { stockEntryCostInputSchema, type StockEntryCostLine } from '@joyeria/shared';
+import { trimZeros } from './lines.ts';
 
 /** Línea de costo adicional tal como se edita: textos de los campos. */
 export interface CostLine {
@@ -16,7 +17,9 @@ export function costsFromServer(costs: readonly StockEntryCostLine[] | null): Co
   return (costs ?? []).map((cost) => ({
     key: newCostKey(),
     costTypeId: cost.costTypeId,
-    amount: cost.amount,
+    // Como el precio de compra de los ítems: el campo muestra el monto como se escribe («11»,
+    // «10.5»), no el decimal crudo de la API («11.00»). El texto de solo lectura usa formatBs.
+    amount: trimZeros(cost.amount),
     note: cost.note ?? '',
   }));
 }
