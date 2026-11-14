@@ -51,11 +51,20 @@ function useAfterChange() {
   };
 }
 
+/** Crear el borrador: una clave por intento (el doble clic o un reintento no duplican el ingreso). */
 export function useCreateStockEntry() {
   const after = useAfterChange();
+  const attempt = useAttemptKeys();
   return useMutation({
     mutationFn: async (input: CreateStockEntryInput) =>
-      (await api.post<{ data: StockEntryDetail }>('/stock-entries', input)).data,
+      (
+        await api.post<{ data: StockEntryDetail }>('/stock-entries', input, {
+          idempotencyKey: attempt.keyFor(input),
+        })
+      ).data,
+    onSettled: (_data, error) => {
+      attempt.settle(error);
+    },
     onSuccess: (detail) => after(detail),
   });
 }

@@ -905,6 +905,12 @@ Código:
   `POST /inventory/counts/:id/scan` y las solicitudes y cambios de precio (`POST /pricing/requests`,
   `POST /pricing/apply`). Un doble envío puede duplicar un borrador o una lectura de conteo; las
   confirmaciones que mueven stock sí están protegidas.
+  **Nota del 2026-11-13:** el responsable autorizó cubrir tres de ellas con el helper existente y
+  quedaron cubiertas: `POST /inventory/adjustments`, `POST /stock-entries` y
+  `POST /inventory/counts/:id/scan` (clave opcional en la API; la web la envía siempre; ver
+  [API.md «Idempotencia»](../api/API.md)). Siguen abiertas, sin autorización: las solicitudes y cambios de
+  precio, el alta rápida de piezas y `undo` de un conteo. `POST /inventory/counts` queda protegido por la
+  regla de no solapamiento (un duplicado responde `409`).
 - I-03, I-04 e I-06 sin aplicar; I-05 solo para `SALE` ([DATABASE.md](../database/DATABASE.md)).
 - Pool de conexiones y tiempos de la base sin configurar (DT-DAT-09) y operaciones por línea en
   ingresos grandes (DT-DAT-10).

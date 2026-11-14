@@ -31,7 +31,9 @@ export function CostPanel({ preview, currency, exchangeRate, confirmed }: Props)
           {confirmed
             ? 'Costos guardados al confirmar.'
             : 'Vista previa con el mismo cálculo de la confirmación.'}{' '}
-          {isUsd && exchangeRate ? `Tipo de cambio: ${exchangeRate} Bs por USD. ` : ''}
+          {isUsd && exchangeRate
+            ? `Tipo de cambio: ${formatBsPrecise(exchangeRate)} por USD. `
+            : ''}
           Todo en bolivianos salvo el precio original.
         </p>
       </div>

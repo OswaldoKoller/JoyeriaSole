@@ -14,8 +14,9 @@ import { Pagination } from '../../components/ui/pagination.tsx';
 
 /**
  * Panel de precios (Q-04, Q-06): por variante muestra el panel de costos (solo con `costs:read`),
- * el precio vigente y un campo «Nuevo precio» con la ganancia en vivo. El Responsable envía una
- * solicitud; el Administrador aplica el cambio de inmediato (queda aprobado por él mismo).
+ * el precio vigente y un campo «Nuevo precio» con la ganancia en vivo. Sin `prices:approve` se envía
+ * una solicitud; con `prices:approve` (por defecto Administrador y Responsable) el cambio se aplica de
+ * inmediato y queda aprobado por quien lo hizo.
  */
 export function PriceGrid({ initialSearch }: { initialSearch: string }) {
   const canApprove = useHasPermission(PERMISSIONS.PRICES_APPROVE);
@@ -91,8 +92,8 @@ export function PriceGrid({ initialSearch }: { initialSearch: string }) {
         await request.mutateAsync(input);
         setMessage(
           ready.length === 1
-            ? 'Se envió 1 solicitud de cambio de precio al Administrador.'
-            : `Se enviaron ${String(ready.length)} solicitudes de cambio de precio al Administrador.`,
+            ? 'Se envió 1 solicitud de cambio de precio para su aprobación.'
+            : `Se enviaron ${String(ready.length)} solicitudes de cambio de precio para su aprobación.`,
         );
       }
       const sent = new Set(ready.map((item) => item.variantId));
@@ -285,8 +286,8 @@ export function PriceGrid({ initialSearch }: { initialSearch: string }) {
         </Button>
         <p className="w-full text-xs text-stone-600">
           {canApprove
-            ? 'Como Administrador, el cambio rige de inmediato y queda en el historial a su nombre.'
-            : 'El cambio no rige hasta que el Administrador lo apruebe.'}
+            ? 'Usted autoriza precios: el cambio rige de inmediato y queda en el historial a su nombre.'
+            : 'El cambio no rige hasta que lo apruebe quien autoriza precios (por defecto, el Administrador o el Responsable de inventario).'}
         </p>
       </div>
     </div>

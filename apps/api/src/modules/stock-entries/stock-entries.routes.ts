@@ -62,10 +62,16 @@ export const stockEntriesRoutes: FastifyPluginAsyncZod = async (app) => {
     '/',
     {
       preValidation: app.requirePermission(PERMISSIONS.STOCK_ENTRIES_MANAGE),
-      schema: { body: createStockEntrySchema, response: { 201: detail } },
+      schema: {
+        headers: idempotencyHeadersSchema,
+        body: createStockEntrySchema,
+        response: { 200: detail, 201: detail },
+      },
     },
-    async (request, reply) =>
-      reply.status(201).send({ data: await service.create(request.body, request) }),
+    async (request, reply) => {
+      const data = await service.create(request.body, request);
+      return reply.status(request.idempotentReplay ? 200 : 201).send({ data });
+    },
   );
 
   app.patch(

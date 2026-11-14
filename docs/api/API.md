@@ -102,6 +102,27 @@ repetición funciona aunque la clave genérica haya vencido.
 `POST /inventory/exchanges`, `POST /inventory/counts/:id/close`, `POST /inventory/counts/:id/approve` y
 `POST /sales/:id/receipt/print-events` (la web la envía siempre).
 
+Desde el 2026-11-13 (autorizado por el responsable) también aceptan la clave como opcional las tres
+**creaciones** que podían duplicar un registro ante un reintento: `POST /inventory/adjustments`
+(solicitud de ajuste), `POST /stock-entries` (borrador de ingreso) y `POST /inventory/counts/:id/scan`
+(lectura de un conteo físico). La web la envía siempre en ellas. En las dos primeras la primera
+ejecución responde `201` y la repetición `200` con `Idempotent-Replay: true` y el mismo `data` (un solo
+documento, un solo número, una sola fila de auditoría); en el escaneo ambas responden `200`.
+
+- **Escaneo:** cada lectura física del lector es una operación distinta y lleva su propia clave; dos
+  piezas iguales son dos lecturas con dos claves y suman dos piezas. Repetir ESA lectura con la misma
+  clave (respuesta perdida, doble envío) devuelve el resultado guardado sin sumar otra pieza ni crear otro
+  hallazgo. La misma clave con otro código o en otro conteo es `409 IDEMPOTENCY_KEY_REUSED`. El resultado
+  guardado es la vista a ciegas de la ronda en que se hizo la lectura (sin stock del sistema ni
+  diferencias), y repetirlo después de pasar al segundo recuento no toca la ronda 2: cada lectura del
+  recuento necesita su propia clave. El cliente web reutiliza la clave solo al repetir la lectura que
+  falló (`useRetryKeys`), no entre lecturas simultáneas.
+- Sin la cabecera nada cambia (compatibilidad): cada `POST` crea un documento o suma una pieza.
+- Siguen sin cobertura, por no estar autorizadas: `POST /inventory/counts/:id/undo` (cada repetición
+  deshace otra lectura), `POST /stock-entries/:id/items/quick`, las solicitudes de precio y los
+  cambios de pieza sin clave. `POST /inventory/counts` queda protegido por la regla de no solapamiento
+  (un duplicado responde `409`).
+
 **Uso desde un servicio (p. ej. el futuro módulo de Ventas)**
 
 ```ts
@@ -213,7 +234,9 @@ Roles (P-46, pantalla «Roles»): `GET /roles`, `GET /roles/permissions`, `POST 
 | DELETE | `/products/:id/photos/:photoId`           | `catalog:manage`                                                                                                                                                              | Elimina la foto y sus bytes; si era la portada, la primera restante lo pasa a ser; compacta posiciones. Audita `product.photo_removed`                                                                                                                                                            |
 | GET    | `/products/variants/:id/cost-history`     | `costs:read`                                                                                                                                                                  | Historial de costos de la variante (compras confirmadas); paginado con `page` y `pageSize`                                                                                                                                                                                                        |
 | GET    | `/inventory`                              | `inventory:read`                                                                                                                                                              | Saldos por variante, búsqueda y filtros `level` e `initialOnly`                                                                                                                                                                                                                                   |
-| GET    | `/inventory/movements`                    | `inventory:read`                                                                                                                                                              | Historial global paginado con producto, variante y SKU, del más reciente al más antiguo (orden por `id`). `notes` solo con `inventory:adjust`, `stock-entries:read` o `audit:read`; si no, `null`                                                                                                 |
+| GET    | `/inventory/movements`                    | `inventory:read`                                                                                                                                                              | Historial global paginado con producto, variante y SKU, del más reciente al más antiguo (orden por `id`); filtros opcionales `from`/`to` (día de La Paz, inclusivos), `type`, `variantId` y `productId`. `notes` solo con `inventory:adjust`, `stock-entries:read` o `audit:read`; si no, `null`  |
+| GET    | `/inventory/export.csv`                   | `inventory:read` (+ `costs:read` para las columnas de costo)                                                                                                                  | **Reporte CSV de saldos** (P-44, D1): descarga `inventario-AAAA-MM-DD.csv`. Filtros `q` y `level` (los de la pantalla de saldos). Ver [Exportaciones CSV](#exportaciones-csv-reportes-mínimos-p-44)                                                                                               |
+| GET    | `/inventory/movements/export.csv`         | `inventory:read`                                                                                                                                                              | **Reporte CSV de movimientos** (P-44, D1): descarga `movimientos-AAAA-MM-DD.csv` con los filtros `from`, `to`, `type`, `variantId` y `productId` (los mismos que acepta `/inventory/movements`)                                                                                                   |
 | GET    | `/inventory/:variantId/movements`         | `inventory:read`                                                                                                                                                              | Kardex paginado de movimientos (más reciente primero, orden por `id`). `notes` solo con `inventory:adjust`, `stock-entries:read` o `audit:read`; si no, `null`                                                                                                                                    |
 | POST   | `/inventory/:variantId/initial`           | `inventory:initial-stock` (Admin, Responsable)                                                                                                                                | Entrada inicial única; actualiza saldo y audita en transacción. Permiso propio porque cambia el stock **sin aprobación previa**: `inventory:adjust` (solicitar ajustes) ya no la habilita (P-40)                                                                                                  |
 | GET    | `/inventory/adjustments`                  | `inventory:adjust`                                                                                                                                                            | Lista paginada; filtros `status`, `variantId`, `from`, `to` (valores con `costs:read`)                                                                                                                                                                                                            |
@@ -798,3 +821,51 @@ Salvaguardas:
 - Las altas, ediciones y bajas se serializan con un bloqueo de aviso (advisory) de la transacción, y la
   fila del rol se bloquea (`FOR UPDATE`) para que una asignación simultánea no deje un rol eliminado con
   usuarios.
+
+## Exportaciones CSV (reportes mínimos, P-44)
+
+Dos reportes mínimos al cierre de la Fase 1 (respuesta D1 del 2026-11-09): **saldos** y **movimientos**.
+Ambos exigen `inventory:read`, se descargan como adjunto y se **transmiten por lotes de 1000 filas**
+(nunca se carga el resultado completo en memoria).
+
+| Aspecto       | Valor                                                                                                                                                                                                                                                                                  |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cabeceras     | `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="inventario-AAAA-MM-DD.csv"` (o `movimientos-…`; fecha de La Paz), `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, `X-Export-Rows: N` (filas de datos, sin contar la cabecera)       |
+| Codificación  | UTF-8 **con BOM** (`EF BB BF`): Excel en Windows reconoce los acentos                                                                                                                                                                                                                  |
+| Separador     | **`;`** (punto y coma): es el separador de listas de Excel con configuración regional en español (Bolivia, España…); con «,» Excel abriría todo en una sola columna. Fin de línea CRLF; las celdas con `;`, comillas o saltos de línea van entre comillas dobles (comillas duplicadas) |
+| Números       | **Punto decimal estándar y sin separador de miles** (`12.5000`, `300.00`, `-3`): no depende del idioma del equipo. Si Excel en español no los reconoce como número, importar con _Datos → Desde texto/CSV_ eligiendo «Punto» como separador decimal                                    |
+| Fechas        | `AAAA-MM-DD HH:MM:SS` en hora de La Paz (UTC-4)                                                                                                                                                                                                                                        |
+| Tope          | **50.000 filas** (`CSV_EXPORT_MAX_ROWS`). Si los filtros devuelven más: `422 BUSINESS_RULE_VIOLATION` con un mensaje que pide acotarlos, sin auditoría ni archivo parcial                                                                                                              |
+| Límite de uso | 20 exportaciones por minuto y por IP (rate limit propio de la ruta)                                                                                                                                                                                                                    |
+| Fórmulas      | Todo texto que empiece por `=`, `+`, `-`, `@`, tabulación, retorno de carro o salto de línea (también tras espacios) se prefija con apóstrofe `'`; ver [SECURITY.md](../security/SECURITY.md#inyección-de-fórmulas-en-csv)                                                             |
+| Auditoría     | Antes de transmitir, en **una transacción** con el conteo y el tope: `inventory.export_balances` / `inventory.export_movements` (`userId`, IP, `metadata`: `format`, `filters`, `rows` y, en saldos, `includesCosts`). Sin registro no hay descarga                                    |
+
+### `GET /inventory/export.csv`
+
+Query: `q` (búsqueda por producto, SKU o código de barras, ≤ 100) y `level` (`all` | `OUT` | `LOW` | `OK`,
+por defecto `all`). Filas ordenadas por producto y SKU. Incluye las variantes activas **y** las
+inactivas con saldo distinto de cero (para que el valor del inventario no deje piezas físicas fuera);
+no incluye las inactivas sin saldo.
+
+Columnas: `SKU`, `Código de barras`, `Producto`, `Variante / atributos` (la etiqueta de la variante),
+`Categoría` (ruta «Joyas > Anillos»), `Saldo`, `Stock mínimo`, `Nivel de stock` (Sin stock / Bajo mínimo /
+Disponible), `Estado de la variante` (Activa / Inactiva).
+
+**Solo con `costs:read`** se agregan `Costo unitario vigente (Bs)` (`cost_price`, 4 decimales) y
+`Valor a costo vigente (Bs)` (= costo vigente × saldo **a la fecha de exportación**, 2 decimales). Sin
+ese permiso **las columnas no existen** y los costos ni siquiera se consultan en la base; ningún
+parámetro los activa (`includeCosts` y similares se ignoran). Valoración a precio de venta y corte a
+una fecha anterior: sin decidir, no implementados.
+
+### `GET /inventory/movements/export.csv`
+
+Query (todo opcional, igual que `GET /inventory/movements`): `from` y `to` (`AAAA-MM-DD`, día de La Paz,
+ambos inclusivos; `from` ≤ `to`), `type` (tipo de movimiento), `variantId` y `productId` (UUID). Orden:
+del más reciente al más antiguo. Se fija el último `id` visible al empezar (el libro es de solo anexar):
+las filas auditadas son exactamente las transmitidas.
+
+Columnas: `ID del movimiento`, `Fecha y hora (La Paz)`, `Tipo` (en español), `Código de tipo`, `SKU`,
+`Producto`, `Variante / atributos`, `Cantidad (con signo)`, `Saldo anterior`, `Saldo posterior`, `Motivo`,
+`Observaciones` (solo con `inventory:adjust`, `stock-entries:read` o `audit:read`, igual que `notes` del
+listado; sin ellos la columna no existe) y `Usuario` (nombre). Regla D-02/M-1: en los movimientos `SALE`
+de **otro** vendedor, `Usuario` va vacío salvo que se tenga `sales:read-all`. Este CSV no lleva costos.

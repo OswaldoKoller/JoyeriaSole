@@ -6,7 +6,7 @@ import type {
 } from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
-import { useAttemptKeys } from '../../lib/idempotency.ts';
+import { useAttemptKeys, useRetryKeys } from '../../lib/idempotency.ts';
 import { PAGE_SIZE, useListQuery, type Paged } from '../../lib/paging.ts';
 
 const key = ['inventory-counts'] as const;
@@ -104,9 +104,27 @@ export function useCancelInventoryCount(id: string) {
 export function useScanMutations(id: string) {
   const client = useQueryClient();
   const refresh = () => client.invalidateQueries({ queryKey: [...key, 'detail', id] });
+  // Cada lectura del lector es una operación distinta (dos piezas iguales = dos lecturas, dos claves,
+  // incluso si se disparan en paralelo). La clave solo se reutiliza al repetir la lectura que falló.
+  const reads = useRetryKeys();
   const scan = useMutation({
-    mutationFn: async (code: string) =>
-      (await api.post<{ data: CountScanResult }>(`${base}/${id}/scan`, { code })).data,
+    mutationFn: async (code: string) => {
+      const attempt = reads.begin(code);
+      try {
+        const result = (
+          await api.post<{ data: CountScanResult }>(
+            `${base}/${id}/scan`,
+            { code },
+            { idempotencyKey: attempt.key },
+          )
+        ).data;
+        attempt.done(null);
+        return result;
+      } catch (failure) {
+        attempt.done(failure);
+        throw failure;
+      }
+    },
     onSuccess: refresh,
   });
   const undo = useMutation({
