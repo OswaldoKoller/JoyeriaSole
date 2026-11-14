@@ -52,7 +52,7 @@ export function MovementsPage() {
           }}
           className="mb-4 flex flex-wrap items-end gap-3"
         >
-          <div className="space-y-1">
+          <div className="max-w-full min-w-0 space-y-1">
             <label htmlFor="movement-type" className="block text-sm font-medium text-stone-700">
               Tipo de movimiento
             </label>
@@ -62,7 +62,7 @@ export function MovementsPage() {
               onChange={(event) => {
                 change({ type: event.target.value });
               }}
-              className="block min-h-10 rounded-lg border border-stone-300 px-3 py-2 text-sm"
+              className="block min-h-10 w-full max-w-full rounded-lg border border-stone-300 px-3 py-2 text-sm"
             >
               <option value="">Todos</option>
               {MOVEMENT_TYPES.filter((type) => type !== 'EXCHANGE').map((type) => (
