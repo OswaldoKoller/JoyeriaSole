@@ -523,6 +523,88 @@ describe('ajustes manuales con solicitud y aprobación', () => {
     });
   });
 
+  describe('idempotencia de la solicitud (Idempotency-Key)', () => {
+    const withKey = (items: Item[], key: string, extra: Record<string, unknown> = {}) =>
+      app.inject({
+        method: 'POST',
+        url: URL,
+        headers: { cookie: requester.cookie, 'idempotency-key': key },
+        payload: { reasonId: reasons.get('LOSS'), items, ...extra },
+      });
+    const documents = () => app.prisma.inventoryAdjustment.count();
+    const audits = () =>
+      app.prisma.auditLog.count({ where: { action: 'inventory_adjustment.requested' } });
+
+    it('repetir con la misma clave devuelve la misma solicitud: un documento y una auditoría', async () => {
+      const variant = await createVariant(5);
+      const items = [{ variantId: variant.id, quantityDelta: -1 }];
+      const key = randomUUID();
+
+      const first = await withKey(items, key);
+      expect(first.statusCode, first.body).toBe(201);
+      expect(first.headers['idempotent-replay']).toBeUndefined();
+      const again = await withKey(items, key);
+      expect(again.statusCode, again.body).toBe(200);
+      expect(again.headers['idempotent-replay']).toBe('true');
+      expect(again.json()).toEqual(first.json());
+
+      expect(await documents()).toBe(1);
+      expect(await audits()).toBe(1);
+      expect(await balanceOf(variant.id)).toBe(5);
+    });
+
+    it('la misma clave con otro cuerpo es 409 IDEMPOTENCY_KEY_REUSED y no crea nada', async () => {
+      const variant = await createVariant(5);
+      const key = randomUUID();
+      expect((await withKey([{ variantId: variant.id, quantityDelta: -1 }], key)).statusCode).toBe(
+        201,
+      );
+
+      const other = await withKey([{ variantId: variant.id, quantityDelta: -2 }], key);
+      expect(other.statusCode).toBe(409);
+      expect(other.json().error.code).toBe('IDEMPOTENCY_KEY_REUSED');
+      expect(await documents()).toBe(1);
+      expect(await audits()).toBe(1);
+    });
+
+    it('tres peticiones iguales en paralelo crean un solo documento', async () => {
+      const variant = await createVariant(5);
+      const items = [{ variantId: variant.id, quantityDelta: -1 }];
+      const key = randomUUID();
+
+      const responses = await Promise.all([
+        withKey(items, key),
+        withKey(items, key),
+        withKey(items, key),
+      ]);
+      expect(responses.map((res) => res.statusCode).sort()).toEqual([200, 200, 201]);
+      expect(responses.filter((res) => res.headers['idempotent-replay'] === 'true')).toHaveLength(
+        2,
+      );
+      expect(
+        new Set(responses.map((res) => res.json<{ data: { id: string } }>().data.id)).size,
+      ).toBe(1);
+      expect(await documents()).toBe(1);
+      expect(await audits()).toBe(1);
+    });
+
+    it('una clave distinta o sin clave sigue creando solicitudes nuevas (compatibilidad)', async () => {
+      const variant = await createVariant(5);
+      const items = [{ variantId: variant.id, quantityDelta: -1 }];
+      expect((await withKey(items, randomUUID())).statusCode).toBe(201);
+      expect((await withKey(items, randomUUID())).statusCode).toBe(201);
+      expect((await request(items)).statusCode).toBe(201);
+      expect(await documents()).toBe(3);
+    });
+
+    it('una clave que no es UUID es 400 y no crea nada', async () => {
+      const variant = await createVariant(5);
+      const res = await withKey([{ variantId: variant.id, quantityDelta: -1 }], 'no-es-uuid');
+      expect(res.statusCode).toBe(400);
+      expect(await documents()).toBe(0);
+    });
+  });
+
   describe('idempotencia de la aprobación (Idempotency-Key)', () => {
     const approveWithKey = (id: string, key: string, cookie = approver.cookie) =>
       app.inject({

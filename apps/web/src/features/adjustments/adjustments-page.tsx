@@ -108,8 +108,8 @@ export function AdjustmentsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Ajustes de inventario</h1>
           <p className="text-sm text-stone-600">
-            Correcciones manuales de stock. El Responsable solicita; el stock solo cambia cuando el
-            Administrador aprueba.
+            Correcciones manuales de stock. Se solicitan y el stock solo cambia cuando las aprueba
+            quien autoriza ajustes (por defecto, el Administrador o el Responsable de inventario).
           </p>
         </div>
         <Link

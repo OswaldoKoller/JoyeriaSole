@@ -1,4 +1,4 @@
-import type { PriceChange, PricingVariant } from '@joyeria/shared';
+import { DEFAULT_ROLE_PERMISSIONS, type PriceChange, type PricingVariant } from '@joyeria/shared';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -110,8 +110,11 @@ function mockApi(permissions: string[], variants: PricingVariant[], calls: Call[
   return calls;
 }
 
-const MANAGER = ['catalog:read', 'costs:read', 'inventory:read', 'prices:propose'];
-const ADMIN = [...MANAGER, 'prices:approve'];
+/** Rol que solo SOLICITA precios (p. ej. un rol personalizado): sin `prices:approve`. */
+const PROPOSER = ['catalog:read', 'costs:read', 'inventory:read', 'prices:propose'];
+const ADMIN = [...PROPOSER, 'prices:approve'];
+/** Responsable de inventario con sus permisos por defecto (regla 2026-11-05: también aprueba). */
+const RESPONSABLE = [...DEFAULT_ROLE_PERMISSIONS.INVENTORY_MANAGER.permissions];
 
 describe('cálculo de ganancia en la interfaz', () => {
   it('interpreta el precio con coma o punto y lo normaliza a 2 decimales', () => {
@@ -138,7 +141,7 @@ describe('pantalla de precios', () => {
   });
 
   it('muestra el panel de costos y calcula la ganancia en vivo al escribir el nuevo precio', async () => {
-    mockApi(MANAGER, [withCosts]);
+    mockApi(PROPOSER, [withCosts]);
     renderWithProviders(<PricingPage />);
     const row = (await screen.findByText('Anillo Luna')).closest('tr');
     if (!row) throw new Error('Falta la fila');
@@ -161,7 +164,7 @@ describe('pantalla de precios', () => {
   });
 
   it('avisa cuando el nuevo precio es menor al costo y no lo bloquea', async () => {
-    mockApi(MANAGER, [withCosts]);
+    mockApi(PROPOSER, [withCosts]);
     renderWithProviders(<PricingPage />);
     const input = await screen.findByLabelText('Nuevo precio de SKU-000001');
     await userEvent.setup().type(input, '25');
@@ -170,7 +173,7 @@ describe('pantalla de precios', () => {
   });
 
   it('marca «Sin precio» y rotula el precio como neto', async () => {
-    mockApi(MANAGER, [noPrice]);
+    mockApi(PROPOSER, [noPrice]);
     renderWithProviders(<PricingPage />);
     expect(await screen.findByText('Sin precio')).toBeInTheDocument();
     expect(
@@ -188,17 +191,22 @@ describe('pantalla de precios', () => {
     expect(screen.queryByText(/Ganancia/)).not.toBeInTheDocument();
   });
 
-  it('el Responsable ve «Solicitar cambio» y envía las solicitudes en lote', async () => {
-    const calls = mockApi(MANAGER, [withCosts, noPrice]);
+  it('un rol sin permiso de aprobar ve «Solicitar cambio» y envía las solicitudes en lote', async () => {
+    const calls = mockApi(PROPOSER, [withCosts, noPrice]);
     renderWithProviders(<PricingPage />);
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText('Nuevo precio de SKU-000001'), '120');
     await user.type(screen.getByLabelText('Nuevo precio de SKU-000002'), '80,5');
     expect(screen.queryByRole('button', { name: /Aplicar ahora/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Pendientes \(/ })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/no rige hasta que lo apruebe quien autoriza precios/),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Solicitar cambio \(2\)/ }));
-    expect(await screen.findByText(/Se enviaron 2 solicitudes/)).toBeInTheDocument();
+    expect(
+      await screen.findByText('Se enviaron 2 solicitudes de cambio de precio para su aprobación.'),
+    ).toBeInTheDocument();
     const post = calls.find((call) => call.method === 'POST');
     expect(post?.url).toBe('/api/v1/pricing/requests');
     expect(post?.body).toEqual({
@@ -221,8 +229,23 @@ describe('pantalla de precios', () => {
     expect(calls.find((call) => call.method === 'POST')?.url).toBe('/api/v1/pricing/apply');
   });
 
+  it('el Responsable de inventario (permisos por defecto) aplica el precio sin solicitarlo', async () => {
+    expect(RESPONSABLE).toContain('prices:approve');
+    const calls = mockApi(RESPONSABLE, [withCosts]);
+    renderWithProviders(<PricingPage />);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText('Nuevo precio de SKU-000001'), '125');
+    expect(screen.queryByRole('button', { name: /Solicitar cambio/ })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Usted autoriza precios: el cambio rige de inmediato/),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Aplicar ahora \(1\)/ }));
+    expect(await screen.findByText('Se aplicó 1 precio nuevo.')).toBeInTheDocument();
+    expect(calls.find((call) => call.method === 'POST')?.url).toBe('/api/v1/pricing/apply');
+  });
+
   it('no deja enviar sin un precio válido seleccionado', async () => {
-    mockApi(MANAGER, [withCosts]);
+    mockApi(PROPOSER, [withCosts]);
     renderWithProviders(<PricingPage />);
     const input = await screen.findByLabelText('Nuevo precio de SKU-000001');
     await userEvent.setup().type(input, 'abc');
@@ -259,8 +282,8 @@ describe('pantalla de precios', () => {
     });
   });
 
-  it('el Responsable no ve controles de aprobación en Pendientes', async () => {
-    mockApi(MANAGER, [withCosts]);
+  it('quien solo solicita no ve controles de aprobación en Pendientes', async () => {
+    mockApi(PROPOSER, [withCosts]);
     renderWithProviders(<PricingPage />);
     await userEvent.setup().click(await screen.findByRole('tab', { name: 'Pendientes' }));
     expect(await screen.findByText('Rosa Responsable')).toBeInTheDocument();

@@ -53,3 +53,45 @@ export function useAttemptKeys(): AttemptKeys {
   const [keys] = useState(() => createAttemptKeys());
   return keys;
 }
+
+export interface ReadAttempt {
+  key: string;
+  /** Cierra la lectura: sin error se olvida la clave; con error se conserva para repetirla. */
+  done: (error: unknown) => void;
+}
+
+export interface RetryKeys {
+  /** Inicia una lectura: clave nueva, o la de la misma lectura si la anterior falló. */
+  begin: (variables: unknown) => ReadAttempt;
+}
+
+/**
+ * Claves para operaciones que se repiten A PROPÓSITO con los mismos datos y pueden dispararse en
+ * paralelo (cada lectura del lector de códigos es una pieza más). A diferencia de
+ * `createAttemptKeys`, la clave NO se comparte entre lecturas simultáneas: solo se reutiliza cuando
+ * la lectura anterior con los mismos datos terminó en error (resultado desconocido), de modo que
+ * reintentarla no suma dos veces; al tener éxito se olvida y la siguiente lectura usa otra clave.
+ */
+export function createRetryKeys(generate: () => string = newIdempotencyKey): RetryKeys {
+  let failed: { fingerprint: string; key: string } | null = null;
+  return {
+    begin(variables) {
+      const fingerprint = JSON.stringify(variables ?? null);
+      const key = failed?.fingerprint === fingerprint ? failed.key : generate();
+      return {
+        key,
+        done(error) {
+          const keyRejected =
+            error instanceof ApiError && error.code === ERROR_CODES.IDEMPOTENCY_KEY_REUSED;
+          if (error && !keyRejected) failed = { fingerprint, key };
+          else if (failed?.key === key || keyRejected) failed = null;
+        },
+      };
+    },
+  };
+}
+
+export function useRetryKeys(): RetryKeys {
+  const [keys] = useState(() => createRetryKeys());
+  return keys;
+}

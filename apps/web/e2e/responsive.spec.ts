@@ -109,7 +109,8 @@ async function prepareData(page: Page) {
 // Un caso por ancho: cada uno tiene su propio tiempo y, si falla, se ve en cuál.
 for (const width of WIDTHS) {
   test(`ninguna pantalla desborda ni recorta controles a ${width}px`, async ({ page }) => {
-    test.setTimeout(180_000);
+    // En teléfono cada pantalla se mide dos veces (tipografía normal y ancha): el doble de trabajo.
+    test.setTimeout(width <= 390 ? 360_000 : 180_000);
     await prepareData(page);
     const routes = [...ROUTES, ['Detalle de ingreso', entryRoute ?? '/ingresos'] as const];
 
