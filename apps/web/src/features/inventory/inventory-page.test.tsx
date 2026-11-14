@@ -1,5 +1,5 @@
 import type { InventoryItem } from '@joyeria/shared';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { jsonResponse, renderWithProviders } from '../../test/render.tsx';
@@ -104,9 +104,12 @@ describe('Stock inicial', () => {
     await user.click(await screen.findByRole('button', { name: 'Stock inicial de SKU-000023' }));
     await user.type(screen.getByLabelText('Cantidad en piezas'), '1');
     await user.click(screen.getByRole('button', { name: 'Registrar entrada' }));
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      /^Stock inicial registrado: 1 pieza de Arete Luna \(SKU-000023\)\.$/,
-    );
+    // En Saldos también existe la región de estado del botón «Exportar CSV» (vacía mientras no hay
+    // mensaje): se busca el aviso concreto, no «el» único `status` de la pantalla.
+    await waitFor(() => {
+      const messages = screen.getAllByRole('status').map((element) => element.textContent);
+      expect(messages).toContain('Stock inicial registrado: 1 pieza de Arete Luna (SKU-000023).');
+    });
     expect(await screen.findByText('No hay variantes para este filtro.')).toBeInTheDocument();
   });
 });

@@ -66,8 +66,13 @@ test('el Responsable registra un cambio por la API y el historial lo muestra en 
   expect(detail.status()).toBe(200);
 
   await page.goto('/inventario/movimientos');
-  await expect(page.getByText('Cambio: entrada de pieza devuelta').first()).toBeVisible();
-  await expect(page.getByText('Cambio: salida de pieza entregada').first()).toBeVisible();
+  // Dentro de la tabla: el filtro «Tipo de movimiento» tiene una <option> con el mismo texto.
+  await expect(
+    page.getByRole('table').getByText('Cambio: entrada de pieza devuelta').first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('table').getByText('Cambio: salida de pieza entregada').first(),
+  ).toBeVisible();
 
   const after = await demoStock(page);
   for (const row of [a, b]) {

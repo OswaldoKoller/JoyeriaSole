@@ -277,12 +277,12 @@ Decisiones nuevas **P-44 a P-47**, propuestas en el
 [informe técnico](../informe-tecnico/06-estado-deuda-y-fase-2.md) (OD-05, OD-06 y OD-14) y resueltas o
 encaminadas con las respuestas del 2026-11-09.
 
-| ID   | Decisión                                     | Estado          | Lo registrado hoy                                                                         |
-| ---- | -------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------- |
-| P-44 | Reportes y exportaciones al cierre de Fase 1 | 🟢 APROBADA     | Resuelta (2026-11-09): CSV de inventario y movimientos, con el valor del inventario (D1). |
-| P-45 | Carga inicial de datos (importador)          | 🟢 APROBADA     | Resuelta (2026-11-09): carga manual, sin importador; la rebanada S11 queda sin construir. |
-| P-46 | Gestión de roles por pantalla                | 🟢 IMPLEMENTADA | Resuelta (2026-11-10): API `/roles` y pantalla «Roles», con salvaguardas (ver nota).      |
-| P-47 | Acta de aceptación de decisiones por defecto | 🟡 PARCIAL      | Sesión de revisión acordada (2026-11-09), todavía sin fecha.                              |
+| ID   | Decisión                                     | Estado          | Lo registrado hoy                                                                               |
+| ---- | -------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------- |
+| P-44 | Reportes y exportaciones al cierre de Fase 1 | 🟢 IMPLEMENTADA | Reporte mínimo CSV de saldos y de movimientos construido (2026-11-13), con reservas (ver nota). |
+| P-45 | Carga inicial de datos (importador)          | 🟢 APROBADA     | Resuelta (2026-11-09): carga manual, sin importador; la rebanada S11 queda sin construir.       |
+| P-46 | Gestión de roles por pantalla                | 🟢 IMPLEMENTADA | Resuelta (2026-11-10): API `/roles` y pantalla «Roles», con salvaguardas (ver nota).            |
+| P-47 | Acta de aceptación de decisiones por defecto | 🟡 PARCIAL      | Sesión de revisión acordada (2026-11-09), todavía sin fecha.                                    |
 
 Notas:
 
@@ -294,6 +294,17 @@ Notas:
     Recomendación técnica (no regla): costo vigente × saldo a la fecha de exportación, rotulado «a
     costo vigente». Ver
     [RESOLUCIONES-2026-11-09, «Aclaraciones posteriores»](RESOLUCIONES-2026-11-09.md#aclaraciones-posteriores-2026-11-09).
+  - **Implementado el reporte mínimo (autorizado el 2026-11-13):** `GET /inventory/export.csv` (saldos)
+    y `GET /inventory/movements/export.csv` (movimientos), con botón «Exportar CSV» en Saldos y en
+    Movimientos. El valor del inventario (`Valor a costo vigente (Bs)` = costo vigente × saldo a la fecha
+    de exportación) y el costo vigente van **solo con `costs:read`**; sin ese permiso las columnas no
+    existen. Formato: UTF-8 con BOM, separador `;`, punto decimal, tope de 50.000 filas, auditoría de cada
+    descarga y neutralización de fórmulas (ver [API.md](../api/API.md#exportaciones-csv-reportes-mínimos-p-44)
+    y [SECURITY.md](../security/SECURITY.md#inyección-de-fórmulas-en-csv)). **Reservas, siguen sin
+    decidir y NO implementadas:** valoración a precio de venta, corte a una fecha anterior y exportación de
+    auditoría (P-AUD-1). **Decisiones técnicas tomadas sin que sean reglas del negocio:** el separador `;`,
+    el tope de 50.000 filas, incluir variantes inactivas con saldo en el reporte de saldos, y mostrar el
+    nombre (no el correo) de quien registró cada movimiento. El responsable puede cambiarlas.
 - **P-45:** con 1.000 a 2.000 piezas, la carga manual es costosa y propensa a errores (informe
   técnico); el criterio de cierre «datos reales» se cumple entonces con carga manual.
 - **P-46 (resuelta 2026-11-10):** el responsable autorizó la pantalla y la API de gestión de roles

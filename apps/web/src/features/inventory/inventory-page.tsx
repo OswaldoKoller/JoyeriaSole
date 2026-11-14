@@ -9,7 +9,13 @@ import { Link, useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
 import { Input } from '../../components/ui/input.tsx';
 import { useHasPermission } from '../auth/use-auth.ts';
-import { useInitialStock, useInventory, useInventoryMovements } from './use-inventory.ts';
+import { ExportCsvButton } from './export-csv-button.tsx';
+import {
+  balancesExportPath,
+  useInitialStock,
+  useInventory,
+  useInventoryMovements,
+} from './use-inventory.ts';
 import { PieceImage } from '../catalog/photos/piece-image.tsx';
 import { Pagination } from '../../components/ui/pagination.tsx';
 import { formatDateTime } from '../../lib/format.ts';
@@ -24,6 +30,8 @@ export function InventoryPage() {
   const initialOnly = searchParams.get('accion') === 'inicial';
   const canAdjust = useHasPermission(PERMISSIONS.INVENTORY_ADJUST);
   const canInitialize = useHasPermission(PERMISSIONS.INVENTORY_INITIAL_STOCK);
+  const canExport = useHasPermission(PERMISSIONS.INVENTORY_READ);
+  const canSeeCosts = useHasPermission(PERMISSIONS.COSTS_READ);
   const [page, setPage] = useState(1);
   const [draftSearch, setDraftSearch] = useState(requestedSku);
   const [search, setSearch] = useState(requestedSku);
@@ -123,6 +131,17 @@ export function InventoryPage() {
               <option value="OK">Disponibles</option>
             </select>
           </div>
+          {canExport && !initialOnly && (
+            <ExportCsvButton
+              path={balancesExportPath(search, level)}
+              subject="el inventario"
+              hint={
+                canSeeCosts
+                  ? 'Respeta la búsqueda y el estado. Incluye costo y valor a costo vigente.'
+                  : 'Respeta la búsqueda y el estado elegidos.'
+              }
+            />
+          )}
         </form>
         {list.isPending && (
           <p role="status" className="py-6 text-sm">

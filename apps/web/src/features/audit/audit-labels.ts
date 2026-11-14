@@ -49,6 +49,8 @@ const ACTION_LABELS: Record<string, string> = {
   // Inventario: ajustes, stock inicial y cambios de pieza
   'inventory.initial_stock': 'Stock inicial registrado',
   'inventory.exchange': 'Cambio de pieza',
+  'inventory.export_balances': 'Inventario exportado a CSV',
+  'inventory.export_movements': 'Movimientos exportados a CSV',
   'inventory_adjustment.requested': 'Ajuste de inventario solicitado',
   'inventory_adjustment.approved': 'Ajuste de inventario aprobado',
   'inventory_adjustment.rejected': 'Ajuste de inventario rechazado',

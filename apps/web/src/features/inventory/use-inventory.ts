@@ -19,6 +19,37 @@ type MovementList = {
   meta: { page: number; pageSize: number; total: number };
 };
 
+/** Filtros del historial de movimientos tal como los edita la persona (vacío = sin filtro). */
+export interface MovementFormFilters {
+  type: string;
+  from: string;
+  to: string;
+}
+
+export const EMPTY_MOVEMENT_FILTERS: MovementFormFilters = { type: '', from: '', to: '' };
+
+/** Parámetros de URL de los filtros no vacíos: los comparten el listado y la exportación CSV. */
+export function movementFilterParams(filters: MovementFormFilters): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.type) params.set('type', filters.type);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  return params;
+}
+
+/** Ruta de la exportación CSV de saldos con los filtros activos de la pantalla. */
+export function balancesExportPath(q: string, level: string): string {
+  const params = new URLSearchParams({ level });
+  if (q) params.set('q', q);
+  return `/inventory/export.csv?${params}`;
+}
+
+/** Ruta de la exportación CSV de movimientos con los filtros activos de la pantalla. */
+export function movementsExportPath(filters: MovementFormFilters): string {
+  const query = movementFilterParams(filters).toString();
+  return `/inventory/movements/export.csv${query ? `?${query}` : ''}`;
+}
+
 export function useInventory(page: number, q: string, level: string, initialOnly = false) {
   const params = new URLSearchParams({
     page: String(page),
@@ -32,11 +63,16 @@ export function useInventory(page: number, q: string, level: string, initialOnly
   );
 }
 
-export function useAllInventoryMovements(page: number) {
-  return useListQuery(['inventory-movements', 'all', page], () =>
-    api.get<Paged<GlobalInventoryMovement>>(
-      `/inventory/movements?page=${page}&pageSize=${PAGE_SIZE}`,
-    ),
+export function useAllInventoryMovements(
+  page: number,
+  filters: MovementFormFilters = EMPTY_MOVEMENT_FILTERS,
+) {
+  const params = movementFilterParams(filters);
+  params.set('page', String(page));
+  params.set('pageSize', String(PAGE_SIZE));
+  return useListQuery(
+    ['inventory-movements', 'all', page, filters.type, filters.from, filters.to],
+    () => api.get<Paged<GlobalInventoryMovement>>(`/inventory/movements?${params}`),
   );
 }
 
