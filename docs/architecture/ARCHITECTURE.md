@@ -112,6 +112,26 @@ apps/web/src/
 - La protección de rutas en el frontend es solo UX; **la API valida permisos en cada petición**.
 - Lectores de códigos de barras: funcionan como teclado (HID). Un campo de búsqueda con foco recibe
   el código seguido de Enter; no se necesita driver ni integración por marca.
+- **Carga por rutas y archivos de la web.** Solo Login, el panel (`AppShell`), Inicio y Mi cuenta van
+  en la carga inicial; el resto de las pantallas se descargan al visitarlas con `lazyPage`
+  (`app/lazy-page.tsx`: `React.lazy` + `Suspense` con `PageLoading`, `role="status"` y «Cargando…»;
+  la sección no se descarga hasta que `RequireAuth` confirma sesión y permisos). Si la descarga falla
+  (p. ej. tras un despliegue nuevo con archivos de otro hash), el `errorElement` (`RouteError`) muestra
+  «Recargar la página». `vite.config.ts` agrupa React, React Router, TanStack Query y Zod en archivos
+  `vendor-*` para que se mantengan en caché entre versiones.
+
+  | Medición (`npm run build -w @joyeria/web`) | Antes (2026-11-13)        | Después                                              |
+  | ------------------------------------------ | ------------------------- | ---------------------------------------------------- |
+  | Archivo de entrada `index-*.js`            | 376,5 kB (116,8 kB gzip)  | 65,7 kB (19,5 kB gzip)                               |
+  | Mayor archivo                              | 376,5 kB                  | 218,8 kB (`vendor-react`)                            |
+  | Archivos de librerías                      | 163 kB compartido (47 kB) | react 218,8 · zod 96,2 · router 93,4 · query 34,9 kB |
+  | JS de la carga inicial (suma, 7 archivos)  | 545,5 kB (165,1 kB gzip)  | 545,5 kB (165,1 kB gzip)                             |
+  | Avisos de Vite (> 500 kB)                  | ninguno                   | ninguno                                              |
+
+  El total inicial no baja porque React, el router y Zod hacen falta para pintar Login; la mejora es
+  de caché (una versión nueva solo invalida ~66 kB de código propio) y de análisis en el navegador.
+  Reducir más exigiría quitar Zod de Login o cargar Inicio bajo demanda (no hecho: añadiría una espera
+  al abrir la aplicación).
 
 ## Flujo de una petición
 
