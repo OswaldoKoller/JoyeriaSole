@@ -24,8 +24,9 @@ function offendingIds(cause: unknown): string[] {
 }
 
 /**
- * Solicitudes de precio pendientes. El Administrador las aprueba o rechaza una a una o en masa
- * (el rechazo exige comentario); el Responsable ve las suyas y puede cancelarlas (D4).
+ * Solicitudes de precio pendientes. Quien tiene `prices:approve` (por defecto Administrador y
+ * Responsable) las aprueba o rechaza una a una o en masa (el rechazo exige comentario); quien solo
+ * solicita ve las suyas y puede cancelarlas (D4).
  */
 export function PendingPanel() {
   const canApprove = useHasPermission(PERMISSIONS.PRICES_APPROVE);

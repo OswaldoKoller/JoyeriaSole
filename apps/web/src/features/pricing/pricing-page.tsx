@@ -11,8 +11,8 @@ import { useDocumentTitle } from '../../lib/use-document-title.ts';
 type Tab = 'precios' | 'pendientes' | 'historial';
 
 /**
- * Precios de venta (ADR-018): precio manual por variante con el panel de costos, solicitudes del
- * Responsable, aprobación del Administrador e historial. Precio neto, en bolivianos.
+ * Precios de venta (ADR-018): precio manual por variante con el panel de costos, solicitudes de quien
+ * solo puede proponer, aprobación de quien tiene `prices:approve` e historial. Precio neto, en bolivianos.
  */
 export function PricingPage() {
   useDocumentTitle('Precios');

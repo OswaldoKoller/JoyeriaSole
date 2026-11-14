@@ -1058,6 +1058,70 @@ describe('ingresos de mercadería', () => {
     });
   });
 
+  describe('idempotencia de la creación (Idempotency-Key)', () => {
+    const create = (key: string, payload: object = { supplierId }) =>
+      app.inject({
+        method: 'POST',
+        url: URL,
+        headers: { cookie, 'idempotency-key': key },
+        payload,
+      });
+    const documents = () => app.prisma.stockEntry.count();
+    const audits = () => app.prisma.auditLog.count({ where: { action: 'stock_entry.created' } });
+
+    it('repetir con la misma clave devuelve el mismo borrador: un ingreso y una auditoría', async () => {
+      const key = randomUUID();
+      const first = await create(key);
+      expect(first.statusCode, first.body).toBe(201);
+      expect(first.headers['idempotent-replay']).toBeUndefined();
+      const again = await create(key);
+      expect(again.statusCode, again.body).toBe(200);
+      expect(again.headers['idempotent-replay']).toBe('true');
+      expect(again.json()).toEqual(first.json());
+
+      expect(await documents()).toBe(1);
+      expect(await audits()).toBe(1);
+    });
+
+    it('la misma clave con otro cuerpo es 409 IDEMPOTENCY_KEY_REUSED y no crea nada', async () => {
+      const key = randomUUID();
+      expect((await create(key)).statusCode).toBe(201);
+
+      const other = await create(key, { supplierId, notes: 'Otra nota' });
+      expect(other.statusCode).toBe(409);
+      expect(other.json().error.code).toBe('IDEMPOTENCY_KEY_REUSED');
+      expect(await documents()).toBe(1);
+      expect(await audits()).toBe(1);
+    });
+
+    it('tres peticiones iguales en paralelo crean un solo ingreso', async () => {
+      const key = randomUUID();
+      const responses = await Promise.all([create(key), create(key), create(key)]);
+      expect(responses.map((res) => res.statusCode).sort()).toEqual([200, 200, 201]);
+      expect(responses.filter((res) => res.headers['idempotent-replay'] === 'true')).toHaveLength(
+        2,
+      );
+      expect(
+        new Set(responses.map((res) => res.json<{ data: { id: string } }>().data.id)).size,
+      ).toBe(1);
+      expect(await documents()).toBe(1);
+      expect(await audits()).toBe(1);
+    });
+
+    it('una clave distinta o sin clave sigue creando ingresos nuevos (compatibilidad)', async () => {
+      expect((await create(randomUUID())).statusCode).toBe(201);
+      expect((await create(randomUUID())).statusCode).toBe(201);
+      expect((await call('POST', URL, { supplierId })).statusCode).toBe(201);
+      expect(await documents()).toBe(3);
+    });
+
+    it('una clave que no es UUID es 400 y no crea nada', async () => {
+      const res = await create('no-es-uuid');
+      expect(res.statusCode).toBe(400);
+      expect(await documents()).toBe(0);
+    });
+  });
+
   describe('idempotencia de la confirmación (Idempotency-Key)', () => {
     const confirmWithKey = (id: string, key: string) =>
       app.inject({

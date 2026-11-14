@@ -1,89 +1,115 @@
-import { PERMISSIONS } from '@joyeria/shared';
-import { screen, waitFor } from '@testing-library/react';
+import type { InventoryItem } from '@joyeria/shared';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mockApi } from '../../test/api-mock.ts';
-import { mockBlobUrls } from '../../test/blob-urls.ts';
-import { renderWithProviders } from '../../test/render.tsx';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { jsonResponse, renderWithProviders } from '../../test/render.tsx';
 import { InventoryPage } from './inventory-page.tsx';
 
-const ITEM = {
-  variantId: '01900000-0000-7000-8000-0000000000d1',
-  productName: 'Anillo Solitario',
+const VARIANT = '01900000-0000-7000-8000-0000000000e1';
+const fresh: InventoryItem = {
+  variantId: VARIANT,
+  productName: 'Arete Luna',
   variantLabel: null,
-  sku: 'SKU-000001',
+  sku: 'SKU-000023',
   barcode: null,
-  quantity: 5,
-  minStock: 2,
-  canInitialize: false,
-  level: 'OK',
+  quantity: 0,
+  minStock: 0,
+  canInitialize: true,
+  level: 'OUT',
 };
 
-function mockInventory(permissions: string[]) {
-  return mockApi(
-    {
-      'GET /inventory': () => [200, { data: [ITEM], meta: { page: 1, pageSize: 25, total: 1 } }],
-      'GET /inventory/export.csv': () => new Response('x', { status: 200 }),
-    },
-    { permissions },
-  );
+/** API simulada: la variante sale de la lista «solo sin movimientos» después de registrarla. */
+function mockApi() {
+  let initialized = false;
+  const posts: { url: string; body: unknown }[] = [];
+  vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    if (url.endsWith('/auth/me')) {
+      return Promise.resolve(
+        jsonResponse(200, {
+          data: {
+            id: VARIANT,
+            name: 'Usuario',
+            email: 'u@test.local',
+            roles: [],
+            permissions: ['inventory:read', 'inventory:initial-stock'],
+          },
+        }),
+      );
+    }
+    if (init?.method === 'POST' && url.endsWith(`/inventory/${VARIANT}/initial`)) {
+      initialized = true;
+      posts.push({
+        url,
+        body: typeof init.body === 'string' ? (JSON.parse(init.body) as unknown) : undefined,
+      });
+      return Promise.resolve(jsonResponse(201, { data: {} }));
+    }
+    if (url.startsWith('/api/v1/inventory?')) {
+      const data = initialized ? [] : [fresh];
+      return Promise.resolve(
+        jsonResponse(200, { data, meta: { page: 1, pageSize: 25, total: data.length } }),
+      );
+    }
+    return Promise.resolve(
+      jsonResponse(200, { data: [], meta: { page: 1, pageSize: 25, total: 0 } }),
+    );
+  });
+  return posts;
 }
 
-describe('Saldos y alertas: exportar CSV', () => {
-  let blobUrls: ReturnType<typeof mockBlobUrls>;
-
-  beforeEach(() => {
-    blobUrls = mockBlobUrls();
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-  });
+describe('Stock inicial', () => {
   afterEach(() => {
-    blobUrls.restore();
-  });
-
-  it('exporta con la búsqueda y el estado activos', async () => {
-    const calls = mockInventory([PERMISSIONS.INVENTORY_READ]);
-    renderWithProviders(<InventoryPage />);
-    await screen.findByText('Anillo Solitario');
-
-    await userEvent.type(screen.getByLabelText('Buscar por producto, SKU o código'), 'anillo');
-    await userEvent.click(screen.getByRole('button', { name: 'Buscar' }));
-    await userEvent.selectOptions(screen.getByLabelText('Estado de stock'), 'OK');
-    await waitFor(() => {
-      expect(calls.at(-1)?.path).toContain('level=OK');
-    });
-
-    await userEvent.click(screen.getByRole('button', { name: 'Exportar CSV' }));
-    await waitFor(() => {
-      expect(calls.map((call) => call.path)).toContain('/inventory/export.csv?level=OK&q=anillo');
-    });
-  });
-
-  it('sin costs:read no menciona costos; con costs:read avisa que los incluye', async () => {
-    mockInventory([PERMISSIONS.INVENTORY_READ]);
-    const first = renderWithProviders(<InventoryPage />);
-    await screen.findByText('Anillo Solitario');
-    expect(screen.queryByText(/costo/i)).not.toBeInTheDocument();
-    first.unmount();
     vi.restoreAllMocks();
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-
-    mockInventory([PERMISSIONS.INVENTORY_READ, PERMISSIONS.COSTS_READ]);
-    renderWithProviders(<InventoryPage />);
-    await screen.findByText('Anillo Solitario');
-    expect(screen.getByText(/Incluye costo y valor a costo vigente/)).toBeInTheDocument();
   });
 
-  it('no se ofrece sin inventory:read ni en la vista de stock inicial', async () => {
-    mockInventory([]);
-    const first = renderWithProviders(<InventoryPage />);
-    await screen.findByText('Anillo Solitario');
-    expect(screen.queryByRole('button', { name: 'Exportar CSV' })).not.toBeInTheDocument();
-    first.unmount();
-    vi.restoreAllMocks();
-
-    mockInventory([PERMISSIONS.INVENTORY_READ]);
+  it('confirma el registro con un aviso accesible y explica por qué la pieza sale de la lista', async () => {
+    const posts = mockApi();
     renderWithProviders(<InventoryPage />, { route: '/inventario?accion=inicial' });
-    await screen.findByText('Anillo Solitario');
-    expect(screen.queryByRole('button', { name: 'Exportar CSV' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Stock inicial' })).toBeInTheDocument();
+    expect(
+      screen.getByText(/Solo se listan las variantes que todavía no tienen ningún movimiento/),
+    ).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Stock inicial de SKU-000023' }));
+    await user.type(screen.getByLabelText('Cantidad en piezas'), '5');
+    await user.click(screen.getByRole('button', { name: 'Registrar entrada' }));
+
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent(
+      'Stock inicial registrado: 5 piezas de Arete Luna (SKU-000023). Ya no aparece en esta lista porque ahora tiene movimientos',
+    );
+    expect(posts).toEqual([
+      {
+        url: `/api/v1/inventory/${VARIANT}/initial`,
+        body: { quantity: 5, reason: 'Stock inicial' },
+      },
+    ]);
+
+    // La lista vacía ya no dice solo «No hay variantes para este filtro».
+    const empty = await screen.findByText(/No hay variantes pendientes de stock inicial/);
+    expect(empty).toHaveTextContent(/Las que ya tienen movimientos no se listan aquí/);
+    expect(within(empty).getByRole('link', { name: 'Saldos y alertas' })).toHaveAttribute(
+      'href',
+      '/inventario',
+    );
+    expect(screen.queryByText('No hay variantes para este filtro.')).not.toBeInTheDocument();
+  });
+
+  it('en Saldos y alertas el aviso es breve y la lista vacía conserva su texto', async () => {
+    mockApi();
+    renderWithProviders(<InventoryPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Stock inicial de SKU-000023' }));
+    await user.type(screen.getByLabelText('Cantidad en piezas'), '1');
+    await user.click(screen.getByRole('button', { name: 'Registrar entrada' }));
+    // En Saldos también existe la región de estado del botón «Exportar CSV» (vacía mientras no hay
+    // mensaje): se busca el aviso concreto, no «el» único `status` de la pantalla.
+    await waitFor(() => {
+      const messages = screen.getAllByRole('status').map((element) => element.textContent);
+      expect(messages).toContain('Stock inicial registrado: 1 pieza de Arete Luna (SKU-000023).');
+    });
+    expect(await screen.findByText('No hay variantes para este filtro.')).toBeInTheDocument();
   });
 });

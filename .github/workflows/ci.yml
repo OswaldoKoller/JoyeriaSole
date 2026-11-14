@@ -73,6 +73,17 @@ jobs:
       - name: E2E con PostgreSQL efímero y servidores exclusivos
         run: npm run qa:e2e
 
+      # Trazas de Playwright (capturas, red y pasos) solo si algo falla: sin ellas un fallo del
+      # runner no se puede diagnosticar. Contienen credenciales efímeras de la base de pruebas.
+      - name: Guardar trazas de E2E si fallan
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-trazas
+          path: apps/web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
   docker:
     name: Imagen Docker de producción
     runs-on: ubuntu-latest

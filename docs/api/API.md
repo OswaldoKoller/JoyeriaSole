@@ -102,6 +102,27 @@ repetición funciona aunque la clave genérica haya vencido.
 `POST /inventory/exchanges`, `POST /inventory/counts/:id/close`, `POST /inventory/counts/:id/approve` y
 `POST /sales/:id/receipt/print-events` (la web la envía siempre).
 
+Desde el 2026-11-13 (autorizado por el responsable) también aceptan la clave como opcional las tres
+**creaciones** que podían duplicar un registro ante un reintento: `POST /inventory/adjustments`
+(solicitud de ajuste), `POST /stock-entries` (borrador de ingreso) y `POST /inventory/counts/:id/scan`
+(lectura de un conteo físico). La web la envía siempre en ellas. En las dos primeras la primera
+ejecución responde `201` y la repetición `200` con `Idempotent-Replay: true` y el mismo `data` (un solo
+documento, un solo número, una sola fila de auditoría); en el escaneo ambas responden `200`.
+
+- **Escaneo:** cada lectura física del lector es una operación distinta y lleva su propia clave; dos
+  piezas iguales son dos lecturas con dos claves y suman dos piezas. Repetir ESA lectura con la misma
+  clave (respuesta perdida, doble envío) devuelve el resultado guardado sin sumar otra pieza ni crear otro
+  hallazgo. La misma clave con otro código o en otro conteo es `409 IDEMPOTENCY_KEY_REUSED`. El resultado
+  guardado es la vista a ciegas de la ronda en que se hizo la lectura (sin stock del sistema ni
+  diferencias), y repetirlo después de pasar al segundo recuento no toca la ronda 2: cada lectura del
+  recuento necesita su propia clave. El cliente web reutiliza la clave solo al repetir la lectura que
+  falló (`useRetryKeys`), no entre lecturas simultáneas.
+- Sin la cabecera nada cambia (compatibilidad): cada `POST` crea un documento o suma una pieza.
+- Siguen sin cobertura, por no estar autorizadas: `POST /inventory/counts/:id/undo` (cada repetición
+  deshace otra lectura), `POST /stock-entries/:id/items/quick`, las solicitudes de precio y los
+  cambios de pieza sin clave. `POST /inventory/counts` queda protegido por la regla de no solapamiento
+  (un duplicado responde `409`).
+
 **Uso desde un servicio (p. ej. el futuro módulo de Ventas)**
 
 ```ts
