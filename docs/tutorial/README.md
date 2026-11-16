@@ -112,9 +112,10 @@ caja, gestionar incidencias y la configuración). Tomado de `DEFAULT_ROLE_PERMIS
 | Cargar stock inicial                                      |      sí       |            sí             |    no     |
 | Solicitar ajustes                                         |      sí       |            sí             |    no     |
 | Aprobar o rechazar ajustes                                |      sí       |            sí             |    no     |
-| Registrar cambios de pieza                                |      sí       |            sí             |    no     |
+| Registrar cambios de pieza en el inventario (sin venta)   |      sí       |            sí             |    no     |
 | Conteo físico (crear, capturar, aprobar)                  |      sí       |            sí             |    no     |
 | Punto de venta (vender)                                   |      sí       |            sí             |    sí²    |
+| Cambiar una pieza de una venta (sin devoluciones)         |      sí       |            sí             |    sí     |
 | Historial de ventas                                       |     todas     |           todas           | las suyas |
 | Caja: ver, abrir y cerrar                                 |      sí       |            sí             |    no     |
 | Corregir un cierre de caja                                |      sí       |            no             |    no     |

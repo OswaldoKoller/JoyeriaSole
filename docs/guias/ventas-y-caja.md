@@ -12,6 +12,7 @@ caja al final del día.
 | Tarea                                       | Administrador | Responsable de inventario | Vendedor  |
 | ------------------------------------------- | :-----------: | :-----------------------: | :-------: |
 | Vender (punto de venta)                     |      sí       |            sí             |    sí     |
+| Cambiar una pieza de una venta              |      sí       |            sí             |    sí     |
 | Ver las ventas                              |     todas     |           todas           | las suyas |
 | Abrir y cerrar la caja                      |      sí       |            sí             |    no     |
 | Corregir un cierre de caja ya hecho         |      sí       |            no             |    no     |
@@ -83,6 +84,14 @@ la venta) y pulse **Reportar incidencia**: elija el tipo y describa lo ocurrido.
 modifica la venta, el stock ni la caja**: avisa al Administrador, que la resuelve fuera del sistema y
 la cierra describiendo lo que hizo (**Ventas → Incidencias**).
 
+### Cambiar una pieza (no hay devoluciones)
+
+La tienda no devuelve dinero: **cambia una pieza por otra de igual o mayor precio**, con el
+comprobante. **Ventas → Cambio de pieza** → número de la venta → pieza que devuelve → pieza nueva →
+cobrar la diferencia (si la hay) → **Registrar cambio**. El stock se corrige solo (entra la devuelta,
+sale la nueva), la diferencia entra a la caja abierta y la venta original no se modifica. Paso a paso en
+el [tutorial del Vendedor](../tutorial/vendedor.md#5-cambiar-una-pieza-no-hay-devoluciones).
+
 ## 5. Cerrar la caja (al terminar el día)
 
 1. **Ventas → Caja → Cerrar caja**.
@@ -106,5 +115,6 @@ vigentes. Una corrección nunca cambia ventas, pagos ni stock.
 ## 6. Datos del comprobante (solo Administrador)
 
 En **Ventas → Datos del negocio** se cargan el nombre comercial, la dirección, el teléfono, el NIT
-(opcional) y si el comprobante debe mostrar el nombre de quien atendió. Los comprobantes, también
+(opcional), el **logo**, la **leyenda del pie** (política de cambios) y si el comprobante debe mostrar
+el nombre de quien atendió. Los comprobantes, también
 las reimpresiones, muestran siempre los datos vigentes; los importes de las ventas no cambian.

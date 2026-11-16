@@ -192,9 +192,14 @@ confirmación** (D-10, D-11).
 
 ## 10. Datos del negocio
 
-**Ventas → Datos del negocio**: nombre comercial, dirección, teléfono, NIT y si el comprobante
-muestra a quien atendió. Los comprobantes, también los reimpresos, muestran los datos **vigentes**
-(**valor por defecto, pendiente de confirmación**, D-07 y D-08).
+**Ventas → Datos del negocio**: nombre comercial, dirección, teléfono, **NIT**, si el comprobante
+muestra a quien atendió y la **leyenda del pie** (por defecto: «No se aceptan devoluciones. Solo se
+realizan cambios de pieza presentando este comprobante.»; déjela vacía para no imprimir nada). Los
+comprobantes, también los reimpresos, muestran los datos **vigentes** (D-07 y D-08, confirmados).
+
+**Logo**: debajo del formulario, **Subir logo** (PNG, JPG o WebP de hasta 2 MB; mejor con fondo blanco
+o transparente). El sistema lo reduce y lo guarda; aparece en el encabezado del comprobante de venta y
+del de cambio. **Cambiar logo** lo reemplaza y **Quitar logo** lo elimina. Se guarda al instante.
 
 ![Datos del negocio](img/administrador/39-datos-negocio.png)
 

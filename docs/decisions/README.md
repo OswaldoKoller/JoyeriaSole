@@ -32,6 +32,7 @@ Las decisiones de **negocio** pendientes están en [`docs/business/PENDIENTES.md
 | [022](ADR-022-venta-de-mostrador-inmutable.md)               | Venta de mostrador atómica, idempotente e inmutable | Aceptado                           |
 | [023](ADR-023-caja-unica-arqueo-y-correcciones.md)           | Caja única, arqueo y correcciones append-only       | Aceptado                           |
 | [024](ADR-024-comprobante-interno.md)                        | Comprobante interno e impresión por navegador       | Aceptado                           |
+| [026](ADR-026-cambio-de-pieza-en-ventas.md)                  | Cambio de pieza de una venta (sin devoluciones)     | Aceptado                           |
 
 Los ADR 017, 018, 019 y 021 llevan al final una nota «Actualización 2026-11-05» con la regla de
 autorización compartida (el Administrador y el Responsable de inventario autorizan; ver
@@ -43,5 +44,10 @@ estos ADR con otra numeración. Equivalencias: **022 = «ADR-024»** (venta), **
 y **024 = «ADR-029»** (comprobante). El «ADR-025» de esos documentos (anulación de ventas) **no se
 emite**: lo sustituye DEC-V07 (no se anulan ventas). Nota a ADR-017 y ADR-019: los ajustes y los
 cambios de pieza no se usan para corregir ventas (C5).
+
+**ADR-026 (2026-11-14):** cambio de pieza **ligado a una venta**, por una pieza de igual o mayor
+precio, con cobro de la diferencia en la caja abierta. Matiza la nota anterior: el cambio de pieza
+sigue sin usarse para _corregir_ ventas; es un documento aparte que **no modifica ni revierte** la
+venta (DEC-V07). El número 025 sigue sin emitirse.
 
 Plantilla: [`TEMPLATE.md`](TEMPLATE.md).
