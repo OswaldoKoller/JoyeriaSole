@@ -9,7 +9,6 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button } from '../../components/ui/button.tsx';
 import { ButtonLink } from '../../components/ui/button-link.tsx';
-import { Input } from '../../components/ui/input.tsx';
 import { ApiError } from '../../lib/api-client.ts';
 import { formatBs } from '../../lib/format.ts';
 import { newIdempotencyKey } from '../../lib/idempotency.ts';
@@ -44,7 +43,8 @@ import {
 } from './cart.ts';
 import { CartTable } from './cart-table.tsx';
 import { summarizePayments, type PaymentSummary } from './payments.ts';
-import { PaymentBreakdown, ReviewLines, ReviewStep } from './review-step.tsx';
+import { PaymentFields } from './payment-fields.tsx';
+import { ReviewLines, ReviewStep } from './review-step.tsx';
 import { ScanInput } from './scan-input.tsx';
 import { useCreateSale, usePaymentMethods } from './use-sales.ts';
 
@@ -551,27 +551,6 @@ export function PosPage() {
   );
 }
 
-const PAYMENT_FIELDS: {
-  code: 'CASH' | 'QR' | 'BANK_TRANSFER';
-  field: 'cash' | 'qr' | 'transfer';
-  label: string;
-  reference?: { field: 'qrReference' | 'transferReference'; label: string };
-}[] = [
-  { code: 'CASH', field: 'cash', label: 'Efectivo recibido (Bs)' },
-  {
-    code: 'QR',
-    field: 'qr',
-    label: 'QR (Bs)',
-    reference: { field: 'qrReference', label: 'Referencia del QR (opcional)' },
-  },
-  {
-    code: 'BANK_TRANSFER',
-    field: 'transfer',
-    label: 'Transferencia (Bs)',
-    reference: { field: 'transferReference', label: 'Referencia de la transferencia (opcional)' },
-  },
-];
-
 /** Cobro: efectivo recibido, QR y transferencia (y combinaciones), con «Falta» y «Vuelto». */
 function PaymentPanel({
   lines,
@@ -625,55 +604,12 @@ function PaymentPanel({
         </p>
       )}
       {!empty && (
-        <div className="space-y-3">
-          {PAYMENT_FIELDS.filter((item) => methods.includes(item.code)).map((item) => (
-            <div key={item.code} className="space-y-2">
-              <Input
-                label={item.label}
-                inputMode="decimal"
-                autoComplete="off"
-                value={payments[item.field]}
-                onChange={(event) => {
-                  onChange(item.field, event.target.value);
-                }}
-                error={summary.fieldErrors[item.field]}
-              />
-              {item.reference && payments[item.field].trim() !== '' && (
-                <Input
-                  label={item.reference.label}
-                  autoComplete="off"
-                  maxLength={100}
-                  value={payments[item.reference.field]}
-                  onChange={(event) => {
-                    if (item.reference) onChange(item.reference.field, event.target.value);
-                  }}
-                  error={summary.fieldErrors[item.reference.field]}
-                />
-              )}
-            </div>
-          ))}
-          <div
-            role="status"
-            aria-label="Estado del cobro"
-            aria-atomic="true"
-            className="space-y-1 rounded-lg bg-stone-50 p-3"
-          >
-            {summary.remainingCents > 0n && (
-              <p className="flex justify-between font-medium text-red-800">
-                <span>Falta</span>
-                <span className="tabular-nums">
-                  {formatBs(centsToAmount(summary.remainingCents))}
-                </span>
-              </p>
-            )}
-            <p className="flex justify-between font-medium">
-              <span>Vuelto</span>
-              <span className="tabular-nums">{formatBs(centsToAmount(summary.changeCents))}</span>
-            </p>
-            {summary.error && <p className="text-sm text-red-800">{summary.error}</p>}
-          </div>
-          {summary.ready && <PaymentBreakdown summary={summary} />}
-        </div>
+        <PaymentFields
+          summary={summary}
+          payments={payments}
+          methods={methods}
+          onChange={onChange}
+        />
       )}
       <Button
         className="w-full"

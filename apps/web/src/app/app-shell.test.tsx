@@ -154,6 +154,29 @@ describe('panel lateral', () => {
     expect(within(nav).queryByText(/Devoluci|Anula/)).not.toBeInTheDocument();
   });
 
+  it('con sales:exchange se ofrece el cambio de pieza y su historial, nunca devoluciones (ADR-026)', async () => {
+    mockUser(['catalog:read', 'inventory:read', 'sales:create', 'sales:read', 'sales:exchange']);
+    renderWithProviders(<AppShell />, { route: '/cambios/nuevo' });
+    const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
+    expect(await within(nav).findByRole('link', { name: 'Cambio de pieza' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    // /cambios/nuevo no marca también el historial.
+    expect(within(nav).getByRole('link', { name: 'Historial de cambios' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    expect(within(nav).queryByText(/Devoluci|Anula/)).not.toBeInTheDocument();
+  });
+
+  it('sin sales:exchange no se ofrece el cambio de pieza', async () => {
+    mockUser(['catalog:read', 'inventory:read', 'sales:create', 'sales:read']);
+    renderWithProviders(<AppShell />, { route: '/ventas/nueva' });
+    const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
+    await within(nav).findByRole('link', { name: 'Punto de venta' });
+    expect(within(nav).queryByRole('link', { name: 'Cambio de pieza' })).not.toBeInTheDocument();
+  });
+
   it('el Administrador ve caja, incidencias y datos del negocio', async () => {
     mockUser([
       'sales:create',

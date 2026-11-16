@@ -30,6 +30,8 @@ services:
   # Imagen de producción (API + frontend compilado). No se usa en el día a día.
   app:
     profiles: ['prod']
+    # Vuelve solo al reiniciar la PC o Docker (la PC de la tienda no debe depender de `local:up`).
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile

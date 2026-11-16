@@ -19,7 +19,85 @@ y de su restauración; no hay un bucket aparte que respaldar. El ADR estima que 
 reducidas ocupan unos 0,5 a 1 GB y que los respaldos crecen en la misma proporción: tenerlo en cuenta al
 dimensionar el plan de la base y el almacenamiento de la copia externa.
 
-## Propuesta (a confirmar en P-26)
+## Respaldo automático en la PC de la tienda (disco local) ✔
+
+Implementado el 2026-11-14 (`scripts/backup.mjs`, sin servidor de pago). **Solo lee** la base de datos:
+no la detiene ni la modifica. Pensado para la instalación de [PC-TIENDA.md](PC-TIENDA.md).
+
+### Uso
+
+```bash
+npm run backup                         # respaldo ahora
+npm run backup:status                  # ¿cuándo fue el último? ¿está programada la tarea diaria?
+npm run backup:verify                  # prueba de restauración en una base temporal
+npm run backup:schedule -- --at=20:30  # programa el respaldo todos los días (Programador de tareas de Windows)
+npm run backup:unschedule              # quita la tarea
+npm run backup:restore -- <archivo> --yes   # devuelve el sistema a ese respaldo (hace antes otro respaldo)
+```
+
+Qué hace cada respaldo, en orden: crea la carpeta si no existe (con subcarpetas `AAAA/MM`), vuelca la
+base con `pg_dump` desde el contenedor, **comprueba que el archivo se pueda leer**, guarda su huella
+SHA-256 y un manifiesto (`.json`) con cifras de control (usuarios, productos, variantes, movimientos,
+ventas, cambios y cajas), lo **cifra** si hay frase, hace la **segunda copia** (y verifica que sea
+idéntica), y borra lo que sale de la retención. El registro queda en `respaldo.log`.
+
+Archivos: `<carpeta>/2026/11/joyeria-20261114-203000.dump` (o `.dump.enc` si va cifrado) y su `.json`.
+
+### Configuración (variables de entorno o en el `.env` de la raíz)
+
+| Variable                                    | Por defecto                                    | Para qué                                                                                            |
+| ------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `BACKUP_DIR`                                | `<carpeta del usuario>\respaldos-joyeria-sole` | Dónde se guardan. Conviene **otro disco** o una carpeta fuera de la carpeta del proyecto.           |
+| `BACKUP_EXTRA_DIR`                          | (sin segunda copia)                            | Segunda copia: disco externo o carpeta sincronizada con Google Drive.                               |
+| `BACKUP_PASSPHRASE`                         | (sin cifrar)                                   | Frase de **12 o más caracteres**. **Imprescindible** si la segunda copia va a la nube.              |
+| `BACKUP_KEEP_DAILY` / `BACKUP_KEEP_MONTHLY` | 14 / 12                                        | Días y meses que se conservan en el disco local (el último respaldo de cada día y de cada mes).     |
+| `BACKUP_EXTRA_KEEP_DAILY` / `…_MONTHLY`     | 7 / 3                                          | Lo mismo para la segunda copia (Google Drive gratis tiene 15 GB; con fotos cada respaldo pesa más). |
+| `BACKUP_CONTAINER`, `COMPOSE_PROJECT_NAME`  | servicio `db` del proyecto `joyeria-local`     | Solo si la base está en otro contenedor.                                                            |
+
+Notas: la frase de cifrado **no se puede recuperar**: guardarla en un gestor de contraseñas junto con
+la copia de `.env`. Sin ella, un respaldo cifrado es inútil. Con la tarea programada, si la PC está
+apagada a la hora indicada el respaldo se hace al encenderla (con la sesión de Windows iniciada), y
+**Docker Desktop debe estar abierto**.
+
+### Segunda copia gratuita en Google Drive (el cliente no quiere pagar servidor)
+
+| Opción                                                     | Costo                 | Dificultad | Cómo                                                                                                                                                                                                                                                       | Recomendación               |
+| ---------------------------------------------------------- | --------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| **A. Google Drive para escritorio + carpeta sincronizada** | Gratis (15 GB)        | Baja       | Instalar «Google Drive para escritorio» con la cuenta de la tienda; crear la carpeta `Respaldos Joyería Sole` dentro de «Mi unidad»; poner `BACKUP_EXTRA_DIR` en esa carpeta (p. ej. `G:\Mi unidad\Respaldos Joyería Sole`) y definir `BACKUP_PASSPHRASE`. | **Recomendada**             |
+| B. `rclone` hacia Google Drive                             | Gratis (15 GB)        | Media      | Instalar rclone, `rclone config` (tipo `drive`) y subir la carpeta de respaldos con `rclone copy` desde una segunda tarea programada. Útil si no se quiere dejar Drive sincronizado en la PC.                                                              | Alternativa                 |
+| C. Disco USB o disco externo                               | Costo único del disco | Baja       | Conectarlo y poner `BACKUP_EXTRA_DIR` en esa unidad. Si está desconectado, el script avisa («Falló la segunda copia») y el respaldo local queda bien. Cambiar de disco cada semana y guardarlo fuera del local.                                            | Muy recomendada además de A |
+| D. Otra PC del local (carpeta compartida)                  | Gratis                | Media      | `BACKUP_EXTRA_DIR` apunta a la carpeta de red. No protege contra robo o incendio del local.                                                                                                                                                                | Mejor que nada              |
+
+- **Tamaño**: las fotos viven dentro de la base ([ADR-020](../decisions/ADR-020-fotos-de-producto.md)),
+  así que cada respaldo pesa lo que pese la base (≈ 0,5 a 1 GB con 2 000 piezas y 3 fotos). Con 7 días y 3
+  meses en la nube son unos 10 respaldos: calcular que no pasen de 15 GB y bajar
+  `BACKUP_EXTRA_KEEP_DAILY` si hace falta.
+- **Privacidad**: el respaldo contiene precios, costos, ventas y las claves cifradas de los usuarios.
+  Por eso, **cifrar siempre** lo que sube a la nube (`BACKUP_PASSPHRASE`).
+- Una cuenta de Google de la tienda con **verificación en dos pasos**; no usar una cuenta personal.
+
+### Probar que sirve (cada mes)
+
+`npm run backup:verify` restaura el último respaldo en una base **temporal** (que borra al terminar) y
+compara las cifras con las del manifiesto. Debe terminar con «✔ El respaldo se restauró completo». Si
+el respaldo está cifrado, necesita `BACKUP_PASSPHRASE`. Registrar la fecha y el resultado.
+
+### Desastre: restaurar en la PC (o en otra)
+
+1. Instalar los programas y el sistema ([PC-TIENDA.md](PC-TIENDA.md)) y `npm run local:up`.
+2. Copiar el respaldo a la PC (y el `.env` guardado, para conservar las claves).
+3. `npm run backup:restore -- <archivo.dump> --yes`: primero comprueba que el archivo se puede leer (y
+   descifrar); si no, **no toca nada**. Luego hace un respaldo de lo que hay (sin borrar respaldos
+   antiguos), detiene la aplicación, **reemplaza** la base por el respaldo y la vuelve a iniciar (al
+   arrancar aplica las migraciones que falten). Si algo falla, indica dónde quedó la copia previa.
+
+Probado el 2026-11-16 contra una base desechable: respaldo cifrado, `verify` (cifras coinciden),
+`restore` sin `--yes` (se niega), con frase equivocada (no toca la base) y restauración correcta. 4. Entrar, revisar las cifras del Inicio y de la caja, y probar una venta.
+
+Objetivos con esta configuración: **RPO ≤ 24 horas** (lo vendido desde el último respaldo se
+vuelve a registrar a mano desde los comprobantes), **RTO ≈ 1 hora** si ya está instalado Docker.
+
+## Propuesta para un hosting en la nube (a confirmar en P-26; no aplica a la PC de la tienda)
 
 | Capa                                                                                     | Frecuencia                  | Retención                 | Objetivo                                              |
 | ---------------------------------------------------------------------------------------- | --------------------------- | ------------------------- | ----------------------------------------------------- |

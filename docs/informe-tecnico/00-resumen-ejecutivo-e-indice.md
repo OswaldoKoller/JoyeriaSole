@@ -194,6 +194,11 @@ ventas a crédito o apartados. Hay 17 preguntas Q-V01 a Q-V17 en la sección 06.
 ## 11. Actualización 2026-11-11
 
 Detalle completo y autocontenido en [07 · Actualización del 2026-11-11](07-actualizacion-2026-11-11.md).
+
+Parte posterior: [08 · Decisiones P-28 a P-43 aceptadas por delegación (2026-11-14)](08-decisiones-p28-p43-2026-11-14.md).
+El mismo día se resolvió P-30 y se agregó el cambio de pieza de una venta
+([ADR-026](../decisions/ADR-026-cambio-de-pieza-en-ventas.md)), el logo del comprobante y el respaldo
+automático ([BACKUPS.md](../deployment/BACKUPS.md)).
 Este resumen se añade sin modificar las secciones anteriores.
 
 - **Autorizaciones.** El 2026-11-09 el responsable autorizó unificar el libro de inventario y el seed de

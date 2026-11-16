@@ -12,7 +12,7 @@ import type { PrismaClient } from '../../lib/prisma.ts';
 import { getAuth } from '../../plugins/auth.ts';
 import { idempotencyOf } from '../../plugins/idempotency.ts';
 import { recordAudit } from '../audit/audit.service.ts';
-import { readBusinessSettings } from '../settings/business-settings.service.ts';
+import { businessInfoOf, readBusinessSettings } from '../settings/business-settings.service.ts';
 import type { SalesService } from './sales.service.ts';
 
 const optionalMoney = (value: { toFixed: (digits: number) => string } | null) =>
@@ -66,12 +66,7 @@ export class ReceiptService {
           changeGiven: optionalMoney(payment.changeGiven),
         })),
       seller: business.receiptShowSeller ? { name: sale.sellerName } : null,
-      business: {
-        tradeName: business.tradeName,
-        address: business.address,
-        phone: business.phone,
-        taxId: business.taxId,
-      },
+      business: businessInfoOf(business),
       printCount: sale._count.prints,
     };
   }

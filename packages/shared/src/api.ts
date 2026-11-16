@@ -49,6 +49,14 @@ export const ERROR_CODES = {
   VARIANT_NOT_SELLABLE: 'VARIANT_NOT_SELLABLE',
   /** 422 — Σ pagos ≠ total, efectivo recibido < aplicado o medio inactivo; `details: { total, paid }`. */
   PAYMENT_MISMATCH: 'PAYMENT_MISMATCH',
+  // Cambio de pieza de una venta (ADR-026). Regla de negocio del 2026-11-14: nunca por una pieza
+  // más económica; la diferencia se cobra.
+  /** 422 — la pieza entregada cuesta menos que la devuelta; `details: { creditUnitPrice, deliveredUnitPrice }`. */
+  EXCHANGE_CHEAPER_NOT_ALLOWED: 'EXCHANGE_CHEAPER_NOT_ALLOWED',
+  /** 422 — se piden más unidades de las que quedan por cambiar; `details: { remaining, requested }`. */
+  EXCHANGE_QUANTITY_EXCEEDED: 'EXCHANGE_QUANTITY_EXCEEDED',
+  /** 422 — la pieza entregada es la misma variante que la devuelta. */
+  EXCHANGE_SAME_PIECE: 'EXCHANGE_SAME_PIECE',
   INTERNAL_ERROR: 'INTERNAL_ERROR', // 500 — nunca expone detalles internos
 } as const;
 

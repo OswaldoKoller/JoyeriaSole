@@ -23,7 +23,8 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        // Los tipos del núcleo del respaldo (`scripts/*.d.mts`) no pertenecen a ningún tsconfig.
+        projectService: { allowDefaultProject: ['scripts/*.d.mts'] },
         tsconfigRootDir: import.meta.dirname,
       },
     },

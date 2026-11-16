@@ -615,6 +615,9 @@ PASSWORD_CHANGE_REQUIRED`.
 | 422  | `INSUFFICIENT_STOCK`            | Stock insuficiente. `details: { items: [{ variantId, sku, available, requested }] }`                                                                      |
 | 422  | `VARIANT_NOT_SELLABLE`          | Variante inexistente o inactiva, producto inactivo o sin precio. `details: { items: [{ variantId, sku, reason }] }` (`NOT_FOUND`, `INACTIVE`, `NO_PRICE`) |
 | 422  | `PAYMENT_MISMATCH`              | Σ pagos ≠ total, efectivo recibido < aplicado o medio inactivo. `details: { total, paid, reason }`                                                        |
+| 422  | `EXCHANGE_CHEAPER_NOT_ALLOWED`  | Cambio de pieza por una pieza de **menor** precio que la que pagó el cliente. `details: { creditUnitPrice, deliveredUnitPrice }`                          |
+| 422  | `EXCHANGE_QUANTITY_EXCEEDED`    | Se piden más unidades de las que quedan por cambiar. `details: { remaining, requested }`                                                                  |
+| 422  | `EXCHANGE_SAME_PIECE`           | La pieza que se entrega es la misma variante que la devuelta                                                                                              |
 | 503  | `SERVICE_UNAVAILABLE`           | El cierre esperó más de 5 s a ventas en curso (`lock_timeout`): reintentar con la **misma** clave tras `Retry-After`                                      |
 
 ### Caja (`/cash`)
@@ -637,7 +640,8 @@ PASSWORD_CHANGE_REQUIRED`.
   `countedCash`, `difference`, `notes` (cifras **originales** del cierre; `null` mientras está
   abierta), `liveExpectedCash` (solo abierta: fondo + efectivo cobrado), `totalsByMethod [{ methodCode,
 methodName, isCash, amount, paymentsCount }]` (todos los medios activos, también en cero; QR y
-  transferencia se informan aparte, no son efectivo), `salesCount`, `salesTotal`, `mixedSales { count,
+  transferencia se informan aparte, no son efectivo), `salesCount`, `salesTotal`, `exchangesCount` y `exchangesTotal` (cambios de pieza de la sesión y la
+  diferencia cobrada; su efectivo ya está en `liveExpectedCash` y `cashSalesTotal`), `mixedSales { count,
 amount }` (ventas con más de un medio), `current { openingAmount, expectedCash, countedCash,
 difference }` (cifras **vigentes** tras las correcciones; en una abierta, contado y diferencia
   `null`) y `corrections { count, lastAt }` (para la marca «Corregida (N)»).
@@ -734,6 +738,44 @@ carrito; ante `CASH_SESSION_REQUIRED`, conservar carrito y clave.
   la segunda, `isCopy: true` → imprimir «COPIA». Llamarlo **antes** de `window.print()`; si falla, no
   imprimir. Imprimir no crea ni modifica ventas.
 
+### Cambio de pieza de una venta (`/sale-exchanges`, ADR-026)
+
+Política de la tienda (2026-11-14): **no hay devoluciones; solo cambio de pieza** por otra de **igual o
+mayor precio**, con el comprobante de la venta y sin plazo. La diferencia se cobra en la caja abierta.
+La venta original **no se modifica** (DEC-V07). Ninguna respuesta contiene costos.
+
+| #   | Método y ruta                     | Permiso                                              | Cuerpo / consulta                                                                                                                                            | Respuesta                                                              |
+| --- | --------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| C1  | `GET /sale-exchanges/lookup`      | `sales:exchange`                                     | `?number=` (número de la venta, sin `VTA-`)                                                                                                                  | `200 { data: lookup }`; `404` si no existe                             |
+| C2  | `POST /sale-exchanges`            | `sales:exchange` + cabecera `Idempotency-Key` (obl.) | `createSaleExchangeSchema`: `{ saleId, sourceItemId` **o** `sourceExchangeId, deliveredVariantId, quantity, expectedDeliveredUnitPrice, payments[], note? }` | `201 { data: exchange }`; repetición `200` + `Idempotent-Replay: true` |
+| C3  | `GET /sale-exchanges`             | `sales:exchange`, `sales:read` o `sales:read-all`    | `?page&pageSize&from&to&number&saleId&cashSessionId`                                                                                                         | `200 { data: summary[], meta }`                                        |
+| C4  | `GET /sale-exchanges/:id`         | ídem                                                 | —                                                                                                                                                            | `200 { data: exchange }`; ajeno/inexistente `404`                      |
+| C5  | `GET /sale-exchanges/:id/receipt` | ídem                                                 | —                                                                                                                                                            | `200 { data: receipt }` (sin costos ni referencias)                    |
+
+- `lookup`: `{ saleId, number, soldAt, holdings[] }`. Cada `holding` es lo que el cliente conserva y se
+  puede cambiar: `origin` (`SALE` = línea de la venta, `EXCHANGE` = pieza entregada en un cambio
+  anterior), `sourceItemId` o `sourceExchangeId`, `variantId`, `sku`, `productName`, `variantLabel`,
+  `remaining` (unidades por cambiar) y `creditUnitPrice` (lo que pagó por cada una). Cualquiera con
+  `sales:exchange` puede buscar por número (no se limita a sus ventas); no devuelve pagos ni costos.
+- `POST`: el **crédito** es `creditUnitPrice` del `holding`; la diferencia es
+  `quantity × (precio vigente de la pieza nueva − crédito)` y **nunca negativa**. `payments` debe sumar
+  exactamente la diferencia (vacío si es 0). El efectivo exige `tendered` (vuelto = recibido − aplicado);
+  QR y transferencia no. Se exige una **caja abierta** y el cobro entra a esa caja.
+- Efecto atómico: dos movimientos del libro (`EXCHANGE_IN` la devuelta, `EXCHANGE_OUT` la entregada,
+  `reference_type = EXCHANGE`), el cambio, sus pagos y la auditoría `sale_exchange.created`.
+- `exchange`: `id`, `number` (`CMB-000001`), `saleId`, `saleNumber`, `createdAt`, `sellerId`,
+  `sellerName`, `cashSessionId`, `cashSessionNumber`, `returned` y `delivered`
+  (`{ variantId, sku, productName, variantLabel }`), `quantity`, `creditUnitPrice`,
+  `deliveredUnitPrice`, `difference`, `payments[]`, `changeGiven`, `note`.
+- Visibilidad (C3 a C5): `sales:read-all` ve todos; el resto, los que hizo o los de sus ventas.
+- Errores nuevos: `EXCHANGE_CHEAPER_NOT_ALLOWED` (422, `details: { creditUnitPrice, deliveredUnitPrice }`),
+  `EXCHANGE_QUANTITY_EXCEEDED` (422, `details: { remaining, requested }`), `EXCHANGE_SAME_PIECE` (422);
+  además `PRICE_CHANGED`, `INSUFFICIENT_STOCK`, `VARIANT_NOT_SELLABLE`, `PAYMENT_MISMATCH` y
+  `CASH_SESSION_REQUIRED`. Un cambio registrado **no se edita ni se borra** (sin PATCH, PUT ni DELETE).
+- `POST /inventory/exchanges` (ADR-019) sigue existiendo solo para el Administrador y el Responsable
+  como herramienta de **inventario** (sin venta, sin precio y sin caja); el cambio en el mostrador usa
+  `/sale-exchanges`.
+
 ### Incidencias de venta (`/sale-incidents`)
 
 Solo trazabilidad (D-10, X-1): **no modifican la venta, el stock, los pagos ni la caja**. Lo resuelto
@@ -763,9 +805,26 @@ se hace fuera del sistema y se describe al cerrar.
 
 - `businessSettings`: `tradeName`, `address`, `phone`, `taxId`, `receiptShowSeller`, `updatedAt` y
   `updatedBy { id, name }` (`null` mientras nadie lo haya editado). `PUT` reemplaza todo: un campo
-  opcional ausente, vacío o `null` queda en `null`. Sin logo (SD-R08 a).
+  opcional ausente, vacío o `null` queda en `null`. El logo se gestiona aparte (ver abajo).
 - Valores provisionales (D-07): «Joyería Sole», sin dirección, teléfono ni NIT, sin vendedor impreso.
 - Auditoría: `business_settings.updated` con antes/después.
+
+**Logo y leyenda del comprobante (ADR-026).** `receiptFooterNote` (≤ 300; vacía = sin leyenda) viaja en
+`PUT /settings/business`; por defecto es la política de la tienda: «No se aceptan devoluciones. Solo se
+realizan cambios de pieza presentando este comprobante.» El logo tiene sus propias rutas:
+
+| #   | Método y ruta                    | Permiso                                                              | Cuerpo                                       | Respuesta                                         |
+| --- | -------------------------------- | -------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------- |
+| S3  | `PUT /settings/business/logo`    | `settings:manage` (solo Administrador)                               | `multipart/form-data`, campo `file` (≤ 2 MB) | `200 { data: businessSettings }`                  |
+| S4  | `GET /settings/business/logo`    | `settings:manage`, `sales:read`, `sales:read-all` o `sales:exchange` | —                                            | imagen `image/webp` (ETag; `304`); `404` sin logo |
+| S5  | `DELETE /settings/business/logo` | `settings:manage` (solo Administrador)                               | —                                            | `200 { data: businessSettings }`; `404` sin logo  |
+
+- `businessSettings.logo`: `{ sha256, width, height, sizeBytes, updatedAt }` o `null`. Los
+  comprobantes (`business.logoSha256`, `business.footerNote`) usan la huella como versión de la URL.
+- El archivo se valida por su **contenido** (JPEG, PNG o WebP; un SVG, un PDF o un ejecutable
+  renombrado dan `400`), se reduce a 600 × 300 px como máximo (sin ampliar), se **re-codifica como
+  WebP** (sin EXIF ni contenido incrustado) y se guarda en PostgreSQL. Más de 2 MB → `413`.
+- Auditoría: `business_logo.updated` (sin los bytes) y `business_logo.removed`.
 
 ## Cómo agregar un endpoint
 

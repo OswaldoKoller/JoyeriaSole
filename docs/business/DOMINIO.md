@@ -129,9 +129,24 @@ Tipos de movimiento: `INITIAL_STOCK`, `STOCK_ENTRY`, `ADJUSTMENT`, `COUNT_ADJUST
   (pueden diferir: un anillo por dos aretes). El motivo es obligatorio.
 - Los dos movimientos comparten `reference_type = 'EXCHANGE'` y un `reference_id` común, y llevan el
   costo vigente de cada variante (informativo): **un cambio no recalcula costos**.
-- En la Fase 1 solo existe la base y la API (`inventory:exchange`: Administrador y Responsable); no hay
-  pantallas de registro ni punto de venta. Quién registra cambios en el futuro punto de venta es la
-  decisión pendiente P-30.
+- `POST /inventory/exchanges` (`inventory:exchange`: Administrador y Responsable) es una herramienta
+  de **inventario**, sin venta ni dinero. El cambio en el mostrador, ligado a una venta y con cobro de
+  la diferencia, es el de ADR-026 (abajo); P-30 quedó resuelta el 2026-11-14.
+
+### Cambio de pieza de una venta (ADR-026; política de la tienda, 2026-11-14)
+
+- **No hay devoluciones en la tienda; solo cambio de pieza.** Ejemplo: el cliente compró un anillo
+  talla 10 y necesitaba la 12: se cambia. Lo indicó el asesor legal; el comprobante lo dice al pie.
+- Se cambia **con el comprobante de la venta** y **sin plazo** por ahora.
+- La pieza nueva debe costar **igual o más** que lo que el cliente pagó; **nunca** se cambia por una
+  pieza más económica. Si cuesta más, el cliente **paga la diferencia** (efectivo, QR o transferencia)
+  y entra a la caja abierta.
+- Lo registra **el mismo vendedor** (la pieza ya está contabilizada). La pieza devuelta vuelve al stock
+  vendible sin revisión previa.
+- Es un documento aparte (`CMB-000001`) con su comprobante; **la venta original no se modifica**
+  (DEC-V07). Un cambio no se deshace.
+- No se pueden cambiar más unidades de las que se vendieron; una pieza recibida en un cambio puede
+  volver a cambiarse (al precio al que se entregó).
 
 ## Flujo de ingreso de mercadería
 

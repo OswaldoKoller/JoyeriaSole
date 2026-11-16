@@ -87,15 +87,20 @@ const ACTION_LABELS: Record<string, string> = {
   'sale_incident.reported': 'Incidencia de venta reportada',
   'sale_incident.closed': 'Incidencia de venta cerrada',
   'business_settings.updated': 'Datos del negocio modificados',
+  'business_logo.updated': 'Logo del negocio actualizado',
+  'business_logo.removed': 'Logo del negocio quitado',
+  'sale_exchange.created': 'Cambio de pieza de una venta registrado',
 };
 
 const ENTITY_LABELS: Record<string, string> = {
   Attribute: 'Atributo',
   AttributeOption: 'Opción de atributo',
+  BusinessLogo: 'Logo del negocio',
   BusinessSettings: 'Datos del negocio',
   CashSession: 'Sesión de caja',
   Category: 'Categoría',
   Sale: 'Venta',
+  SaleExchange: 'Cambio de pieza de una venta',
   SaleIncident: 'Incidencia de venta',
   InventoryAdjustment: 'Ajuste de inventario',
   InventoryCount: 'Conteo físico',
@@ -144,6 +149,12 @@ const FIELD_LABELS: Record<string, string> = {
   defaultCurrency: 'Moneda habitual de compra',
   paymentTerms: 'Condiciones de pago',
   updatedAt: 'Actualizado',
+  receiptFooterNote: 'Leyenda al pie del comprobante',
+  receiptShowSeller: 'Imprimir quién atendió',
+  difference: 'Diferencia cobrada',
+  returned: 'Pieza devuelta',
+  delivered: 'Pieza entregada',
+  sha256: 'Huella del archivo',
 };
 
 /** Etiqueta en español de una acción; si no está en el diccionario, el código crudo. */

@@ -238,10 +238,13 @@ Si se equivocó al escribir el contado, pida al **Administrador** que corrija el
 
 ## 8. Cambios de pieza
 
-El permiso existe (el Responsable puede registrar cambios: entra la pieza devuelta y sale la
-entregada), pero **todavía no tiene pantalla**: hoy solo se registran por la API y se ven en
-**Movimientos** como «Cambio: entrada de pieza devuelta» / «Cambio: salida de pieza entregada».
-Quién los registrará en el punto de venta está **pendiente** (P-30).
+La tienda **no hace devoluciones**: solo cambia una pieza por otra de **igual o mayor precio**, con el
+comprobante de la venta (ver el paso a paso en [el tutorial del Vendedor](vendedor.md#5-cambiar-una-pieza-no-hay-devoluciones);
+es el mismo para el Responsable). La diferencia se cobra en la caja abierta y entra al arqueo. En
+**Movimientos** se ven como «Cambio: entrada de pieza devuelta» y «Cambio: salida de pieza entregada».
+
+Además, el Responsable puede usar el cambio **de inventario** (sin venta ni dinero) por la API, para
+casos internos; el cambio normal del mostrador es el de **Ventas → Cambio de pieza**.
 
 ## Buenas prácticas
 

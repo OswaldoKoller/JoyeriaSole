@@ -24,6 +24,14 @@ export const RECEIPT_COPY_LEGEND = 'COPIA';
 export const RECEIPT_FORMATS = ['58mm', '80mm', 'A5', 'A4'] as const;
 export type ReceiptFormat = (typeof RECEIPT_FORMATS)[number];
 export const DEFAULT_RECEIPT_FORMAT: ReceiptFormat = 'A4';
+/**
+ * Política de la tienda (asesor legal, 2026-11-14): NO hay devoluciones; solo cambio de pieza. Es la
+ * leyenda por defecto del pie del comprobante; el Administrador puede editarla o quitarla.
+ */
+export const RECEIPT_POLICY_NOTE =
+  'No se aceptan devoluciones. Solo se realizan cambios de pieza presentando este comprobante.';
+/** Longitud máxima de la leyenda al pie del comprobante. */
+export const RECEIPT_FOOTER_NOTE_MAX_LENGTH = 300;
 /** Moneda única (Q-V04): solo bolivianos. */
 export const SALE_CURRENCY = 'BOB';
 
@@ -45,6 +53,10 @@ export const CASH_CLOSE_NOTES_MAX_LENGTH = 500;
 /** Motivo de una corrección de caja (doc. 10 §5.2). */
 export const CASH_CORRECTION_REASON_MIN_LENGTH = 10;
 export const CASH_CORRECTION_REASON_MAX_LENGTH = 500;
+/** Cambio de pieza (ADR-026): observación opcional del vendedor. */
+export const EXCHANGE_NOTE_MAX_LENGTH = 300;
+/** Título del comprobante de un cambio de pieza (no es una venta ni una devolución). */
+export const EXCHANGE_RECEIPT_TITLE = 'Comprobante de cambio de pieza';
 /** Incidencias de venta: descripción y resolución. */
 export const SALE_INCIDENT_TEXT_MIN_LENGTH = 10;
 export const SALE_INCIDENT_TEXT_MAX_LENGTH = 1000;
@@ -76,6 +88,18 @@ export const SYSTEM_PAYMENT_METHODS: readonly {
 ];
 
 // ---------------------------------------------------------------------------------------------
+// Logo del negocio (comprobante)
+// ---------------------------------------------------------------------------------------------
+
+/** Campo multipart del archivo del logo. */
+export const LOGO_FIELD_NAME = 'file';
+/** Tamaño máximo del archivo que se sube (el sistema lo reduce y lo guarda como WebP). */
+export const MAX_LOGO_UPLOAD_BYTES = 2 * 1024 * 1024;
+/** El logo se reduce para caber en este recuadro (px); nunca se amplía. */
+export const LOGO_MAX_WIDTH_PX = 600;
+export const LOGO_MAX_HEIGHT_PX = 300;
+
+// ---------------------------------------------------------------------------------------------
 // Configuración del negocio (C1, D-04, D-07)
 // ---------------------------------------------------------------------------------------------
 
@@ -90,6 +114,7 @@ export const BUSINESS_SETTINGS_DEFAULTS = {
   phone: null,
   taxId: null,
   receiptShowSeller: false,
+  receiptFooterNote: RECEIPT_POLICY_NOTE,
 } as const;
 
 // ---------------------------------------------------------------------------------------------
@@ -113,6 +138,11 @@ export function formatCashSessionNumber(value: number): string {
 /** 3 → «INC-000003». */
 export function formatIncidentNumber(value: number): string {
   return padded('INC', value);
+}
+
+/** 12 → «CMB-000012» (cambio de pieza de una venta, ADR-026). */
+export function formatExchangeNumber(value: number): string {
+  return padded('CMB', value);
 }
 
 // ---------------------------------------------------------------------------------------------
