@@ -1,6 +1,11 @@
 /** Datos del negocio para el comprobante (plan 11 §4.6 S1/S2; C1, C2). Solo el Administrador. */
 import { randomUUID } from 'node:crypto';
-import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, type Permission } from '@joyeria/shared';
+import {
+  ALL_PERMISSIONS,
+  DEFAULT_ROLE_PERMISSIONS,
+  RECEIPT_POLICY_NOTE,
+  type Permission,
+} from '@joyeria/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/app.ts';
 import { buildTestApp, login } from '../helpers/app.ts';
@@ -59,6 +64,8 @@ describe('datos del negocio', () => {
       phone: null,
       taxId: null,
       receiptShowSeller: false,
+      receiptFooterNote: RECEIPT_POLICY_NOTE,
+      logo: null,
       updatedAt: null,
       updatedBy: null,
     };
@@ -88,6 +95,8 @@ describe('datos del negocio', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().data).toEqual({
       ...VALID,
+      receiptFooterNote: null,
+      logo: null,
       updatedAt: expect.any(String),
       updatedBy: { id: admin.user.id, name: admin.user.name },
     });

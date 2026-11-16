@@ -56,8 +56,15 @@ describe('matriz de permisos de ajustes de inventario', () => {
       PERMISSIONS.INVENTORY_READ,
       PERMISSIONS.SALES_CREATE,
       PERMISSIONS.SALES_READ,
+      PERMISSIONS.SALES_EXCHANGE,
       PERMISSIONS.SALES_INCIDENTS_REPORT,
     ]);
+  });
+
+  it('el cambio de pieza de una venta lo registran Vendedor, Responsable y Administrador (ADR-026, P-30)', () => {
+    for (const role of ['ADMIN', 'INVENTORY_MANAGER', 'SELLER'] as const) {
+      expect(has(role, PERMISSIONS.SALES_EXCHANGE), role).toBe(true);
+    }
   });
 
   it('todo permiso tiene descripción y el Administrador los tiene todos', () => {
