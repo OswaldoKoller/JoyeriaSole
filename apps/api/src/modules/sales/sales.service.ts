@@ -23,12 +23,8 @@ import { recordAudit } from '../audit/audit.service.ts';
 import { lockOpenCashSession } from '../cash/cash-locks.ts';
 import { applyStockChanges } from '../inventory/stock-ledger.ts';
 import { lockVariantsAndBalances } from '../inventory/stock-locks.ts';
-import {
-  planPayments,
-  planSale,
-  type PaymentMethodRow,
-  type VariantSnapshot,
-} from './sale-math.ts';
+import { planPayments, planSale, type PaymentMethodRow } from './sale-math.ts';
+import { loadVariantSnapshots } from './variant-snapshots.ts';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -102,7 +98,7 @@ export class SalesService {
           const plan = planSale(
             input.items,
             input.expectedTotal,
-            await this.snapshots(tx, variantIds),
+            await loadVariantSnapshots(tx, variantIds),
           );
           const methods = await tx.paymentMethod.findMany({
             where: { code: { in: input.payments.map((payment) => payment.methodCode) } },
@@ -323,35 +319,6 @@ export class SalesService {
       cashSessionId: sale.cashSessionId,
       cashSessionNumber: sale.cashSession.number,
     };
-  }
-
-  /** Datos vigentes de las variantes (ya bloqueadas): estado, precio, costo y saldo. */
-  private async snapshots(
-    tx: Prisma.TransactionClient,
-    ids: readonly string[],
-  ): Promise<Map<string, VariantSnapshot>> {
-    const variants = await tx.productVariant.findMany({
-      where: { id: { in: [...ids] } },
-      include: {
-        product: { select: { name: true, status: true } },
-        inventory: { select: { quantity: true } },
-      },
-    });
-    return new Map(
-      variants.map((variant) => [
-        variant.id,
-        {
-          id: variant.id,
-          sku: variant.sku,
-          label: variant.label,
-          productName: variant.product.name,
-          active: variant.status === 'ACTIVE' && variant.product.status === 'ACTIVE',
-          salePrice: variant.salePrice.toFixed(2),
-          costPrice: variant.costPrice.toFixed(4),
-          available: variant.inventory?.quantity ?? 0,
-        },
-      ]),
-    );
   }
 
   /**

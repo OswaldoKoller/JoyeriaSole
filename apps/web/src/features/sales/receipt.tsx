@@ -9,7 +9,34 @@ import {
 import { createPortal } from 'react-dom';
 import { formatBs, formatDateTime } from '../../lib/format.ts';
 import { variantText } from './cart.ts';
+import { logoUrl } from './logo-url.ts';
 import { isRoll, receiptContentWidth, receiptPrintCss } from './receipt-settings.ts';
+
+/** Logo del negocio en el encabezado del comprobante (solo si hay uno cargado). */
+export function ReceiptLogo({
+  sha256,
+  tradeName,
+  roll,
+}: {
+  sha256: string | null;
+  tradeName: string;
+  roll: boolean;
+}) {
+  if (!sha256) return null;
+  return (
+    <img
+      src={logoUrl(sha256)}
+      alt={`Logo de ${tradeName}`}
+      className={`mx-auto mb-1 w-auto max-w-full object-contain ${roll ? 'max-h-12' : 'max-h-20'}`}
+    />
+  );
+}
+
+/** Leyenda del pie (política de la tienda); no se muestra si el Administrador la quitó. */
+export function ReceiptFooterNote({ note }: { note: string | null }) {
+  if (!note) return null;
+  return <p className="mt-1">{note}</p>;
+}
 
 /**
  * Comprobante interno (DEC-V12): el MISMO componente sirve para la vista previa y para el papel.
@@ -37,6 +64,7 @@ export function Receipt({
       data-format={format}
     >
       <header className="text-center">
+        <ReceiptLogo sha256={business.logoSha256} tradeName={business.tradeName} roll={roll} />
         <p className={`font-bold ${roll ? 'text-sm' : 'text-lg'}`}>{business.tradeName}</p>
         {business.address && <p>{business.address}</p>}
         {business.phone && <p>Tel.: {business.phone}</p>}
@@ -143,6 +171,7 @@ export function Receipt({
       <footer className="mt-3 border-t border-black pt-1 text-center">
         <p className="font-semibold">{RECEIPT_NOT_FISCAL_LEGEND}</p>
         <p>Moneda: bolivianos (Bs)</p>
+        <ReceiptFooterNote note={business.footerNote} />
       </footer>
     </article>
   );

@@ -1,6 +1,11 @@
 /** Comprobante interno y reimpresión (plan 11 §4.5 V5/V6, §6.2; ADR-024). */
 import { randomUUID } from 'node:crypto';
-import { ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, type Permission } from '@joyeria/shared';
+import {
+  ALL_PERMISSIONS,
+  DEFAULT_ROLE_PERMISSIONS,
+  RECEIPT_POLICY_NOTE,
+  type Permission,
+} from '@joyeria/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/app.ts';
 import { buildTestApp, login } from '../helpers/app.ts';
@@ -97,7 +102,14 @@ describe('comprobante interno', () => {
         { methodName: 'QR', amount: '200.00', tendered: null, changeGiven: null },
       ],
       seller: null,
-      business: { tradeName: 'Joyería Sole', address: null, phone: null, taxId: null },
+      business: {
+        tradeName: 'Joyería Sole',
+        address: null,
+        phone: null,
+        taxId: null,
+        logoSha256: null,
+        footerNote: RECEIPT_POLICY_NOTE,
+      },
       printCount: 0,
     });
     expect(res.body).not.toMatch(/45\.5|QR-REF-1|cost/i);

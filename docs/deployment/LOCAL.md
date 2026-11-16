@@ -1,8 +1,11 @@
 # Despliegue local
 
 Para ver y probar la aplicación completa (base de datos, API y web) en esta máquina con un solo
-comando. **No es producción**: la base y la aplicación solo escuchan en `localhost`, las cookies van
-sin HTTPS y no hay copias de seguridad. Nunca usarlo con datos reales.
+comando. **No es producción en la nube**: la base y la aplicación solo escuchan en `localhost` y las
+cookies van sin HTTPS. Es también la forma de instalar el sistema en **la PC de la tienda** (decisión D5,
+uso solo desde esa PC), siempre que se siga [PC-TIENDA.md](PC-TIENDA.md) y se programen los
+[respaldos automáticos](BACKUPS.md): sin ellos, **no usarlo con datos reales**. La demostración
+(`--demo`) nunca debe cargarse en la PC real.
 
 ## Requisitos
 

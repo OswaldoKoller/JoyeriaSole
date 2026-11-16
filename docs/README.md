@@ -10,18 +10,19 @@ de negocio y su estado están en [PENDIENTES.md](business/PENDIENTES.md).
 
 ## Guías y referencia técnica (vigentes)
 
-| Documento                                                    | Contenido                                                |
-| ------------------------------------------------------------ | -------------------------------------------------------- |
-| [DEVELOPMENT.md](DEVELOPMENT.md)                             | Instalación, comandos, flujo de trabajo, depuración      |
-| [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) | Arquitectura, stack y justificación, capas, evolución    |
-| [database/DATABASE.md](database/DATABASE.md)                 | Modelo de datos, restricciones, migraciones, seed        |
-| [api/API.md](api/API.md)                                     | Convenciones, formato de respuestas y errores, endpoints |
-| [security/SECURITY.md](security/SECURITY.md)                 | Medidas de seguridad, reglas, riesgos aceptados          |
-| [deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md)         | Hosting y pasos de despliegue (aún no desplegado, P-18)  |
-| [deployment/BACKUPS.md](deployment/BACKUPS.md)               | Estrategia de respaldo y restauración (propuesta, P-26)  |
-| [deployment/LOCAL.md](deployment/LOCAL.md)                   | Despliegue local con un comando para demostraciones      |
-| [testing/TESTING.md](testing/TESTING.md)                     | Niveles de prueba, BD de test, qué probar                |
-| [decisions/](decisions/README.md)                            | Registro de decisiones de arquitectura (ADR 001 a 021)   |
+| Documento                                                    | Contenido                                                   |
+| ------------------------------------------------------------ | ----------------------------------------------------------- |
+| [DEVELOPMENT.md](DEVELOPMENT.md)                             | Instalación, comandos, flujo de trabajo, depuración         |
+| [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) | Arquitectura, stack y justificación, capas, evolución       |
+| [database/DATABASE.md](database/DATABASE.md)                 | Modelo de datos, restricciones, migraciones, seed           |
+| [api/API.md](api/API.md)                                     | Convenciones, formato de respuestas y errores, endpoints    |
+| [security/SECURITY.md](security/SECURITY.md)                 | Medidas de seguridad, reglas, riesgos aceptados             |
+| [deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md)         | Hosting y pasos de despliegue (aún no desplegado, P-18)     |
+| [deployment/BACKUPS.md](deployment/BACKUPS.md)               | Estrategia de respaldo y restauración (propuesta, P-26)     |
+| [deployment/LOCAL.md](deployment/LOCAL.md)                   | Despliegue local con un comando para demostraciones         |
+| [deployment/PC-TIENDA.md](deployment/PC-TIENDA.md)           | Preparar la PC de la tienda (programas, energía, respaldos) |
+| [testing/TESTING.md](testing/TESTING.md)                     | Niveles de prueba, BD de test, qué probar                   |
+| [decisions/](decisions/README.md)                            | Registro de decisiones de arquitectura (ADR 001 a 021)      |
 
 ## Negocio
 

@@ -19,7 +19,9 @@ mostrador y comprobante interno, E3 caja única). Decisiones confirmadas que res
 de mostrador pagada íntegramente al momento (sin créditos ni apartados), pagos en Bs (efectivo, QR,
 transferencia), facturación fiscal en un sistema externo, **no se anulan las ventas confirmadas
 (DEC-V07)**, caja única con apertura, cierre y arqueo (DEC-V09) y comprobante interno imprimible
-(DEC-V12). Los valores marcados «POR DEFECTO — PENDIENTE DE CONFIRMACIÓN» en el plan no son reglas:
+(DEC-V12). **Cambio de pieza (ADR-026, 2026-11-14):** la tienda no hace devoluciones, solo cambios de
+pieza ligados a la venta, por una pieza de igual o mayor precio (la diferencia se cobra en la caja
+abierta); la venta original no se modifica. Los valores marcados «POR DEFECTO — PENDIENTE DE CONFIRMACIÓN» en el plan no son reglas:
 deben quedar configurables o fáciles de cambiar.
 
 **Principio:** primero se define el negocio y la arquitectura; después se implementa.
@@ -164,7 +166,8 @@ Si se descubre una decisión no listada: agregarla a PENDIENTES.md.
 - ❌ Convertir decisiones PENDIENTES en reglas; inventar requisitos.
 - ❌ Ampliar Ventas más allá del plan 11 sin autorización; y, en ningún caso, anulación de
   ventas confirmadas (`POST /sales/:id/void`, `sales:void`, `SALE_VOID`, estado `VOIDED`) ni ningún
-  mecanismo de reversión equivalente o encubierto (DEC-V07).
+  mecanismo de reversión equivalente o encubierto (DEC-V07). El cambio de pieza de ADR-026 (documento
+  aparte, autorizado el 2026-11-14) no es una reversión: no toca la venta.
 - ❌ Modificar stock sin movimiento; editar/borrar movimientos o auditoría.
 - ❌ Editar migraciones ya aplicadas; ejecutar `db:reset` o comandos destructivos sin confirmación.
 - ❌ Desactivar reglas de ESLint, usar `--no-verify`, o bajar el nivel de TypeScript para "hacer pasar" algo.
@@ -180,7 +183,7 @@ permisos · 005 categorías en árbol · 006 atributos · 007 libro de movimient
 importación · 017 ajustes con solicitud y aprobación · 018 aprobación e historial de precios ·
 019 cambios de pieza · 020 fotos de producto · 021 conteo a ciegas con segundo recuento.
 022 venta de mostrador inmutable · 023 caja única, arqueo y correcciones · 024 comprobante interno
-(aceptados con la autorización del 2026-11-10). Otros números de ADR citados en `docs/informe-tecnico/`
+(aceptados con la autorización del 2026-11-10) · 026 cambio de pieza de una venta (2026-11-14). Otros números de ADR citados en `docs/informe-tecnico/`
 o `docs/propuestas/` (p. ej. 025 anulaciones) son propuestas no emitidas; ver `docs/decisions/README.md`.
 
 ## Agentes y skills

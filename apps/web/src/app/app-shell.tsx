@@ -2,6 +2,8 @@ import { PERMISSIONS, type Permission } from '@joyeria/shared';
 import {
   ArrowLeftRight,
   Boxes,
+  History,
+  Replace,
   ClipboardCheck,
   FilePlus2,
   PackagePlus,
@@ -174,7 +176,21 @@ const GROUPS: Group[] = [
         anyOf: [PERMISSIONS.SALES_READ, PERMISSIONS.SALES_READ_ALL],
         except: ['/ventas/nueva', '/ventas/incidencias'],
       },
-      // Sin «Devoluciones»: una venta confirmada no se anula ni se revierte (DEC-V07, C9).
+      // Sin «Devoluciones»: una venta confirmada no se anula ni se revierte (DEC-V07, C9). Lo único
+      // que existe es el cambio de una pieza por otra de igual o mayor precio (ADR-026).
+      {
+        label: 'Cambio de pieza',
+        to: '/cambios/nuevo',
+        icon: Replace,
+        permission: PERMISSIONS.SALES_EXCHANGE,
+      },
+      {
+        label: 'Historial de cambios',
+        to: '/cambios',
+        icon: History,
+        anyOf: [PERMISSIONS.SALES_EXCHANGE, PERMISSIONS.SALES_READ, PERMISSIONS.SALES_READ_ALL],
+        except: ['/cambios/nuevo'],
+      },
       { label: 'Caja', to: '/caja', icon: Wallet, permission: PERMISSIONS.CASH_READ },
       {
         label: 'Incidencias',

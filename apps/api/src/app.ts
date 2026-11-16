@@ -34,6 +34,7 @@ import { cashRoutes } from './modules/cash/cash.routes.ts';
 import { paymentMethodsRoutes } from './modules/sales/payment-methods.routes.ts';
 import { salesRoutes } from './modules/sales/sales.routes.ts';
 import { receiptRoutes } from './modules/sales/receipt.routes.ts';
+import { saleExchangesRoutes } from './modules/sale-exchanges/sale-exchanges.routes.ts';
 import { saleIncidentsRoutes } from './modules/sales/incidents.routes.ts';
 import { businessSettingsRoutes } from './modules/settings/business-settings.routes.ts';
 import { authPlugin } from './plugins/auth.ts';
@@ -147,6 +148,8 @@ export async function buildApp(env: Env) {
       await api.register(cashRoutes, { prefix: '/cash' });
       await api.register(salesRoutes, { prefix: '/sales' });
       await api.register(receiptRoutes, { prefix: '/sales' });
+      // Cambio de pieza de una venta (ADR-026): no es una devolución ni una anulación (DEC-V07).
+      await api.register(saleExchangesRoutes, { prefix: '/sale-exchanges' });
       await api.register(paymentMethodsRoutes, { prefix: '/payment-methods' });
       await api.register(saleIncidentsRoutes, { prefix: '/sale-incidents' });
       await api.register(businessSettingsRoutes, { prefix: '/settings' });

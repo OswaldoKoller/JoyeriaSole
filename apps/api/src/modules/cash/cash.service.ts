@@ -483,12 +483,19 @@ export class CashService {
     return this.loadDetail(tx, previous.id);
   }
 
-  /** Σ pagos en efectivo de las ventas de la sesión (mismo cálculo que exige el trigger). */
+  /**
+   * Σ cobros en efectivo de la sesión: pagos de las ventas + pagos de la diferencia de los cambios
+   * de pieza registrados en la sesión (ADR-026). Mismo cálculo que exige el trigger del cierre.
+   */
   private async cashSalesTotal(db: Db, sessionId: string): Promise<string> {
     const [row] = await db.$queryRaw<{ total: string }[]>`
-      SELECT COALESCE(sum(p.amount), 0)::text AS total
-      FROM sale_payments p JOIN sales s ON s.id = p.sale_id
-      WHERE s.cash_session_id = ${sessionId}::uuid AND p.method_is_cash`;
+      SELECT (
+        COALESCE((SELECT sum(p.amount) FROM sale_payments p JOIN sales s ON s.id = p.sale_id
+                   WHERE s.cash_session_id = ${sessionId}::uuid AND p.method_is_cash), 0)
+        + COALESCE((SELECT sum(p.amount) FROM sale_exchange_payments p
+                      JOIN sale_exchanges e ON e.id = p.exchange_id
+                     WHERE e.cash_session_id = ${sessionId}::uuid AND p.method_is_cash), 0)
+      )::text AS total`;
     return normalizeMoney(row?.total ?? '0');
   }
 
@@ -520,11 +527,21 @@ export class CashService {
       SELECT pm.code, pm.name, pm.is_cash AS "isCash",
              COALESCE(sum(p.amount), 0)::text AS amount, count(p.id)::int AS "paymentsCount"
       FROM payment_methods pm
-      LEFT JOIN (sale_payments p JOIN sales s ON s.id = p.sale_id AND s.cash_session_id = ${id}::uuid)
-        ON p.method_id = pm.id
+      LEFT JOIN (
+        SELECT p.id, p.method_id, p.amount
+          FROM sale_payments p JOIN sales s ON s.id = p.sale_id
+         WHERE s.cash_session_id = ${id}::uuid
+        UNION ALL
+        SELECT p.id, p.method_id, p.amount
+          FROM sale_exchange_payments p JOIN sale_exchanges e ON e.id = p.exchange_id
+         WHERE e.cash_session_id = ${id}::uuid
+      ) p ON p.method_id = pm.id
       GROUP BY pm.id, pm.code, pm.name, pm.is_cash, pm.sort_order, pm.is_active
       HAVING pm.is_active OR count(p.id) > 0
       ORDER BY pm.sort_order, pm.code`;
+    const [exchanges] = await db.$queryRaw<{ count: number; total: string }[]>`
+      SELECT count(*)::int AS count, COALESCE(sum(difference), 0)::text AS total
+      FROM sale_exchanges WHERE cash_session_id = ${id}::uuid`;
     const [sales] = await db.$queryRaw<
       { count: number; total: string; mixedCount: number; mixedTotal: string }[]
     >`
@@ -567,6 +584,8 @@ export class CashService {
       ),
       salesCount: sales?.count ?? 0,
       salesTotal: normalizeMoney(sales?.total ?? '0'),
+      exchangesCount: exchanges?.count ?? 0,
+      exchangesTotal: normalizeMoney(exchanges?.total ?? '0'),
       mixedSales: {
         count: sales?.mixedCount ?? 0,
         amount: normalizeMoney(sales?.mixedTotal ?? '0'),

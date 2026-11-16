@@ -1,4 +1,8 @@
-import type { BusinessSettings, UpdateBusinessSettingsInput } from '@joyeria/shared';
+import {
+  LOGO_FIELD_NAME,
+  type BusinessSettings,
+  type UpdateBusinessSettingsInput,
+} from '@joyeria/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client.ts';
 
@@ -21,6 +25,37 @@ export function useUpdateBusinessSettings() {
       client.setQueryData(businessSettingsKey, settings);
       // Los comprobantes muestran los datos VIGENTES (D-08): se vuelven a pedir.
       void client.invalidateQueries({ queryKey: ['sales', 'receipt'] });
+    },
+  });
+}
+
+/** Sube el logo del negocio (multipart, campo «file»); el servidor lo valida y lo reduce. */
+export function useUploadBusinessLogo() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append(LOGO_FIELD_NAME, file);
+      return (await api.put<{ data: BusinessSettings }>('/settings/business/logo', form)).data;
+    },
+    onSuccess: (settings) => {
+      client.setQueryData(businessSettingsKey, settings);
+      void client.invalidateQueries({ queryKey: ['sales', 'receipt'] });
+      void client.invalidateQueries({ queryKey: ['sale-exchanges', 'receipt'] });
+    },
+  });
+}
+
+/** Quita el logo del negocio: los comprobantes salen sin imagen. */
+export function useRemoveBusinessLogo() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      (await api.delete<{ data: BusinessSettings }>('/settings/business/logo')).data,
+    onSuccess: (settings) => {
+      client.setQueryData(businessSettingsKey, settings);
+      void client.invalidateQueries({ queryKey: ['sales', 'receipt'] });
+      void client.invalidateQueries({ queryKey: ['sale-exchanges', 'receipt'] });
     },
   });
 }

@@ -52,6 +52,7 @@ describe('permisos por defecto de los roles', () => {
         PERMISSIONS.INVENTORY_READ,
         PERMISSIONS.SALES_CREATE,
         PERMISSIONS.SALES_READ,
+        PERMISSIONS.SALES_EXCHANGE,
         PERMISSIONS.SALES_INCIDENTS_REPORT,
       ].sort(),
     );
@@ -109,6 +110,7 @@ describe('permisos de ventas y caja (plan 11 §4.1)', () => {
       PERMISSIONS.SALES_CREATE,
       PERMISSIONS.SALES_READ,
       PERMISSIONS.SALES_READ_ALL,
+      PERMISSIONS.SALES_EXCHANGE,
       PERMISSIONS.SALES_INCIDENTS_REPORT,
     ]) {
       expect(has('INVENTORY_MANAGER', permission)).toBe(true);

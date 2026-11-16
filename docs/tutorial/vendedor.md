@@ -85,7 +85,33 @@ comprobante.
 
 ![Detalle de la venta](img/vendedor/11-venta-detalle.png)
 
-## 5. Reportar una incidencia
+## 5. Cambiar una pieza (no hay devoluciones)
+
+La tienda **no hace devoluciones**: solo **cambia una pieza por otra de igual o mayor precio**, con el
+comprobante de la venta y sin plazo. Si la pieza nueva cuesta más, el cliente **paga la diferencia**.
+**Nunca** se cambia por una pieza más barata.
+
+1. Pida el **comprobante** al cliente y anote el número de la venta (**VTA-000123**).
+2. Menú **Ventas → Cambio de pieza** (o, en el detalle de la venta, **Cambiar una pieza**).
+3. Escriba el número de la venta y pulse **Buscar venta**. Aparecen las piezas de esa venta con la foto
+   y **lo que el cliente pagó**.
+4. Elija la **pieza que el cliente devuelve** (y cuántas unidades, si compró varias).
+5. Escanee o escriba el código de la **pieza nueva**. El sistema avisa si:
+   - cuesta menos que la devuelta (no se puede),
+   - es la misma pieza, está inactiva, no tiene precio o no tiene stock.
+6. Si la pieza nueva cuesta más, aparece **Diferencia a cobrar**: cobre en efectivo (con el vuelto),
+   QR o transferencia, igual que en una venta. Si cuesta lo mismo, no hay nada que cobrar.
+7. Pulse **Registrar cambio**. Aparece el cambio **CMB-000001**: imprima su **comprobante**.
+
+Qué hace el sistema por usted: la pieza que devuelve el cliente **vuelve al stock** y la nueva **sale del
+stock**; la diferencia entra a la **caja** (si es efectivo, cuenta en el arqueo). La venta original
+**no se modifica**. Un cambio **no se puede deshacer**: si se equivocó, avise al Administrador.
+
+Requisito: **debe haber una caja abierta**. Los cambios se ven en **Ventas → Historial de cambios** y
+en el detalle de la venta. _(Las capturas de esta pantalla se agregan en la próxima revisión del
+tutorial.)_
+
+## 6. Reportar una incidencia
 
 Si una venta tuvo un error (pieza equivocada, pago mal registrado, duplicada…):
 
@@ -99,7 +125,7 @@ La incidencia **no modifica la venta, el stock ni la caja**: avisa al Administra
 
 ![Incidencia registrada](img/vendedor/13-incidencia-registrada.png)
 
-## 6. En el celular
+## 7. En el celular
 
 El sistema se adapta a la pantalla del celular. El menú se abre con **Abrir menú**.
 

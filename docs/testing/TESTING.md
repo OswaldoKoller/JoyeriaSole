@@ -113,6 +113,29 @@ Se conservan aserciones y plazos de las pruebas.
 - E2E `s3-product-photos.spec.ts`: el Responsable sube (archivo falso rechazado por contenido), marca portada,
   reordena, elimina con confirmación y llega al límite de 5; el Vendedor solo ve y la API le niega la subida.
 
+## Cambio de pieza, logo y respaldo (2026-11-14)
+
+- Unitarias `exchange-math.test.ts`: qué se puede cambiar de una venta (líneas, piezas de cambios
+  anteriores, saldos), diferencia exacta en centavos, **nunca por una pieza más barata ni por un
+  centavo**, misma pieza, unidades, precio vigente, stock y ausencia de costos en los errores.
+- Integración `sale-exchanges.test.ts`: 401/403/400/404; cambio sin diferencia (la venta no cambia, el
+  libro y la auditoría); no cambiar dos veces la misma unidad; diferencia en efectivo con vuelto y su
+  efecto en el **efectivo esperado y en el cierre de caja**; diferencia por QR (no entra al efectivo);
+  Σ pagos = diferencia; precio cambiado (409); sin stock, sin caja abierta, caja posterior; cadena de
+  cambios; idempotencia (misma clave y clave con otro cuerpo); dos cambios simultáneos de la última
+  unidad; visibilidad (propios, de sus ventas, todos); comprobante sin costos ni referencias; y
+  **garantías de la base** (inmutabilidad, CHECK de precio, trigger diferido de pagos, trigger de cierre).
+  Invariante del libro (`assertLedgerInvariant`) tras cada escenario con stock.
+- Integración `business-logo.test.ts`: permisos, subida, reducción a WebP, ETag/304, sin EXIF, no se
+  amplía, archivos que no son imagen (texto, SVG con script, ejecutable), vacío, campo equivocado, no
+  multipart, 413, quitar el logo y auditoría; leyenda del pie (por defecto, editar, vaciar, 300 caracteres).
+- Unitarias `backup-core.test.ts`: nombres de respaldo, retención (último de cada día y de cada mes,
+  nunca el más reciente, archivos ajenos intactos) y cifrado AES-256-GCM (ida y vuelta, frase equivocada,
+  archivo alterado). El flujo completo con PostgreSQL (respaldo, verificación, restauración) se probó a
+  mano contra un contenedor desechable; ver [BACKUPS.md](../deployment/BACKUPS.md).
+- Web (Vitest): `exchange-math.test.ts` y `exchange-page.test.tsx` (buscar venta, pieza más barata
+  bloqueada, sin diferencia, cobro con vuelto, reintento con la misma clave, error de precio, sin caja).
+
 ## Seguridad y endurecimiento (transversal)
 
 - Integración `security-hardening.test.ts`:

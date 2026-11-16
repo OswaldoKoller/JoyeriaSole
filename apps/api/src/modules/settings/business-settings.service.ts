@@ -23,16 +23,38 @@ export async function readBusinessSettings(db: Db): Promise<BusinessSettings> {
     where: { id: SETTINGS_ID },
     include: { updatedBy: { select: { id: true, name: true } } },
   });
-  if (!row) return { ...BUSINESS_SETTINGS_DEFAULTS, updatedAt: null, updatedBy: null };
+  // Solo metadatos del logo: los bytes se leen únicamente en el endpoint que sirve la imagen.
+  const logo = await db.businessLogo.findUnique({
+    where: { id: SETTINGS_ID },
+    select: { sha256: true, width: true, height: true, sizeBytes: true, updatedAt: true },
+  });
+  const logoMeta = logo ? { ...logo, updatedAt: logo.updatedAt.toISOString() } : null;
+  if (!row) {
+    return { ...BUSINESS_SETTINGS_DEFAULTS, logo: logoMeta, updatedAt: null, updatedBy: null };
+  }
   return {
     tradeName: row.tradeName,
     address: row.address,
     phone: row.phone,
     taxId: row.taxId,
     receiptShowSeller: row.receiptShowSeller,
+    receiptFooterNote: row.receiptFooterNote,
+    logo: logoMeta,
     // Hasta la primera edición la fila es la sembrada: sin autor ni fecha de edición.
     updatedAt: row.updatedById ? row.updatedAt.toISOString() : null,
     updatedBy: row.updatedBy,
+  };
+}
+
+/** Encabezado y pie del negocio que llevan los comprobantes (venta y cambio de pieza). */
+export function businessInfoOf(settings: BusinessSettings) {
+  return {
+    tradeName: settings.tradeName,
+    address: settings.address,
+    phone: settings.phone,
+    taxId: settings.taxId,
+    logoSha256: settings.logo?.sha256 ?? null,
+    footerNote: settings.receiptFooterNote,
   };
 }
 
@@ -62,6 +84,7 @@ export class BusinessSettingsService {
         phone: input.phone ?? null,
         taxId: input.taxId ?? null,
         receiptShowSeller: input.receiptShowSeller,
+        receiptFooterNote: input.receiptFooterNote ?? null,
         updatedById: user.id,
         updatedAt: new Date(),
       };
@@ -77,6 +100,7 @@ export class BusinessSettingsService {
         phone: settings.phone,
         taxId: settings.taxId,
         receiptShowSeller: settings.receiptShowSeller,
+        receiptFooterNote: settings.receiptFooterNote,
       });
       await recordAudit(
         tx,

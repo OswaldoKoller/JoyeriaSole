@@ -11,14 +11,15 @@ flowchart LR
   C --> D[Cerrar caja y arquear]
 ```
 
-| Momento             | Quién                       | Qué hacer                                                                                              | Guía                                                                |
-| ------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| Al abrir la tienda  | Responsable o Administrador | **Ventas → Caja → Abrir caja** con el fondo contado.                                                   | [Abrir caja](responsable-inventario.md#7-caja-abrir-y-cerrar)       |
-| Durante el día      | Todos los que venden        | Vender con el lector; revisar antes de confirmar; imprimir el comprobante.                             | [Vender](vendedor.md#3-vender)                                      |
-| Si algo sale mal    | Quien vendió                | Reportar una **incidencia** desde la venta (no cambia nada).                                           | [Incidencias](vendedor.md#5-reportar-una-incidencia)                |
-| Durante el día      | Administrador / Responsable | Revisar en **Inicio** la bandeja de aprobaciones (ajustes y precios).                                  | [Aprobaciones](administrador.md#1-inicio-y-bandeja-de-aprobaciones) |
-| Al cerrar la tienda | Responsable o Administrador | **Ventas → Caja → Cerrar caja**: contar todo el efectivo, explicar la diferencia si la hay, confirmar. | [Cerrar caja](responsable-inventario.md#7-caja-abrir-y-cerrar)      |
-| Después del cierre  | Administrador               | Revisar incidencias abiertas y, si hubo un error de captura, corregir el cierre.                       | [Corregir cierre](administrador.md#8-caja)                          |
+| Momento                            | Quién                       | Qué hacer                                                                                                      | Guía                                                                     |
+| ---------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Al abrir la tienda                 | Responsable o Administrador | **Ventas → Caja → Abrir caja** con el fondo contado.                                                           | [Abrir caja](responsable-inventario.md#7-caja-abrir-y-cerrar)            |
+| Durante el día                     | Todos los que venden        | Vender con el lector; revisar antes de confirmar; imprimir el comprobante.                                     | [Vender](vendedor.md#3-vender)                                           |
+| Si el cliente se equivocó de pieza | Quien vende                 | **Cambio de pieza** con el comprobante: igual o mayor precio, se cobra la diferencia. **No hay devoluciones.** | [Cambiar una pieza](vendedor.md#5-cambiar-una-pieza-no-hay-devoluciones) |
+| Si algo sale mal                   | Quien vendió                | Reportar una **incidencia** desde la venta (no cambia nada).                                                   | [Incidencias](vendedor.md#6-reportar-una-incidencia)                     |
+| Durante el día                     | Administrador / Responsable | Revisar en **Inicio** la bandeja de aprobaciones (ajustes y precios).                                          | [Aprobaciones](administrador.md#1-inicio-y-bandeja-de-aprobaciones)      |
+| Al cerrar la tienda                | Responsable o Administrador | **Ventas → Caja → Cerrar caja**: contar todo el efectivo, explicar la diferencia si la hay, confirmar.         | [Cerrar caja](responsable-inventario.md#7-caja-abrir-y-cerrar)           |
+| Después del cierre                 | Administrador               | Revisar incidencias abiertas y, si hubo un error de captura, corregir el cierre.                               | [Corregir cierre](administrador.md#8-caja)                               |
 
 La caja no se cierra sola y puede quedar abierta de un día a otro: **valor por defecto, pendiente de
 confirmación** (D-18). Lo recomendable es cerrarla cada día.
