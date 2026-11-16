@@ -76,6 +76,11 @@ export function MethodTotals({ session }: { session: CashSessionDetail }) {
         de un medio de pago: {formatInt(session.mixedSales.count)} por{' '}
         {formatBs(session.mixedSales.amount)}.
       </p>
+      <p className="mt-1 text-sm text-stone-700">
+        Cambios de pieza: {formatInt(session.exchangesCount)} con diferencia cobrada de{' '}
+        {formatBs(session.exchangesTotal)}. La diferencia cobrada en efectivo ya está incluida en el
+        efectivo esperado.
+      </p>
     </div>
   );
 }

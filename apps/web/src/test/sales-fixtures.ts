@@ -59,6 +59,8 @@ export function openSession(overrides: Partial<CashSessionDetail> = {}): CashSes
       TRANSFER_TOTAL,
     ],
     salesCount: 2,
+    exchangesCount: 0,
+    exchangesTotal: '0.00',
     salesTotal: '230.00',
     mixedSales: { count: 1, amount: '120.00' },
     current: {
@@ -205,6 +207,8 @@ export function saleReceipt(overrides: Partial<SaleReceipt> = {}): SaleReceipt {
       address: 'Calle Comercio 123',
       phone: '70000000',
       taxId: null,
+      logoSha256: null,
+      footerNote: null,
     },
     printCount: 0,
     ...overrides,

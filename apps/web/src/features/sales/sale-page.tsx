@@ -1,4 +1,9 @@
-import { PERMISSIONS, formatCashSessionNumber, formatSaleNumber } from '@joyeria/shared';
+import {
+  PERMISSIONS,
+  formatCashSessionNumber,
+  formatExchangeNumber,
+  formatSaleNumber,
+} from '@joyeria/shared';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { Button } from '../../components/ui/button.tsx';
@@ -6,6 +11,7 @@ import { ButtonLink } from '../../components/ui/button-link.tsx';
 import { formatBs, formatDateTime } from '../../lib/format.ts';
 import { useDocumentTitle } from '../../lib/use-document-title.ts';
 import { useHasPermission } from '../auth/use-auth.ts';
+import { useExchangesOfSale } from '../sale-exchanges/use-sale-exchanges.ts';
 import { PieceCell } from './cart-table.tsx';
 import { ReportIncidentDialog } from './report-incident-dialog.tsx';
 import { reportedMessage } from './sale-labels.ts';
@@ -21,6 +27,8 @@ export function SalePage() {
   const detail = useSale(id);
   const canReport = useHasPermission(PERMISSIONS.SALES_INCIDENTS_REPORT);
   const canReadCash = useHasPermission(PERMISSIONS.CASH_READ);
+  const canExchange = useHasPermission(PERMISSIONS.SALES_EXCHANGE);
+  const exchanges = useExchangesOfSale(id, detail.isSuccess);
   const [reporting, setReporting] = useState(false);
   const [notice, setNotice] = useState('');
   const sale = detail.data;
@@ -65,6 +73,11 @@ export function SalePage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <ButtonLink to={`/ventas/${sale.id}/comprobante`}>Ver comprobante</ButtonLink>
+              {canExchange && (
+                <ButtonLink to={`/cambios/nuevo?venta=${String(sale.number)}`} variant="secondary">
+                  Cambiar una pieza
+                </ButtonLink>
+              )}
               {canReport && (
                 <Button
                   variant="secondary"
@@ -166,6 +179,32 @@ export function SalePage() {
               Comprobante impreso {sale.receiptPrints} {sale.receiptPrints === 1 ? 'vez' : 'veces'}.
             </p>
           </div>
+
+          {exchanges.data && exchanges.data.length > 0 && (
+            <div className="space-y-3 rounded-xl border border-stone-200 bg-white p-5 shadow-xs">
+              <h2 className="text-lg font-semibold">Cambios de pieza</h2>
+              <ul className="space-y-2 text-sm">
+                {exchanges.data.map((exchange) => (
+                  <li
+                    key={exchange.id}
+                    className="flex flex-wrap justify-between gap-2 border-b border-stone-100 pb-2"
+                  >
+                    <span>
+                      <Link to={`/cambios/${exchange.id}`} className="text-brand-700 underline">
+                        {formatExchangeNumber(exchange.number)}
+                      </Link>{' '}
+                      · {formatDateTime(exchange.createdAt)} · devolvió{' '}
+                      {exchange.returned.productName} y se llevó {exchange.delivered.productName}
+                    </span>
+                    <span className="tabular-nums">Diferencia {formatBs(exchange.difference)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-stone-700">
+                La venta original no cambia: los cambios son documentos aparte.
+              </p>
+            </div>
+          )}
 
           {reporting && (
             <ReportIncidentDialog

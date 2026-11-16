@@ -302,6 +302,49 @@ export const router = createBrowserRouter([
               { anyPermissions: [PERMISSIONS.SALES_READ, PERMISSIONS.SALES_READ_ALL] },
             ),
           },
+          // Cambio de pieza de una venta (ADR-026): `/cambios/nuevo` va antes que `/cambios/:id`.
+          {
+            path: 'cambios/nuevo',
+            element: lazyPage(
+              () =>
+                import('../features/sale-exchanges/exchange-page.tsx').then((m) => ({
+                  default: m.ExchangePage,
+                })),
+              { permissions: [PERMISSIONS.SALES_EXCHANGE] },
+            ),
+          },
+          {
+            path: 'cambios',
+            element: lazyPage(
+              () =>
+                import('../features/sale-exchanges/exchanges-page.tsx').then((m) => ({
+                  default: m.ExchangesPage,
+                })),
+              {
+                anyPermissions: [
+                  PERMISSIONS.SALES_EXCHANGE,
+                  PERMISSIONS.SALES_READ,
+                  PERMISSIONS.SALES_READ_ALL,
+                ],
+              },
+            ),
+          },
+          {
+            path: 'cambios/:id',
+            element: lazyPage(
+              () =>
+                import('../features/sale-exchanges/exchange-receipt-page.tsx').then((m) => ({
+                  default: m.ExchangeReceiptPage,
+                })),
+              {
+                anyPermissions: [
+                  PERMISSIONS.SALES_EXCHANGE,
+                  PERMISSIONS.SALES_READ,
+                  PERMISSIONS.SALES_READ_ALL,
+                ],
+              },
+            ),
+          },
           {
             path: 'configuracion/negocio',
             element: lazyPage(
