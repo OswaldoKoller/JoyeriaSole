@@ -30,5 +30,6 @@ export * from './schemas/audit.ts';
 export * from './schemas/money.ts';
 export * from './schemas/cash.ts';
 export * from './schemas/sales.ts';
+export * from './schemas/sale-exchanges.ts';
 export * from './schemas/sale-incidents.ts';
 export * from './schemas/business-settings.ts';

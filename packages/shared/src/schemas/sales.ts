@@ -50,6 +50,40 @@ export const salePaymentInputSchema = z.strictObject({
     .optional(),
 });
 
+/**
+ * Reglas de forma de los pagos que comparten la venta y el cambio de pieza: el efectivo exige el
+ * recibido y no admite referencia; QR y transferencia no admiten recibido.
+ */
+export function checkPaymentFields(
+  payments: readonly z.infer<typeof salePaymentInputSchema>[],
+  ctx: z.RefinementCtx,
+) {
+  payments.forEach((payment, index) => {
+    const isCash = payment.methodCode === 'CASH';
+    if (isCash && payment.tendered === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['payments', index, 'tendered'],
+        message: 'Indique el efectivo recibido',
+      });
+    }
+    if (!isCash && payment.tendered !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['payments', index, 'tendered'],
+        message: 'El efectivo recibido solo corresponde a pagos en efectivo',
+      });
+    }
+    if (isCash && payment.reference !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['payments', index, 'reference'],
+        message: 'La referencia solo corresponde a QR o transferencia',
+      });
+    }
+  });
+}
+
 export const createSaleSchema = z
   .strictObject({
     items: z
@@ -73,30 +107,7 @@ export const createSaleSchema = z
     expectedTotal: positiveMoneyInputSchema,
   })
   .superRefine((value, ctx) => {
-    value.payments.forEach((payment, index) => {
-      const isCash = payment.methodCode === 'CASH';
-      if (isCash && payment.tendered === undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['payments', index, 'tendered'],
-          message: 'Indique el efectivo recibido',
-        });
-      }
-      if (!isCash && payment.tendered !== undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['payments', index, 'tendered'],
-          message: 'El efectivo recibido solo corresponde a pagos en efectivo',
-        });
-      }
-      if (isCash && payment.reference !== undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['payments', index, 'reference'],
-          message: 'La referencia solo corresponde a QR o transferencia',
-        });
-      }
-    });
+    checkPaymentFields(value.payments, ctx);
   });
 
 export const saleListQuerySchema = z.strictObject({
@@ -169,6 +180,10 @@ export const businessInfoSchema = z.strictObject({
   address: z.string().nullable(),
   phone: z.string().nullable(),
   taxId: z.string().nullable(),
+  /** SHA-256 del logo vigente (versión para la URL de la imagen) o `null` si no hay logo. */
+  logoSha256: z.string().nullable(),
+  /** Leyenda al pie del comprobante (política de la tienda) o `null` si se quitó. */
+  footerNote: z.string().nullable(),
 });
 
 /**

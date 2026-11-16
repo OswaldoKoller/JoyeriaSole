@@ -126,6 +126,9 @@ export const cashSessionDetailSchema = z.strictObject({
   totalsByMethod: z.array(cashMethodTotalSchema),
   salesCount: z.number().int(),
   salesTotal: moneyOutputSchema,
+  /** Cambios de pieza registrados en la sesión y la diferencia de precio cobrada (ADR-026). */
+  exchangesCount: z.number().int(),
+  exchangesTotal: moneyOutputSchema,
   /** Ventas pagadas con más de un medio. */
   mixedSales: z.strictObject({ count: z.number().int(), amount: moneyOutputSchema }),
   /** Cifras vigentes tras las correcciones (iguales a las originales si no hay ninguna). */

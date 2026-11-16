@@ -60,6 +60,12 @@ export const PERMISSIONS = {
   SALES_READ: 'sales:read',
   /** Ver las ventas de todos los vendedores (D-02). */
   SALES_READ_ALL: 'sales:read-all',
+  /**
+   * Registrar el cambio de una pieza vendida por otra de IGUAL O MAYOR precio, con el comprobante de
+   * la venta (ADR-026; el 2026-11-14 el responsable indicó que lo registra el mismo vendedor). No
+   * es una devolución ni una anulación: la venta original no se toca (DEC-V07).
+   */
+  SALES_EXCHANGE: 'sales:exchange',
   /** Ver sesiones de caja, arqueos y correcciones (D-13). */
   CASH_READ: 'cash:read',
   /** Abrir la caja con su fondo inicial (B3). */
@@ -108,6 +114,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'sales:create': 'Registrar ventas de mostrador y consultar si hay caja abierta',
   'sales:read': 'Ver las ventas propias y su comprobante',
   'sales:read-all': 'Ver todas las ventas',
+  'sales:exchange': 'Registrar el cambio de una pieza vendida por otra de igual o mayor precio',
   'cash:read': 'Ver sesiones de caja, arqueos y correcciones',
   'cash:open': 'Abrir la caja',
   'cash:close': 'Cerrar la caja y registrar el arqueo',
@@ -199,6 +206,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
       PERMISSIONS.SALES_CREATE,
       PERMISSIONS.SALES_READ,
       PERMISSIONS.SALES_READ_ALL,
+      PERMISSIONS.SALES_EXCHANGE,
       PERMISSIONS.CASH_READ,
       PERMISSIONS.CASH_OPEN,
       PERMISSIONS.CASH_CLOSE,
@@ -214,6 +222,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<
       PERMISSIONS.INVENTORY_READ,
       PERMISSIONS.SALES_CREATE,
       PERMISSIONS.SALES_READ,
+      PERMISSIONS.SALES_EXCHANGE,
       PERMISSIONS.SALES_INCIDENTS_REPORT,
     ],
   },
