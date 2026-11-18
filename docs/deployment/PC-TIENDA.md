@@ -5,7 +5,7 @@ usa **solo desde esa PC** (sin acceso desde otros equipos ni desde Internet). Po
 HTTPS ni abrir puertos: la aplicación escucha únicamente en `localhost`. Esta guía deja la PC lista;
 la parte de respaldos está en [BACKUPS.md](BACKUPS.md) y el uso diario en [LOCAL.md](LOCAL.md).
 
-> Estado al 2026-11-14: lo marcado **✔** existe y está probado; lo marcado **⚠ pendiente** no está
+> Estado al 2026-11-17: lo marcado **✔** existe y está probado; lo marcado **⚠ pendiente** no está
 > automatizado todavía y se lista al final.
 
 ## 1. Programas (una sola vez)
@@ -42,10 +42,16 @@ npm run local:up           # crea .env con claves aleatorias, construye e inicia
   `local:up` (la contraseña está en `.env`, `SEED_ADMIN_PASSWORD`). **Cambiar esa contraseña en «Mi
   cuenta»** y crear un **segundo Administrador** con otro correo.
 - **No usar `--demo`** en la PC real (carga datos ficticios).
+- **Protección del libro** ✔ (D3): `local:up` crea un usuario de base de datos propio de la aplicación
+  (`APP_DB_USER`, sin permisos de administrador de PostgreSQL) y la aplicación trabaja solo con él, así
+  que no puede vaciar el libro de movimientos ni la auditoría. Al terminar, `local:up` y `npm run
+local:status` deben decir **«Protección del libro: activa»**; si dicen «INACTIVA», repetir
+  `npm run local:up` y, si sigue, pedir ayuda antes de cargar datos.
 - La aplicación y la base **vuelven solas** al reiniciar la PC o Docker (`restart: unless-stopped`) ✔.
   Basta con que Docker Desktop inicie con Windows.
 - **Guardar una copia de `.env`** en un gestor de contraseñas o en un USB guardado aparte: sin
   `POSTGRES_PASSWORD` y `AUTH_SECRET` no se puede reconstruir el entorno. **No** subirlo a Git ni al correo.
+  Si `local:up` avisa «Se agregó a .env el usuario de la base para la aplicación», **actualizar esa copia**.
 
 ## 4. Datos del negocio y de la tienda ✔
 
@@ -78,10 +84,9 @@ de restauración cada mes.
 
 ## 8. Qué NO está resuelto todavía (⚠ pendiente)
 
-| Tema                                           | Situación                                                                                                                                                                                                                                                                                                                                        |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Rol de base de datos sin superusuario** (D3) | ⚠ `local:up` crea la base con un usuario administrador de PostgreSQL, así que el bloqueo de `TRUNCATE` (ver [DEPLOYMENT.md](DEPLOYMENT.md)) **no tiene efecto** en esta instalación. El riesgo es borrar el libro por un error de quien controla la PC; el respaldo diario lo cubre. Automatizarlo es un cambio de `local-deploy` aún no pedido. |
-| Cookies sin HTTPS                              | Aceptable porque solo se usa desde `localhost` (la base y la aplicación no escuchan en la red). **No** exponer el puerto 8080 a la red del local sin antes configurar HTTPS.                                                                                                                                                                     |
-| Copia fuera del local                          | Opcional y gratuita (Google Drive para escritorio). Sin ella, un robo o incendio en el local pierde también los respaldos del disco. Se recomienda activarla.                                                                                                                                                                                    |
-| Monitoreo                                      | No hay alertas automáticas: `npm run backup:status` indica si el último respaldo tiene más de un día. Revisarlo al abrir la tienda o una vez por semana.                                                                                                                                                                                         |
-| Actualizar el sistema                          | `git pull` y `npm run local:up` conservan los datos; **hacer `npm run backup` antes de cada actualización**.                                                                                                                                                                                                                                     |
+| Tema                  | Situación                                                                                                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cookies sin HTTPS     | Aceptable porque solo se usa desde `localhost` (la base y la aplicación no escuchan en la red). **No** exponer el puerto 8080 a la red del local sin antes configurar HTTPS. |
+| Copia fuera del local | Opcional y gratuita (Google Drive para escritorio). Sin ella, un robo o incendio en el local pierde también los respaldos del disco. Se recomienda activarla.                |
+| Monitoreo             | No hay alertas automáticas: `npm run backup:status` indica si el último respaldo tiene más de un día. Revisarlo al abrir la tienda o una vez por semana.                     |
+| Actualizar el sistema | `git pull` y `npm run local:up` conservan los datos; **hacer `npm run backup` antes de cada actualización**.                                                                 |

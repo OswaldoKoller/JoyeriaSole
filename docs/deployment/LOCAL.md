@@ -42,11 +42,16 @@ En ambos modos la API sirve también la web (mismo origen), igual que en producc
 2. Si no existe `.env`, lo crea desde `.env.example` con contraseñas y secretos aleatorios (permisos
    restringidos; nunca se imprimen ni se suben a Git) y elige un puerto libre para PostgreSQL.
 3. Inicia PostgreSQL y espera a que esté sano.
-4. Modo `docker`: construye e inicia la imagen (aplica las migraciones al arrancar). Modo `node`:
-   compila, aplica migraciones e inicia la API como proceso en segundo plano (PID y registro en
-   `.local-deploy/`, ignorado por Git).
-5. Siembra los datos de estructura (roles, permisos, administrador, atributos); es idempotente.
-6. Espera a que `/api/v1/health` responda.
+4. **Usuario de la aplicación (D3):** si `.env` no tiene `APP_DB_USER`/`APP_DB_PASSWORD`, los agrega
+   (`joyeria_app` y una contraseña aleatoria). Luego, como superusuario (`POSTGRES_USER`), crea o corrige
+   ese usuario **sin** superusuario, le traspasa la base y le quita `TRUNCATE`. Es idempotente; en una
+   instalación anterior traspasa la primera vez las tablas que estaban a nombre del superusuario.
+5. Modo `docker`: construye e inicia la imagen, que se conecta como `APP_DB_USER` (aplica las
+   migraciones al arrancar). Modo `node`: compila, aplica migraciones e inicia la API como proceso en
+   segundo plano (PID y registro en `.local-deploy/`, ignorado por Git), también como `APP_DB_USER`.
+6. Siembra los datos de estructura (roles, permisos, administrador, atributos) como `APP_DB_USER`; es
+   idempotente.
+7. Espera a que `/api/v1/health` responda e informa «Protección del libro: activa» (o por qué no lo está).
 
 Repetir `local:up` es seguro: reutiliza la base y reconstruye solo lo que cambió.
 
@@ -57,10 +62,17 @@ Repetir `local:up` es seguro: reutiliza la base y reconstruye solo lo que cambi�
 - `COMPOSE_PROJECT_NAME` (por defecto `joyeria-local`): el despliegue local usa contenedores y
   volumen propios, distintos de los de `npm run db:up` (`joyeria-sole`), así que no toca la base de
   desarrollo. Cambiarlo para tener varios despliegues locales a la vez.
+- `APP_DB_USER` / `APP_DB_PASSWORD` en `.env`: usuario de PostgreSQL de la aplicación (los crea
+  `local:up`). `DATABASE_URL` de `.env` sigue siendo la conexión del superusuario, para administrar
+  (`npm run dev`, `db:studio`); la aplicación del despliegue local no la usa.
 
 ## Problemas frecuentes
 
 - **«Docker no está disponible»**: abrir Docker Desktop y esperar a que indique que está en marcha.
 - **Puerto ocupado**: otro programa usa 8080 o 3000. Cambiar `APP_PORT` / `API_PORT`.
-- **Falla el login de la base**: el volumen conserva la contraseña con la que se creó. Si se regeneró
-  `.env`, ejecutar `npm run local:reset -- --yes` y volver a levantar.
+- **Falla el login de la base**: el volumen conserva la contraseña de `POSTGRES_USER` con la que se
+  creó. Si se regeneró `.env`, ejecutar `npm run local:reset -- --yes` y volver a levantar (esto
+  **borra** la base: antes, un respaldo). La de `APP_DB_USER`, en cambio, se vuelve a fijar en cada
+  `local:up`: basta con repetirlo.
+- **«Protección del libro: INACTIVA»**: repetir `npm run local:up`; el motivo sale entre paréntesis
+  (p. ej. tablas a nombre de otro usuario tras una restauración manual).

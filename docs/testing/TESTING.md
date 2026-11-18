@@ -133,6 +133,13 @@ Se conservan aserciones y plazos de las pruebas.
   nunca el más reciente, archivos ajenos intactos) y cifrado AES-256-GCM (ida y vuelta, frase equivocada,
   archivo alterado). El flujo completo con PostgreSQL (respaldo, verificación, restauración) se probó a
   mano contra un contenedor desechable; ver [BACKUPS.md](../deployment/BACKUPS.md).
+- Usuario de la base de la instalación local (D3, `scripts/db-app-role.mjs`). Unitarias
+  `db-app-role.test.ts`: nombres y contraseñas válidos (nada sin validar llega al SQL), verificador
+  SCRAM y lectura del estado de la protección. Integración `db-app-role.test.ts`, dentro de una
+  transacción que se revierte: traspasa la base completa a un usuario temporal sin superusuario (dos
+  veces), comprueba que opera y migra pero no puede hacer `TRUNCATE`, que `pg_trgm` no se toca y que el
+  verificador coincide con el que calcula PostgreSQL. `local:up` (instalación nueva y traspaso de una
+  anterior) y la restauración se probaron de punta a punta en un proyecto Docker desechable.
 - Web (Vitest): `exchange-math.test.ts` y `exchange-page.test.tsx` (buscar venta, pieza más barata
   bloqueada, sin diferencia, cobro con vuelto, reintento con la misma clave, error de precio, sin caja).
 
