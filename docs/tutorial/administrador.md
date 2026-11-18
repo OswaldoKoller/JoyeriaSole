@@ -203,6 +203,10 @@ del de cambio. **Cambiar logo** lo reemplaza y **Quitar logo** lo elimina. Se gu
 
 ![Datos del negocio](img/administrador/39-datos-negocio.png)
 
+![Logo del negocio cargado](img/administrador/48-logo-del-negocio.png)
+
+_(El logo de las capturas es de demostración.)_
+
 ## 11. Usuarios
 
 1. **Acceso → Usuarios → Nuevo usuario**: nombre, correo, contraseña inicial (mínimo 10 caracteres)

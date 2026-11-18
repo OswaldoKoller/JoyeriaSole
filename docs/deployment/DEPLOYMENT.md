@@ -113,15 +113,21 @@ de las pruebas.
   triggers. La medida evita un `TRUNCATE` accidental o inyectado desde la aplicación, no a quien ya
   controla la credencial del dueño. Separar un rol de migración (dueño) y otro de ejecución solo con DML
   (X-02 del informe técnico 04) es una mejora posible que **no** forma parte de D3 y sigue sin aprobar.
-- **Despliegue local en la PC de la tienda (D5, pendiente):** el PostgreSQL de `docker-compose.yml` crea
-  `POSTGRES_USER` como superusuario, así que con esa configuración el permiso no se puede quitar. Al
-  definir ese despliegue habrá que crear la base con un rol dueño **sin** superusuario (p. ej.
-  `CREATE ROLE joyeria_app LOGIN PASSWORD '…' NOSUPERUSER NOCREATEDB NOCREATEROLE;` y
-  `CREATE DATABASE joyeria OWNER joyeria_app;` ejecutados por el superusuario) y usarlo en
-  `DATABASE_URL`. `npm run local:up` (solo para probar en esta máquina) no cambia: el script corre y
-  emite el `WARNING`.
+- **Despliegue local en la PC de la tienda (D5; implementado el 2026-11-17):** el PostgreSQL de
+  `docker-compose.yml` crea `POSTGRES_USER` como superusuario, que ahora **solo administra**. `npm run
+local:up` crea (o corrige) en cada ejecución el usuario `APP_DB_USER` (por defecto `joyeria_app`, con
+  `APP_DB_PASSWORD` aleatoria que agrega a `.env` si falta), **sin** superusuario ni permisos para
+  crear bases o usuarios. Le traspasa la base, sus tablas, secuencias, funciones y enums (no los de la
+  extensión `pg_trgm`) y le quita `TRUNCATE`; el contenedor de la aplicación, las migraciones y la siembra
+  se conectan con ese usuario. Una instalación anterior, con las tablas a nombre del superusuario, se
+  traspasa sola en su siguiente `local:up`. La contraseña viaja a PostgreSQL solo como verificador
+  SCRAM. Código: `scripts/db-app-role.mjs` (SQL idempotente) y `scripts/local-deploy.mjs`. Se comprueba
+  con `npm run local:status`: «Protección del libro: activa». Sin `APP_DB_USER` (desarrollo,
+  `docker compose --profile prod up`), la imagen sigue usando `POSTGRES_USER` y el script emite el
+  `WARNING`.
 - **Restaurar una copia** ([BACKUPS.md](BACKUPS.md)): el siguiente arranque de la imagen vuelve a
-  aplicar el script; no hace falta ningún paso extra.
+  aplicar el script; no hace falta ningún paso extra. En la PC de la tienda, `npm run backup:restore`
+  además devuelve la base restaurada a `APP_DB_USER` (los respaldos se guardan sin dueños ni permisos).
 
 ## Primer despliegue (paso a paso)
 

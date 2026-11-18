@@ -88,11 +88,21 @@ el respaldo está cifrado, necesita `BACKUP_PASSPHRASE`. Registrar la fecha y el
 2. Copiar el respaldo a la PC (y el `.env` guardado, para conservar las claves).
 3. `npm run backup:restore -- <archivo.dump> --yes`: primero comprueba que el archivo se puede leer (y
    descifrar); si no, **no toca nada**. Luego hace un respaldo de lo que hay (sin borrar respaldos
-   antiguos), detiene la aplicación, **reemplaza** la base por el respaldo y la vuelve a iniciar (al
-   arrancar aplica las migraciones que falten). Si algo falla, indica dónde quedó la copia previa.
+   antiguos), detiene la aplicación, **reemplaza** la base por el respaldo, se la **devuelve al usuario
+   de la aplicación** (`APP_DB_USER`, sin `TRUNCATE`; D3) y la vuelve a iniciar (al arrancar aplica las
+   migraciones que falten). Si algo falla, indica dónde quedó la copia previa.
+4. Entrar, revisar las cifras del Inicio y de la caja, y probar una venta. `npm run local:status` debe
+   decir «Protección del libro: activa».
+
+Los respaldos se guardan **sin dueños ni permisos** (`pg_dump --no-owner --no-privileges`): el archivo no
+depende de los usuarios de PostgreSQL de una instalación concreta, y la restauración vuelve a aplicar
+dueño y permisos. Si el usuario de la aplicación todavía no existe (instalación nueva sin `local:up`),
+`restore` lo avisa **antes** de tocar la base.
 
 Probado el 2026-11-16 contra una base desechable: respaldo cifrado, `verify` (cifras coinciden),
-`restore` sin `--yes` (se niega), con frase equivocada (no toca la base) y restauración correcta. 4. Entrar, revisar las cifras del Inicio y de la caja, y probar una venta.
+`restore` sin `--yes` (se niega), con frase equivocada (no toca la base) y restauración correcta. El
+2026-11-17 se repitió con el usuario de la aplicación: tras restaurar, la protección del libro sigue
+activa y la aplicación responde.
 
 Objetivos con esta configuración: **RPO ≤ 24 horas** (lo vendido desde el último respaldo se
 vuelve a registrar a mano desde los comprobantes), **RTO ≈ 1 hora** si ya está instalado Docker.

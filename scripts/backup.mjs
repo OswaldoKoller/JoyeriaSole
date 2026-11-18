@@ -24,6 +24,9 @@
 //                         Google Drive gratis tiene 15 GB; con fotos, cada respaldo puede pesar cientos de MB)
 //   BACKUP_CONTAINER      contenedor de PostgreSQL (por defecto, el servicio `db` del proyecto Compose)
 //   COMPOSE_PROJECT_NAME  proyecto Compose (por defecto `joyeria-local`, el de `npm run local:up`)
+//   APP_DB_USER           usuario de PostgreSQL de la aplicación (D3, lo crea `npm run local:up`). Los
+//                         respaldos se guardan sin dueños ni permisos; al restaurar, se le devuelve la
+//                         base y se le vuelve a quitar TRUNCATE (scripts/db-app-role.mjs).
 //
 // Códigos de salida: 0 = todo bien · 1 = falló · 2 = el respaldo local está bien pero falló la segunda copia.
 import { spawn, spawnSync } from 'node:child_process';
@@ -56,6 +59,7 @@ import {
   planRetention,
   positiveInt,
 } from './backup-core.mjs';
+import { appOwnershipSql, assertAppRole } from './db-app-role.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const TASK_NAME = 'JoyeriaSole-Respaldo';
@@ -102,6 +106,7 @@ function loadConfig() {
     project: get('COMPOSE_PROJECT_NAME') ?? 'joyeria-local',
     dbUser: get('POSTGRES_USER') ?? 'joyeria',
     dbName: get('POSTGRES_DB') ?? 'joyeria_dev',
+    appDbUser: get('APP_DB_USER') || null,
   };
 }
 
@@ -167,6 +172,15 @@ function exec(container, args, { allowFail = false } = {}) {
   return { ok: result.status === 0, out: (result.stdout ?? '').trim() };
 }
 
+/** Ejecuta un comando en el contenedor con `input` por la entrada estándar (un script de `psql`). */
+function execWithInput(container, args, input) {
+  const result = dockerSync(['exec', '-i', container, ...args], { input });
+  if (result.error || result.status !== 0) {
+    throw new BackupError(`Falló «${args[0]}»: ${(result.stderr ?? '').trim().slice(0, 400)}`);
+  }
+  return (result.stdout ?? '').trim();
+}
+
 /** Ejecuta un comando en el contenedor leyendo su entrada de un archivo (`pg_restore`). */
 function execWithFileInput(container, args, file) {
   return new Promise((resolve, reject) => {
@@ -200,7 +214,10 @@ function dumpTo(container, config, target) {
         '-d',
         config.dbName,
         '--format=custom',
+        // Sin dueños ni permisos: el archivo no depende de los usuarios de esta instalación (se
+        // restaura también donde no existe APP_DB_USER); la restauración los vuelve a aplicar.
         '--no-owner',
+        '--no-privileges',
         '--compress=6',
       ],
       { stdio: ['ignore', 'pipe', 'pipe'] },
@@ -452,7 +469,16 @@ async function verify(config) {
   try {
     await execWithFileInput(
       container,
-      ['pg_restore', '-U', config.dbUser, '-d', temp, '--no-owner', '--exit-on-error'],
+      [
+        'pg_restore',
+        '-U',
+        config.dbUser,
+        '-d',
+        temp,
+        '--no-owner',
+        '--no-privileges',
+        '--exit-on-error',
+      ],
       plain.path,
     );
     const restored = countRows(container, config, temp);
@@ -507,6 +533,27 @@ async function restore(config) {
   try {
     const toc = await execWithFileInput(container, ['pg_restore', '--list'], plain.path);
     if (!/TABLE DATA/.test(toc)) throw new BackupError('El archivo no contiene datos de tablas.');
+    if (config.appDbUser) {
+      // D3: la base restaurada se devuelve al usuario de la aplicación; si no existe todavía, se
+      // avisa ahora, antes de tocar nada.
+      assertAppRole(config.appDbUser, config.dbUser);
+      const found = exec(container, [
+        'psql',
+        '-U',
+        config.dbUser,
+        '-d',
+        'postgres',
+        '-At',
+        '-c',
+        `SELECT count(*) FROM pg_roles WHERE rolname = '${config.appDbUser}'`,
+      ]);
+      if (found.out !== '1') {
+        throw new BackupError(
+          `El usuario de la aplicación «${config.appDbUser}» no existe en PostgreSQL. ` +
+            'Ejecute `npm run local:up` antes de restaurar.',
+        );
+      }
+    }
     // 2. Respaldo de lo que hay ahora, SIN borrar respaldos antiguos.
     log('Copia de seguridad previa de la base actual…');
     safety = await run(config, { prune: false });
@@ -518,6 +565,7 @@ async function restore(config) {
   const compose = ['compose', '-p', config.project];
   log('Deteniendo la aplicación…');
   dockerSync([...compose, 'stop', appService], { cwd: ROOT });
+  let restored = false;
   try {
     exec(container, [
       'psql',
@@ -539,12 +587,36 @@ async function restore(config) {
     ]);
     await execWithFileInput(
       container,
-      ['pg_restore', '-U', config.dbUser, '-d', config.dbName, '--no-owner', '--exit-on-error'],
+      [
+        'pg_restore',
+        '-U',
+        config.dbUser,
+        '-d',
+        config.dbName,
+        '--no-owner',
+        '--no-privileges',
+        '--exit-on-error',
+      ],
       plain.path,
     );
+    restored = true;
     log(`✔ Base «${config.dbName}» restaurada desde ${path.basename(file)}.`);
+    if (config.appDbUser) {
+      // Lo restaurado quedó a nombre del superusuario: vuelve al usuario de la aplicación, sin TRUNCATE.
+      execWithInput(
+        container,
+        ['psql', '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-U', config.dbUser, '-d', config.dbName],
+        appOwnershipSql({ role: config.appDbUser }),
+      );
+      log(`✔ La base vuelve a pertenecer a «${config.appDbUser}», sin permiso TRUNCATE.`);
+    }
   } catch (error) {
-    log(`✖ La restauración falló. La copia previa de la base está en ${safety}`);
+    log(
+      restored
+        ? '✖ La base se restauró, pero no se pudo devolver al usuario de la aplicación. ' +
+            'Ejecute `npm run local:up` para corregirlo.'
+        : `✖ La restauración falló. La copia previa de la base está en ${safety}`,
+    );
     throw error;
   } finally {
     plain.cleanup();

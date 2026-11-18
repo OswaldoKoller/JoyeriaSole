@@ -12,8 +12,14 @@
 //                   reconstruir, útil para depurar). Sirve también la SPA, en el puerto API_PORT.
 //   --demo          carga además los datos de DEMOSTRACIÓN (usuarios demo, productos y stock ficticios).
 //
-// No es una herramienta de producción: la base de datos y la aplicación quedan accesibles solo desde
-// esta máquina, con las cookies sin HTTPS (COOKIE_SECURE=false). Nunca apuntarlo a datos reales.
+// Es también la instalación de la PC de la tienda (D5, docs/deployment/PC-TIENDA.md): la base de datos
+// y la aplicación quedan accesibles SOLO desde esta máquina, con las cookies sin HTTPS
+// (COOKIE_SECURE=false). No exponer el puerto a la red sin antes configurar HTTPS.
+//
+// Usuarios de PostgreSQL (D3, scripts/db-app-role.mjs): POSTGRES_USER es el superusuario del
+// contenedor y solo administra (crea el usuario de la aplicación, respaldos). La aplicación, sus
+// migraciones y la siembra usan APP_DB_USER (por defecto «joyeria_app»), SIN superusuario, dueño de la
+// base y sin permiso TRUNCATE. `up` lo crea o lo corrige en cada ejecución (idempotente).
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
@@ -29,6 +35,17 @@ import net from 'node:net';
 import path from 'node:path';
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import {
+  DEFAULT_APP_DB_USER,
+  appDatabaseUrl,
+  appOwnershipSql,
+  appRoleSql,
+  assertAppPassword,
+  assertAppRole,
+  parseProtectionStatus,
+  protectionStatusSql,
+  scramVerifier,
+} from './db-app-role.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const ENV_FILE = path.join(ROOT, '.env');
@@ -59,13 +76,18 @@ const log = (message) => print(`▸ ${message}`);
 // Utilidades
 // ---------------------------------------------------------------------------------------------
 
-/** Ejecuta un programa en la raíz del repo. Si falla, termina con un mensaje claro. */
-function run(cmd, args, { env = {}, capture = false, allowFail = false } = {}) {
+/**
+ * Ejecuta un programa en la raíz del repo. Si falla, termina con un mensaje claro. `input` se envía
+ * por la entrada estándar (nunca como argumento: los argumentos se ven en la lista de procesos).
+ */
+function run(cmd, args, { env = {}, capture = false, allowFail = false, input } = {}) {
+  const output = capture ? 'pipe' : 'inherit';
   const result = spawnSync(cmd, args, {
     cwd: ROOT,
     env: { ...process.env, ...env },
     encoding: 'utf8',
-    stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+    input,
+    stdio: [input === undefined ? (capture ? 'ignore' : 'inherit') : 'pipe', output, output],
   });
   if (!allowFail && (result.error || result.status !== 0)) {
     throw new DeployError(`Falló: ${[cmd, ...args].slice(0, 4).join(' ')}`);
@@ -200,7 +222,14 @@ async function ensureEnv() {
     writeFileSync(ENV_FILE, text, { mode: 0o600 });
     log('Se creó .env con contraseñas y secretos aleatorios (no se sube a Git).');
   }
+  ensureAppDbCredentials();
   const env = parseEnv(readFileSync(ENV_FILE, 'utf8'));
+  try {
+    assertAppRole(env.APP_DB_USER, env.POSTGRES_USER ?? 'joyeria');
+    assertAppPassword(env.APP_DB_PASSWORD);
+  } catch (error) {
+    throw new DeployError(error instanceof Error ? error.message : String(error));
+  }
   const missing = [
     'POSTGRES_PASSWORD',
     'DATABASE_URL',
@@ -223,6 +252,106 @@ async function ensureEnv() {
   return env;
 }
 
+/**
+ * D3: agrega a .env el usuario de PostgreSQL de la aplicación (sin superusuario) si todavía no está.
+ * Una instalación anterior lo recibe en su próximo `local:up`. Nunca imprime la contraseña.
+ */
+function ensureAppDbCredentials() {
+  const original = readFileSync(ENV_FILE, 'utf8');
+  const current = parseEnv(original);
+  const missing = ['APP_DB_USER', 'APP_DB_PASSWORD'].filter((key) => !current[key]);
+  if (missing.length === 0) return;
+  const values = {
+    APP_DB_USER: DEFAULT_APP_DB_USER,
+    APP_DB_PASSWORD: randomBytes(24).toString('hex'),
+  };
+  let text = original;
+  const appended = [];
+  for (const key of missing) {
+    if (new RegExp(`^${key}=`, 'm').test(text)) text = setKey(text, key, values[key]);
+    else appended.push(`${key}=${values[key]}`);
+  }
+  if (appended.length > 0) {
+    text =
+      `${text.trimEnd()}\n\n` +
+      '# Usuario de PostgreSQL de la aplicación, sin superusuario (D3). Lo agregó `npm run local:up`.\n' +
+      `${appended.join('\n')}\n`;
+  }
+  writeFileSync(ENV_FILE, text, { mode: 0o600 });
+  log(
+    `Se agregó a .env el usuario de la base para la aplicación (${missing.join(', ')}). ` +
+      'Actualice la copia guardada de .env.',
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Usuario de PostgreSQL de la aplicación (D3, scripts/db-app-role.mjs)
+// ---------------------------------------------------------------------------------------------
+
+function dbSettings(env) {
+  return {
+    superuser: env.POSTGRES_USER ?? 'joyeria',
+    database: env.POSTGRES_DB ?? 'joyeria_dev',
+    port: env.POSTGRES_PORT ?? '5434',
+    role: env.APP_DB_USER ?? DEFAULT_APP_DB_USER,
+  };
+}
+
+/** URL con la que se conectan, desde esta máquina, las migraciones, la siembra y la API (modo node). */
+function appUrl(env) {
+  const { database, port, role } = dbSettings(env);
+  return appDatabaseUrl({ role, password: env.APP_DB_PASSWORD, host: 'localhost', port, database });
+}
+
+/** Variables para los procesos de esta máquina que deben conectarse como el usuario de la aplicación. */
+const asApp = (env) => ({ ...env, DATABASE_URL: appUrl(env) });
+
+/**
+ * Ejecuta SQL como superusuario dentro del contenedor de la base. El SQL va por la entrada estándar
+ * (no como argumento) y la contraseña solo viaja como verificador SCRAM.
+ */
+function psqlAdmin(env, sql, { query = false } = {}) {
+  const { superuser, database } = dbSettings(env);
+  const args = ['exec', '-T', 'db', 'psql', '-X', '-q', '-v', 'ON_ERROR_STOP=1'];
+  args.push('-U', superuser, '-d', database);
+  if (query) args.push('-At', '-F', '|');
+  const result = compose(args, { input: sql, capture: true, allowFail: true });
+  if (result.error || result.status !== 0) {
+    const detail = (result.stderr ?? '').trim().split(/\r?\n/).slice(0, 3).join(' ');
+    throw new DeployError(`PostgreSQL rechazó la operación: ${detail || 'sin detalle'}`);
+  }
+  return result.stdout ?? '';
+}
+
+/**
+ * Crea o corrige el usuario de la aplicación, le pasa la base y le quita TRUNCATE. Idempotente: en una
+ * instalación anterior traspasa la primera vez las tablas que estaban a nombre del superusuario.
+ */
+function prepareAppDatabase(env) {
+  const { role } = dbSettings(env);
+  log(`Preparando el usuario de la base para la aplicación («${role}», sin superusuario)…`);
+  const verifier = scramVerifier(env.APP_DB_PASSWORD);
+  psqlAdmin(
+    env,
+    `SET lock_timeout = '30s';\n${appRoleSql({ role, verifier })}${appOwnershipSql({ role })}`,
+  );
+}
+
+/** Estado de la protección del libro (D3), en una línea para el resumen y `local:status`. */
+function protectionLine(env) {
+  const { role } = dbSettings(env);
+  try {
+    const status = parseProtectionStatus(
+      psqlAdmin(env, protectionStatusSql({ role }), { query: true }),
+    );
+    return status.active
+      ? `Protección del libro: activa (la aplicación usa «${role}», sin superusuario ni TRUNCATE)`
+      : `⚠ Protección del libro: INACTIVA (${status.reasons.join('; ')}). Repetir npm run local:up.`;
+  } catch {
+    return '⚠ Protección del libro: no se pudo consultar (¿está corriendo la base?)';
+  }
+}
+
 /** Dependencias del repo en esta máquina (la siembra y la compilación del modo node las necesitan). */
 function ensureDependencies(env) {
   if (existsSync(path.join(ROOT, 'node_modules', '.package-lock.json'))) return;
@@ -230,6 +359,7 @@ function ensureDependencies(env) {
   npm(['ci'], env);
 }
 
+/** Siembra con el usuario de la aplicación (`env` ya trae su DATABASE_URL, ver `asApp`). */
 function seed(env, demo) {
   log('Aplicando datos iniciales (idempotente)…');
   npm(['run', 'db:seed'], env);
@@ -286,6 +416,7 @@ function startNodeApi(env) {
           ...process.env,
           NODE_ENV: 'production',
           LOG_LEVEL: 'info',
+          DATABASE_URL: appUrl(env),
           API_HOST: '127.0.0.1',
           API_PORT: String(port),
           WEB_DIST_DIR: path.join(ROOT, 'apps', 'web', 'dist'),
@@ -312,6 +443,8 @@ function summary(url, env, demo) {
   print(`
 ✔ Joyería Sole está corriendo en ${url}
 
+  ${protectionLine(env)}
+
   Administrador:  ${env.SEED_ADMIN_EMAIL}
   Contraseña:     valor de SEED_ADMIN_PASSWORD en .env (cámbiela tras el primer ingreso)${
     demo
@@ -334,6 +467,7 @@ async function up() {
 
   log('Iniciando PostgreSQL…');
   compose(['up', '-d', '--wait', '--wait-timeout', '120', 'db']);
+  prepareAppDatabase(env);
 
   if (mode === 'docker') {
     if (readPid() !== undefined) stopNodeApi();
@@ -348,14 +482,20 @@ async function up() {
       );
     }
     log('Construyendo e iniciando la imagen de producción (la primera vez tarda varios minutos)…');
+    // El contenedor se conecta con APP_DB_USER (docker-compose.yml). Se pasan explícitamente para que
+    // una variable del mismo nombre en la consola no cambie el usuario recién preparado.
     compose(
       ['--profile', 'prod', 'up', '-d', '--build', '--wait', '--wait-timeout', '240', 'app'],
       {
-        env: { APP_PORT: String(DOCKER_APP_PORT) },
+        env: {
+          APP_PORT: String(DOCKER_APP_PORT),
+          APP_DB_USER: dbSettings(env).role,
+          APP_DB_PASSWORD: env.APP_DB_PASSWORD,
+        },
       },
     );
     ensureDependencies(env);
-    seed(env, demo);
+    seed(asApp(env), demo);
     await waitForHealth(`http://127.0.0.1:${DOCKER_APP_PORT}/api/v1/health`, 'La aplicación');
     summary(`http://localhost:${DOCKER_APP_PORT}`, env, demo);
     return;
@@ -374,8 +514,10 @@ async function up() {
   log('Compilando API y web…');
   npm(['run', 'build'], env);
   log('Aplicando migraciones…');
-  npm(['run', 'db:deploy'], env);
-  seed(env, demo);
+  npm(['run', 'db:deploy'], asApp(env));
+  // Lo que en la imagen hace prisma/privileges/revoke-app-truncate.sql en cada arranque.
+  prepareAppDatabase(env);
+  seed(asApp(env), demo);
   log('Iniciando la API…');
   startNodeApi(env);
   await waitForHealth(`http://127.0.0.1:${port}/api/v1/health`, 'La API');
@@ -406,6 +548,7 @@ async function status() {
   }
   compose(['--profile', 'prod', 'ps', '--all']);
   const env = existsSync(ENV_FILE) ? parseEnv(readFileSync(ENV_FILE, 'utf8')) : {};
+  if (env.APP_DB_USER) log(protectionLine(env));
   for (const port of [DOCKER_APP_PORT, Number(env.API_PORT ?? 3000)]) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/api/v1/health`, {
