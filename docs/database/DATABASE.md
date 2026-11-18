@@ -362,17 +362,22 @@ pruebas; por eso va aparte:
 - El `CMD` del `Dockerfile` lo ejecuta en cada arranque, tras `prisma migrate deploy` y con el mismo
   `DATABASE_URL` (`npx prisma db execute --file prisma/privileges/revoke-app-truncate.sql`). Hoy la
   aplicación migra y opera con un único rol dueño, que es justo el que pierde `TRUNCATE`.
-- No se aplica en desarrollo, en las pruebas ni en `npm run qa` (no usan la imagen). En
-  `npm run local:up` (modo docker) sí corre, pero el rol de ese PostgreSQL es superusuario y los
-  privilegios no se comprueban: el script emite un `WARNING`. Detalle y límites en
+- No se aplica en desarrollo, en las pruebas ni en `npm run qa` (no usan la imagen).
+- **Instalación local (PC de la tienda, 2026-11-17):** `npm run local:up` crea el usuario
+  `APP_DB_USER` (por defecto `joyeria_app`) sin superusuario, le traspasa la base y le quita `TRUNCATE`
+  (`scripts/db-app-role.mjs`); la aplicación, las migraciones y la siembra se conectan con él, así que la
+  protección sí tiene efecto. Detalle y límites en
   [DEPLOYMENT.md](../deployment/DEPLOYMENT.md#rol-de-la-base-de-datos-sin-truncate).
 
 Pruebas: `apps/api/test/integration/database-integrity.test.ts` intenta violar cada garantía con
 escrituras directas (saldo sin movimiento, movimiento sin saldo, cadena rota, borrado de un saldo con
 stock, reversión de la auditoría de la misma transacción, documento repetido) y ejecuta el script de
 privilegios con un rol no superusuario dueño de las tablas, dentro de una transacción que se revierte:
-el `TRUNCATE` queda rechazado y los demás privilegios intactos. Las pruebas de concurrencia
-(`ledger-*.test.ts`) siguen pasando con los triggers activos.
+el `TRUNCATE` queda rechazado y los demás privilegios intactos. `db-app-role.test.ts` hace lo mismo
+con el SQL de la instalación local: traspasa una base completa a un usuario temporal sin superusuario
+(dos veces, idempotente), comprueba que ese usuario puede operar y migrar pero no vaciar tablas, que
+los objetos de `pg_trgm` no se tocan y que el verificador SCRAM coincide con el que calcula
+PostgreSQL. Las pruebas de concurrencia (`ledger-*.test.ts`) siguen pasando con los triggers activos.
 
 ### Garantías propuestas pendientes (NO implementadas, requieren aprobación)
 

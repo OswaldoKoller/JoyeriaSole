@@ -37,6 +37,7 @@ test.use({
 });
 
 const IMG_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../../docs/tutorial/img');
+const DEMO_LOGO = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures/logo-demo.png');
 const failures: string[] = [];
 
 /** Espera a que no haya cargas pendientes y guarda la captura. */
@@ -357,6 +358,19 @@ test('administrador: recorrido completo', async ({ page, request }) => {
     await shot(page, `${r}/39-datos-negocio`, true);
     await page.getByRole('button', { name: 'Guardar datos' }).click();
   });
+  await step('logo del negocio', async () => {
+    // Logo de DEMOSTRACIÓN (e2e/fixtures/logo-demo.png), no el de la tienda. Los recorridos que
+    // siguen (responsable y vendedor) ya muestran los comprobantes con logo.
+    await page.getByLabel(/^(Subir|Cambiar) logo$/).setInputFiles(DEMO_LOGO);
+    // Hay otro mensaje de estado en la página («Datos guardados»): se busca el del logo.
+    await expect(page.getByText(/^Logo guardado\./)).toBeVisible();
+    await expect(page.getByRole('img', { name: /^Logo de / })).toBeVisible();
+    await page
+      .getByRole('heading', { name: 'Logo del negocio' })
+      .scrollIntoViewIfNeeded()
+      .catch(() => undefined);
+    await shot(page, `${r}/48-logo-del-negocio`);
+  });
 
   const staffEmail = `personal-${SUFFIX}@example.invalid`;
   const staffPassword = `Inicial-${SUFFIX}-xy`;
@@ -674,6 +688,10 @@ test('vendedor: recorrido completo', async ({ page, request }) => {
   await ensureCashClosed(request);
   const r = 'vendedor';
   const piece = await createPiece(request, `Pulsera tutorial ${SUFFIX}`, '80', 3);
+  // Para el cambio de pieza: una más cara (se cobra la diferencia) y una más barata (no se admite).
+  const dearer = await createPiece(request, `Pulsera tutorial grande ${SUFFIX}`, '95', 3);
+  const cheaper = await createPiece(request, `Pulsera tutorial pequeña ${SUFFIX}`, '60', 3);
+  let saleNumber = '';
 
   await login(page, USERS.vendedor);
   await step('inicio y menú reducido', async () => {
@@ -713,7 +731,9 @@ test('vendedor: recorrido completo', async ({ page, request }) => {
     await page.getByRole('button', { name: 'Revisar venta' }).click();
     await shot(page, `${r}/08-pos-revision`);
     await page.getByRole('button', { name: 'Confirmar venta' }).click();
-    await expect(page.getByRole('heading', { name: /^Venta VTA-\d{6} registrada$/ })).toBeVisible();
+    const registered = page.getByRole('heading', { name: /^Venta VTA-\d{6} registrada$/ });
+    await expect(registered).toBeVisible();
+    saleNumber = /VTA-(\d{6})/.exec((await registered.textContent()) ?? '')?.[1] ?? '';
     await shot(page, `${r}/09-venta-registrada`);
   });
   await step('historial propio y reporte de incidencia', async () => {
@@ -732,6 +752,49 @@ test('vendedor: recorrido completo', async ({ page, request }) => {
     await dialog.getByRole('button', { name: 'Reportar incidencia' }).click();
     await expect(page.getByText(/Incidencia INC-\d{6} registrada/)).toBeVisible();
     await shot(page, `${r}/13-incidencia-registrada`);
+  });
+  await step('cambio de pieza: buscar la venta del comprobante', async () => {
+    expect(saleNumber).not.toBe('');
+    await menu(page).getByRole('link', { name: 'Cambio de pieza' }).click();
+    await page.getByLabel('Número de la venta (VTA-…)').fill(saleNumber);
+    await page.getByRole('button', { name: 'Buscar venta' }).click();
+    await expect(page.getByText(`Venta VTA-${saleNumber}`)).toBeVisible();
+    await shot(page, `${r}/17-cambio-venta-encontrada`);
+  });
+  await step('cambio de pieza: una más barata no se admite', async () => {
+    await scan(page, cheaper.sku);
+    await expect(page.getByRole('alert')).toContainText('cuesta menos');
+    // El aviso queda debajo de la pieza elegida: se centra para que se vean los dos.
+    await page.getByRole('alert').evaluate((element) => {
+      element.scrollIntoView({ block: 'center' });
+    });
+    await shot(page, `${r}/18-cambio-pieza-mas-barata`);
+  });
+  await step('cambio de pieza: más cara, se cobra la diferencia', async () => {
+    await scan(page, dearer.sku);
+    await expect(page.getByText(/Diferencia a cobrar/)).toContainText('15,00');
+    await page.getByLabel('Efectivo recibido (Bs)').fill('20');
+    await expect(page.getByRole('status', { name: 'Estado del cobro' })).toContainText(/5,00/);
+    // Sin captura de página completa (el menú lateral fijo se desplaza): la pieza nueva, la
+    // diferencia y el cobro caben en la pantalla desde la pieza nueva hacia abajo.
+    await page.getByText(/Diferencia a cobrar/).evaluate((element) => {
+      element.scrollIntoView({ block: 'start' });
+    });
+    await page.mouse.wheel(0, -120);
+    await shot(page, `${r}/19-cambio-cobro-diferencia`);
+    await page.getByRole('button', { name: 'Registrar cambio' }).click();
+    await expect(page.getByText(/Cambio CMB-\d{6} registrado/)).toBeVisible();
+    await shot(page, `${r}/20-cambio-registrado`);
+  });
+  await step('cambio de pieza: comprobante e historial', async () => {
+    await page.getByRole('link', { name: 'Ver e imprimir comprobante' }).click();
+    await expect(page.getByText(/CMB-\d{6}/).first()).toBeVisible();
+    await shot(page, `${r}/21-cambio-comprobante`, true);
+    await menu(page).getByRole('link', { name: 'Historial de cambios' }).click();
+    await expect(
+      page.getByRole('link', { name: /Abrir el cambio CMB-\d{6}/ }).first(),
+    ).toBeVisible();
+    await shot(page, `${r}/22-historial-de-cambios`);
   });
   await step('sin permiso', async () => {
     await go(page, '/caja/historial');

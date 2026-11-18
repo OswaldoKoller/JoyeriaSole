@@ -103,13 +103,24 @@ comprobante de la venta y sin plazo. Si la pieza nueva cuesta más, el cliente *
    QR o transferencia, igual que en una venta. Si cuesta lo mismo, no hay nada que cobrar.
 7. Pulse **Registrar cambio**. Aparece el cambio **CMB-000001**: imprima su **comprobante**.
 
+![Venta encontrada por su número](img/vendedor/17-cambio-venta-encontrada.png)
+
+![Una pieza más barata no se admite](img/vendedor/18-cambio-pieza-mas-barata.png)
+
+![Diferencia a cobrar y vuelto](img/vendedor/19-cambio-cobro-diferencia.png)
+
+![Cambio registrado](img/vendedor/20-cambio-registrado.png)
+
+![Comprobante del cambio](img/vendedor/21-cambio-comprobante.png)
+
 Qué hace el sistema por usted: la pieza que devuelve el cliente **vuelve al stock** y la nueva **sale del
 stock**; la diferencia entra a la **caja** (si es efectivo, cuenta en el arqueo). La venta original
 **no se modifica**. Un cambio **no se puede deshacer**: si se equivocó, avise al Administrador.
 
 Requisito: **debe haber una caja abierta**. Los cambios se ven en **Ventas → Historial de cambios** y
-en el detalle de la venta. _(Las capturas de esta pantalla se agregan en la próxima revisión del
-tutorial.)_
+en el detalle de la venta.
+
+![Historial de cambios](img/vendedor/22-historial-de-cambios.png)
 
 ## 6. Reportar una incidencia
 
